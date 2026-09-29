@@ -33,6 +33,9 @@ CONFIGS = {
     '5m_rec':       dict(tf='5m',  params=dict(chan_level=0, max_hold_bars=48), trail=True),
     '1h_rec':       dict(tf='1h',  params=dict(chan_level=0, max_hold_bars=48), trail=True),
     '15m_gainers':  dict(tf='15m', params=dict(chan_level=0, max_hold_bars=48), trail=True, gainers=True),
+    # 系统内的方案一（V7.6.12）：A/B 段用 180 天数据，C 段用更早的全新数据
+    'scheme1':      dict(tf='15m', params=dict(chan_scheme1=1), trail=True, btc=True),
+    'scheme1_old':  dict(tf='15m', params=dict(chan_scheme1=1), trail=True, btc=True, suffix='15m_old'),
 }
 BASE = dict(strategy='chan_quant', chan_mtf=0)
 TF_MS = {'5m': 300000, '15m': 900000, '1h': 3600000}
@@ -44,9 +47,9 @@ def _patched_chan(f, ind=None, **kw):
     return _CURRENT['result']
 
 
-def load(inst, tf):
+def load(inst, tf, suffix=None):
     src = '15m' if tf == '1h' else tf
-    path = os.path.join(DATA, f'{inst}_{src}.npz')
+    path = os.path.join(DATA, f'{inst}_{suffix or src}.npz')
     if not os.path.exists(path):
         return []
     z = np.load(path)
@@ -87,7 +90,10 @@ def simulate(inst, cfg, gainers=None):
     p = V.validate_params({**BASE, 'base_tf': tf, **cfg['params']})
     trades = []; stats = dict(signals=0, entered=0, reasons={})
     A.chan = _patched_chan
-    for f in load(inst, tf):
+    btc = None
+    if cfg.get('btc'):
+        z = np.load(os.path.join(DATA, f"BTC-USDT-SWAP_{cfg.get('suffix') or tf}.npz")); btc = {k: z[k] for k in ('ts', 'close')}
+    for f in load(inst, tf, cfg.get('suffix')):
         n = len(f['ts']); pos = None
         for s, a, b in anchors(n):
             F = {k: v[s:b + 1] for k, v in f.items()}
@@ -110,8 +116,11 @@ def simulate(inst, cfg, gainers=None):
                         stats['reasons']['不在涨幅榜'] = stats['reasons'].get('不在涨幅榜', 0) + 1
                         continue
                     sub = {k: v[:j + 1] for k, v in F.items()}
-                    out = V.decide(inst, dict(frames={tf: sub}, ticker_last=float(sub['close'][-1]), spread_bps=2,
-                                              as_of_ms=int(ts[j]) + ms + 1000), p)
+                    data = dict(frames={tf: sub}, ticker_last=float(sub['close'][-1]), spread_bps=2, as_of_ms=int(ts[j]) + ms + 1000)
+                    if btc is not None:   # 与实盘一致：只给最近 1500 根已收盘 BTC 15m
+                        kb = int(np.searchsorted(btc['ts'], int(ts[j]), side='right'))
+                        data['btc_frame'] = {k: v[max(0, kb - 1500):kb] for k, v in btc.items()}
+                    out = V.decide(inst, data, p)
                     if out['signal'] == 'FLAT':
                         r = out['reason'][3:15]; stats['reasons'][r] = stats['reasons'].get(r, 0) + 1
                         continue
