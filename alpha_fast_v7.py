@@ -21,7 +21,7 @@ import numpy as np
 from alpha_v7_analysis import STRATEGIES, analyze
 from alpha_v7_feed import tf_ms, higher_tfs
 
-VERSION = '7.6.11-CHAN-ENGINE'
+VERSION = '7.6.12-SCHEME1'
 
 PARAMS = dict(
     strategy='ema_cross',
@@ -48,6 +48,7 @@ PARAMS = dict(
     chan_level=1, chan_mtf=1, chan_exit_opposite=1, pine_id='', orderflow_mode=0,
     # 缠论：笔模式(0老笔/1新笔)、背驰面积(0绝对值/1同向)、信号宽限根数
     chan_pen=0, chan_macd=1, chan_grace_bars=1,
+    chan_scheme1=0,                # 方案一：打开后自动套用下方 SCHEME1 的全部设置（见 apply_scheme1）
     # 成本与门槛（口径同 V6）
     fee_side=0.0006, slip_side=0.0003,
     min_stop=0.002, max_stop=0.035,
@@ -79,6 +80,50 @@ from pathlib import Path as _Path
 
 def params_file() -> _Path:
     return _Path(_os.getenv('ALPHA_V7_PARAMS_FILE') or _Path(__file__).with_name('v7_params.json'))
+
+
+# 方案一（离线研究：OKX 约 100 个币、三段时间、按实盘规则回放后最接近打平的一套）。
+# 打开后强制使用下列设置，避免和其他开关混用；页面保存后会显示这些值。
+SCHEME1 = dict(strategy='chan_quant', base_tf='15m', chan_level=0, chan_mtf=0, chan_exit_opposite=0,
+               chan_buy1=0, chan_sell1=0, chan_buy1p=0, chan_sell1p=0, chan_buy2=0, chan_sell2=0,
+               chan_buy2s=0, chan_sell2s=0, chan_buy3=1, chan_sell3=1,
+               sl_mode='structure', close_confirm=0, trail_activate_r=1.0, trail_atr_k=2.0, runner=0,
+               max_hold_bars=192)
+SCHEME1_MIN_RISK = 0.0172      # 止损距离下限（研究里前半段止损距离的 40% 分位）
+SCHEME1_TP_R = 20.0            # 不设固定止盈：交易所保护止盈挂在 20R 之外，只作兜底
+
+
+def ema_last(x, n):
+    return float(ema_arr(x, n)[-1])
+
+
+def h4_ema50(f):
+    """由 15m K 线合成已收盘的 4h K 线（UTC 对齐、16 根齐全），返回最后一根 4h 收盘时的 EMA50；不足 60 根返回 None。"""
+    ts = np.asarray(f['ts'], np.int64); c = np.asarray(f['close'], float); step = 16 * 900000
+    b = ts // step; last = np.flatnonzero(np.r_[b[1:] != b[:-1], True])
+    first = np.r_[0, last[:-1] + 1]
+    done = [(i, j) for i, j in zip(first, last) if j - i + 1 == 16 and ts[j] + 900000 == (b[j] + 1) * step]
+    if len(done) < 60: return None
+    return ema_last(c[[j for _, j in done]], 50)
+
+
+def scheme1_plan(f, ev, direction, ref, atr_last, btc):
+    """方案一的入场条件与止损。返回 dict(stop, ...) 或不满足时的中文原因。"""
+    if not ev or ev.get('kind') != 'T3': return '方案一只做3买/3卖'
+    h4 = h4_ema50(f)
+    if h4 is None: return '方案一：4小时K线不足60根，等待历史'
+    if np.sign(ref - h4) != direction: return '方案一：4小时EMA50方向不一致，不做逆势单'
+    if not btc or len(btc.get('close', [])) < 400: return '方案一：缺少BTC 15分钟行情'
+    bts = np.asarray(btc['ts'], np.int64); k = int(np.searchsorted(bts, int(f['ts'][-1]), side='right')) - 1
+    if k < 0 or int(f['ts'][-1]) - int(bts[k]) > 900000: return '方案一：BTC行情与本币K线不同步'
+    bc = np.asarray(btc['close'], float)[:k + 1]
+    if np.sign(bc[-1] - ema_last(bc, 200)) != direction: return '方案一：BTC方向（15m EMA200）不一致'
+    stop = float(ev['invalidation']) - direction * 1.0 * atr_last
+    risk = direction * (ref - stop)
+    if risk <= 0: return '方案一：止损方向无效'
+    if risk / ref < SCHEME1_MIN_RISK: return '方案一：止损距离不足1.72%，手续费占比过高'
+    if risk / ref > 0.20: return '方案一：止损距离超过20%，放弃'
+    return dict(stop=stop, h4=h4, btc_close=float(bc[-1]))
 
 
 def migrate_params(values, legacy=None):
@@ -113,7 +158,7 @@ def validate_params(opts=None):
             'bb_n': (2, 100), 'macd_fast': (1, 100), 'macd_slow': (2, 100),
             'macd_signal': (1, 100), 'rsi_n': (2, 100), 'don_n': (2, 100),
             'max_hold_bars': (1, 2016), 'structure_bars': (5, 100), 'chan_level': (0, 3), 'orderflow_mode': (0, 2), 'chan_grace_bars': (0, 3)}
-    for key in ('dynamic_tp','close_confirm','runner','chan_buy1','chan_buy2','chan_buy3','chan_sell1','chan_sell2','chan_sell3','chan_mtf','chan_exit_opposite','chan_buy1p','chan_sell1p','chan_buy2s','chan_sell2s','chan_pen','chan_macd'):
+    for key in ('dynamic_tp','close_confirm','runner','chan_buy1','chan_buy2','chan_buy3','chan_sell1','chan_sell2','chan_sell3','chan_mtf','chan_exit_opposite','chan_buy1p','chan_sell1p','chan_buy2s','chan_sell2s','chan_pen','chan_macd','chan_scheme1'):
         ints[key]=(0,1)
     for k, (lo, hi) in ints.items():
         try: v = float(p[k])
@@ -147,6 +192,8 @@ def validate_params(opts=None):
             from pine_v5.live_contract import require_live
             require_live(program, p['base_tf'])
     elif p['strategy']=='pine_import':raise ValueError('请先导入并保存Pine策略')
+    if p['chan_scheme1']:
+        p.update(SCHEME1)
     return p
 
 
@@ -506,60 +553,74 @@ def decide(symbol, data, params=None):
         if flow.get('fresh'):evidence.append('真实订单流：主动成交偏向 %.2f / 盘口 %.2f'%(num(flow.get('trade_imbalance')),num(flow.get('book_imbalance'))))
     ref = float(c[-1])
     if chan_signal and direction*(ref-chan_signal['invalidation'])<=0:return wait('缠论信号确认时已越过失效位，不追历史转折')
-    if str(p['sl_mode']) == 'fixed':
-        risk = float(p['sl_fixed']) * ref
-    else:
-        risk = float(p['sl_atr_k']) * float(a[-1])
-    stop = ref - direction * risk
-    strategy_stop = stop
-    if p['sl_mode']=='structure':
-        n=int(p['structure_bars'])
-        wick=(np.minimum(o[-n:],c[-n:])-l[-n:]) if direction==1 else (h[-n:]-np.maximum(o[-n:],c[-n:]))
-        structural=float(np.min(l[-n:]) if direction==1 else np.max(h[-n:]))
-        if chan_signal:structural=min(structural,float(chan_signal['invalidation'])) if direction==1 else max(structural,float(chan_signal['invalidation']))
-        buffer=float(p['sl_buffer_atr'])*float(a[-1])+float(p['wick_buffer'])*float(np.quantile(wick,.75))
-        strategy_stop=structural-direction*buffer
-        stop=strategy_stop-direction*(float(p['disaster_atr'])*float(a[-1]) if p['close_confirm'] else 0)
-        risk=direction*(ref-stop)
-    if risk<=0:return wait('结构止损方向无效')
-    if abs(px - ref) > float(p['max_chase_r']) * risk:
-        return wait('当前价偏离收盘触发位，放弃追价')
-    sl = direction * (px - stop) / px
-    if sl < float(p['min_stop']) or sl > float(p['max_stop']):
-        return wait('止损距离不适合日内成本/波动预算')
-    target = ref + direction * float(p['rr']) * risk
-    target_reason='风险倍数目标'
-    center_target=chan_center_target(analysis,chan_signal) if chan_signal and p['dynamic_tp'] else None
-    if center_target is not None:
-        # 背驰类买卖点（1/盘背1/2/类2）：背驰后至少回到最后一个中枢（第29/33课），目标取中枢核心近端边界。
-        # 中枢只是最低目标；确认时已接近或回到中枢，则沿用风险倍数目标，不再截到就近小波段。
-        if direction*(center_target-px)>risk*.6:
-            target=center_target-direction*.1*float(a[-1]);target_reason='缠论背驰回抽目标：最后中枢核心边界（预留0.1ATR）'
-        else:target_reason='缠论背驰点已回到最后中枢，沿用风险倍数目标'
-    elif chan_signal and chan_signal.get('kind')=='T3' and p['dynamic_tp']:
-        # 3买/3卖是离开中枢后的顺势点，本来就预期突破离开段高/低点；
-        # 截到最近小波段高点会与信号含义冲突（实测是“目标空间不足”拒单的主要来源），这里按风险倍数目标。
-        target_reason='缠论3类点：风险倍数目标（不截到最近小波段）'
-    elif p['dynamic_tp'] and p['sl_mode']=='structure':
-        if analysis is None:analysis=analyze(f)
-        levels=[e['price'] for e in analysis['events'] if e['label'] in ('HH','LH','HL','LL','等高流动性','等低流动性') and direction*(e['price']-px)>risk*.6]
-        if strat in ('boll_revert','vwap_revert'):
-            levels.append(float(analysis['values']['vwap']))
-        valid=[x for x in levels if direction*(x-px)>risk*.6]
-        if valid:
-            nearest=min(valid,key=lambda x:direction*(x-px))
-            if direction*(nearest-target)<0:
-                target=nearest-direction*.1*float(a[-1]);target_reason='就近结构/流动性目标（预留0.1ATR）'
-    tp = direction * (target - px) / px
-
     spread = num(data.get('spread_bps'), -1)
     cost = 2 * (float(p['fee_side']) + float(p['slip_side'])) + \
            (spread / 10000 if spread >= 0 else 0.0004)
-    if sl < float(p['min_risk_cost']) * cost:
-        return wait('可交易波动相对往返成本不足')
-    if tp <= 0 or tp < float(p['min_target_cost']) * cost or \
-       (tp - cost) / (sl + cost) < float(p['min_net_rr']):
-        return wait('目标空间不足以覆盖成本，未把指标信号当作盈利概率')
+    if p['chan_scheme1']:
+        plan = scheme1_plan(f, chan_signal, direction, ref, float(a[-1]), data.get('btc_frame'))
+        if isinstance(plan, str): return wait(plan)
+        stop = strategy_stop = plan['stop']; risk = direction * (ref - stop)
+        if abs(px - ref) > float(p['max_chase_r']) * risk:
+            return wait('当前价偏离收盘触发位，放弃追价')
+        sl = direction * (px - stop) / px
+        tp = min(SCHEME1_TP_R * risk / px, 0.9); target = px * (1 + direction * tp)
+        target_reason = '方案一：不设固定止盈（20R 外保护单），靠2ATR移动止损与48小时到期出场'
+        evidence.append('方案一：4h EMA50=%.6g、BTC顺势、止损距离 %.2f%%' % (plan['h4'], risk / ref * 100))
+    else:
+        if str(p['sl_mode']) == 'fixed':
+            risk = float(p['sl_fixed']) * ref
+        else:
+            risk = float(p['sl_atr_k']) * float(a[-1])
+        stop = ref - direction * risk
+        strategy_stop = stop
+        if p['sl_mode']=='structure':
+            n=int(p['structure_bars'])
+            wick=(np.minimum(o[-n:],c[-n:])-l[-n:]) if direction==1 else (h[-n:]-np.maximum(o[-n:],c[-n:]))
+            structural=float(np.min(l[-n:]) if direction==1 else np.max(h[-n:]))
+            if chan_signal:structural=min(structural,float(chan_signal['invalidation'])) if direction==1 else max(structural,float(chan_signal['invalidation']))
+            buffer=float(p['sl_buffer_atr'])*float(a[-1])+float(p['wick_buffer'])*float(np.quantile(wick,.75))
+            strategy_stop=structural-direction*buffer
+            stop=strategy_stop-direction*(float(p['disaster_atr'])*float(a[-1]) if p['close_confirm'] else 0)
+            risk=direction*(ref-stop)
+        if risk<=0:return wait('结构止损方向无效')
+        if abs(px - ref) > float(p['max_chase_r']) * risk:
+            return wait('当前价偏离收盘触发位，放弃追价')
+        sl = direction * (px - stop) / px
+        if sl < float(p['min_stop']) or sl > float(p['max_stop']):
+            return wait('止损距离不适合日内成本/波动预算')
+        target = ref + direction * float(p['rr']) * risk
+        target_reason='风险倍数目标'
+        center_target=chan_center_target(analysis,chan_signal) if chan_signal and p['dynamic_tp'] else None
+        if center_target is not None:
+            # 背驰类买卖点（1/盘背1/2/类2）：背驰后至少回到最后一个中枢（第29/33课），目标取中枢核心近端边界。
+            # 中枢只是最低目标；确认时已接近或回到中枢，则沿用风险倍数目标，不再截到就近小波段。
+            if direction*(center_target-px)>risk*.6:
+                target=center_target-direction*.1*float(a[-1]);target_reason='缠论背驰回抽目标：最后中枢核心边界（预留0.1ATR）'
+            else:target_reason='缠论背驰点已回到最后中枢，沿用风险倍数目标'
+        elif chan_signal and chan_signal.get('kind')=='T3' and p['dynamic_tp']:
+            # 3买/3卖是离开中枢后的顺势点，本来就预期突破离开段高/低点；
+            # 截到最近小波段高点会与信号含义冲突（实测是“目标空间不足”拒单的主要来源），这里按风险倍数目标。
+            target_reason='缠论3类点：风险倍数目标（不截到最近小波段）'
+        elif p['dynamic_tp'] and p['sl_mode']=='structure':
+            if analysis is None:analysis=analyze(f)
+            levels=[e['price'] for e in analysis['events'] if e['label'] in ('HH','LH','HL','LL','等高流动性','等低流动性') and direction*(e['price']-px)>risk*.6]
+            if strat in ('boll_revert','vwap_revert'):
+                levels.append(float(analysis['values']['vwap']))
+            valid=[x for x in levels if direction*(x-px)>risk*.6]
+            if valid:
+                nearest=min(valid,key=lambda x:direction*(x-px))
+                if direction*(nearest-target)<0:
+                    target=nearest-direction*.1*float(a[-1]);target_reason='就近结构/流动性目标（预留0.1ATR）'
+        tp = direction * (target - px) / px
+
+        spread = num(data.get('spread_bps'), -1)
+        cost = 2 * (float(p['fee_side']) + float(p['slip_side'])) + \
+               (spread / 10000 if spread >= 0 else 0.0004)
+        if sl < float(p['min_risk_cost']) * cost:
+            return wait('可交易波动相对往返成本不足')
+        if tp <= 0 or tp < float(p['min_target_cost']) * cost or \
+           (tp - cost) / (sl + cost) < float(p['min_net_rr']):
+            return wait('目标空间不足以覆盖成本，未把指标信号当作盈利概率')
 
     score = 0.55   # 固定技术门槛，不是模型概率
     side = 'LONG' if direction == 1 else 'SHORT'
@@ -584,7 +645,7 @@ def decide(symbol, data, params=None):
               bar_ts=int(f['ts'][-1]), score_is_probability=False,
               target_reason=target_reason, exit_policy='adaptive',
               v7_strategy_stop=float(strategy_stop), v7_atr=float(a[-1]),
-              v7_exit_config={k:p[k] for k in ('close_confirm','trail_activate_r','trail_atr_k','runner','runner_rr','sl_mode')},
+              v7_exit_config={**{k:p[k] for k in ('close_confirm','trail_activate_r','trail_atr_k','runner','runner_rr','sl_mode')},'scheme1':p['chan_scheme1']},
               protect_at_r=float(p['trail_activate_r']), min_net_rr=float(p['min_net_rr']),
               max_chase_r=float(p['max_chase_r']),
               min_target_cost=float(p['min_target_cost']))
@@ -742,7 +803,8 @@ def native_trail_config(position):
     risk=entry*num(position.get('base_sl_pct'));cfg=position.get('v7_exit_config') or {}
     activation=max(risk*num(cfg.get('trail_activate_r'),1),entry*num(position.get('v7_round_cost'),.0022)*1.5)
     active=entry+d*activation
-    distance=max(num(position.get('v7_atr'),risk/1.5)*num(cfg.get('trail_atr_k'),1.5),risk*.6)
+    distance=num(position.get('v7_atr'),risk/1.5)*num(cfg.get('trail_atr_k'),1.5)
+    if not cfg.get('scheme1'):distance=max(distance,risk*.6)   # 方案一严格按研究：回撤 2ATR，不设 0.6R 下限
     return active,max(.001,min(distance/max(active,1e-12),.10))
 
 

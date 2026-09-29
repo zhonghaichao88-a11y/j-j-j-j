@@ -2113,6 +2113,11 @@ def predict(symbol: str) -> Dict[str,Any]:
                   'summary':{'ready':not missing,'missing':missing,
                              'completed_bars':{tf:int(len(fr.get('close',[]))) for tf,fr in frames.items()},
                              'entry_timeframe':bt,'spread_bps':spread_bps}}
+            if v7p.get('chan_scheme1'):
+                # 方案一需要 BTC 15m 趋势（EMA200）；只读公开K线，失败则本轮不开仓
+                from alpha_v7_feed import frame as v7_frame
+                try:data['btc_frame']=v7_frame(okx_client._exchange,config.trading.get_ccxt_symbol('BTC-USDT-SWAP'),'15m',count=1500,now_ms=now_ms)
+                except Exception as exc:data['btc_frame']=None;logger.warning(f'[V7 方案一] BTC 行情读取失败：{exc}')
             if v7p.get('orderflow_mode'):
                 from alpha_v7_orderflow import streaming_snapshot as flow_snapshot
                 try:data['orderflow']=flow_snapshot(okx_client._exchange,cs)
