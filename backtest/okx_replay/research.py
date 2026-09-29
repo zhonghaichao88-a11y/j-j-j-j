@@ -44,23 +44,23 @@ def outcomes(f, j, d, stop, a):
     entry = f['close'][j]; risk = abs(entry - stop); n = len(f['close'])
     hi, lo, cl = f['high'], f['low'], f['close']
     res = {}
-    def run(tp_r, hold, trail_atr=None, trail_after=1.0):
-        best = entry; trail = None
+    def run(tp_r, hold, trail_atr=None, trail_after=1.0, breakeven=False):
+        best = entry; trail = None; sl = stop
         for k in range(j + 1, min(j + 1 + hold, n)):
             adverse = lo[k] if d == 1 else hi[k]; fav = hi[k] if d == 1 else lo[k]
-            if d * (adverse - stop) <= 0: return -1.0 if d * (f['open'][k] - stop) > 0 else d * (f['open'][k] - entry) / risk
-            if trail is not None and d * (adverse - trail) <= 0: return d * (trail - entry) / risk
-            if tp_r and d * (fav - (entry + d * tp_r * risk)) >= 0: return float(tp_r)
+            if d * (adverse - sl) <= 0: return (d * (sl - entry) / risk if d * (f['open'][k] - sl) > 0 else d * (f['open'][k] - entry) / risk), k - j
+            if trail is not None and d * (adverse - trail) <= 0: return d * (trail - entry) / risk, k - j
+            if tp_r and d * (fav - (entry + d * tp_r * risk)) >= 0: return float(tp_r), k - j
             best = max(best, fav) if d == 1 else min(best, fav)
+            if breakeven and d * (best - entry) >= risk: sl = entry if d * (entry - sl) > 0 else sl
             if trail_atr and d * (best - entry) >= trail_after * risk:
                 cand = best - d * trail_atr * a
                 trail = cand if trail is None else (max(trail, cand) if d == 1 else min(trail, cand))
         k = min(j + hold, n - 1)
-        return d * (cl[k] - entry) / risk
-    res['tp2_h48'] = run(2, 48)
-    res['tp3_h96'] = run(3, 96)
-    res['trail2atr_h192'] = run(None, 192, trail_atr=2.0)
-    res['hold96'] = run(None, 96)
+        return d * (cl[k] - entry) / risk, k - j
+    for name, args in (('tp2_h48', (2, 48)), ('trail2atr_h192', (None, 192, 2.0)), ('hold48', (None, 48)), ('hold96', (None, 96)),
+                       ('hold144', (None, 144)), ('hold96_be', (None, 96, None, 1.0, True)), ('trail3atr_h96', (None, 96, 3.0))):
+        res[name], res[name + '_bars'] = run(*args)
     res['complete'] = j + 192 < n
     return res
 
@@ -68,7 +68,7 @@ def outcomes(f, j, d, stop, a):
 def one(inst):
     rows = []
     try:
-        chunks = B.load(inst, TF)
+        chunks = LOAD(inst)
     except Exception:
         return rows
     btc = BTC
@@ -98,24 +98,43 @@ def one(inst):
                            volr=float(f['volume'][j] / max(vol20[j], 1e-12)),
                            hour=int((t // 3600000) % 24),
                            btc=float(bi * d) if bi is not None else 0.0)
-                for name, sb in (('s1', 0.35), ('s2', 1.0)):
+                bd = BTCD.get(t)
+                row.update(btc_dist=float(bd[0] * d) if bd else 0.0, btc_h4s=float(bd[1] * d) if bd else 0.0,
+                           h4_dist=float((c - h4[j]) / at * d) if np.isfinite(h4[j]) else 0.0)
+                for name, sb in (('s2', 1.0),):
                     stop = pivot - d * sb * at; risk = abs(c - stop) / c
                     o = outcomes(f, j, d, stop, at)
                     row[name + '_risk'] = risk; row[name + '_costR'] = COST / risk
                     for k2, v in o.items():
-                        if k2 != 'complete': row[f'{name}_{k2}'] = v
+                        if k2 != 'complete': row[f'{name}_{k2}' if not k2.endswith('_bars') else k2] = v
                     row['complete'] = o['complete']
                 rows.append(row)
     return rows
 
 
 def btc_regime():
-    f = B.load('BTC-USDT-SWAP', TF)
-    out = {}
+    f = LOAD('BTC-USDT-SWAP')
+    out = {}; dist = {}
     for g in f:
-        e = ema(g['close'], 200)
-        for t, c, v in zip(g['ts'], g['close'], e): out[int(t)] = float(np.sign(c - v))
+        e = ema(g['close'], 200); h4, h4s = higher_ema(g, 16, 50)
+        for i, (t, c, v) in enumerate(zip(g['ts'], g['close'], e)):
+            out[int(t)] = float(np.sign(c - v)); dist[int(t)] = (c / v - 1, h4s[i])
+    BTCD.update(dist)
     return out
+
+
+SUFFIX = os.environ.get('RESEARCH_SUFFIX', '15m')
+
+
+def LOAD(inst):
+    path = os.path.join(B.DATA, f'{inst}_{SUFFIX}.npz')
+    if not os.path.exists(path): return []
+    z = np.load(path); f = {k: z[k] for k in ('ts', 'open', 'high', 'low', 'close', 'volume')}
+    cuts = np.flatnonzero(np.diff(f['ts']) != MS) + 1
+    return [{k: v[a:b] for k, v in f.items()} for a, b in zip(np.r_[0, cuts], np.r_[cuts, len(f['ts'])]) if b - a >= 1600]
+
+
+BTCD = {}
 
 
 BTC = {}
@@ -126,5 +145,5 @@ if __name__ == '__main__':
     uni = [i for i, c in cats.items() if c == '1']
     with Pool(4, initializer=B._init) as p:
         rows = [r for part in p.map(one, uni) for r in part]
-    json.dump(rows, open(os.path.join(B.DATA, 'research_15m.json'), 'w'))
+    json.dump(rows, open(os.path.join(B.DATA, os.environ.get('RESEARCH_OUT', 'research_15m_v2.json')), 'w'))
     print('signals', len(rows))
