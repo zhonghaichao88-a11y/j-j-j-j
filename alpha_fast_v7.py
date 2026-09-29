@@ -21,7 +21,7 @@ import numpy as np
 from alpha_v7_analysis import STRATEGIES, analyze
 from alpha_v7_feed import tf_ms, higher_tfs
 
-VERSION = '7.6.8-CHAN-BSP'
+VERSION = '7.6.10-CHAN-SWITCHES'
 
 PARAMS = dict(
     strategy='ema_cross',
@@ -41,10 +41,13 @@ PARAMS = dict(
     rr=2.0,
     dynamic_tp=1, structure_bars=12, sl_buffer_atr=0.35, wick_buffer=0.25,
     close_confirm=1, disaster_atr=0.75, trail_activate_r=1.0, trail_atr_k=1.5,
-    runner=1, runner_rr=5.0, chan_buy1=0, chan_buy2=1, chan_buy3=1,
-    chan_sell1=0, chan_sell2=1, chan_sell3=1, chan_level=1, chan_mtf=1, chan_exit_opposite=1, pine_id='', orderflow_mode=0,
-    # 缠论补全：盘背1买/1卖是否下单、笔模式(0老笔/1新笔)、背驰面积(0绝对值/1同向)、信号宽限根数
-    chan_pz=0, chan_pen=0, chan_macd=1, chan_grace_bars=1,
+    runner=1, runner_rr=5.0, chan_buy1=1, chan_buy2=1, chan_buy3=1,
+    chan_sell1=1, chan_sell2=1, chan_sell3=1,
+    chan_buy1p=0, chan_sell1p=0,   # 盘整背驰1买/1卖（实测亏损明显，默认只画图）
+    chan_buy2s=1, chan_sell2s=1,   # 类2买/类2卖
+    chan_level=1, chan_mtf=1, chan_exit_opposite=1, pine_id='', orderflow_mode=0,
+    # 缠论：笔模式(0老笔/1新笔)、背驰面积(0绝对值/1同向)、信号宽限根数
+    chan_pen=0, chan_macd=1, chan_grace_bars=1,
     # 成本与门槛（口径同 V6）
     fee_side=0.0006, slip_side=0.0003,
     min_stop=0.002, max_stop=0.035,
@@ -78,7 +81,26 @@ def params_file() -> _Path:
     return _Path(_os.getenv('ALPHA_V7_PARAMS_FILE') or _Path(__file__).with_name('v7_params.json'))
 
 
+def migrate_params(values, legacy=None):
+    """旧格式参数转换（已保存的参数文件、旧持仓锁定的开关）：
+    - 以前“盘整背驰下单(chan_pz)”要同时开一买/一卖才生效，换成独立的盘背1买/1卖开关；
+    - 以前类2买跟着二买开关走：旧格式（没有 chan_buy2s）时沿用二买的值。
+    正常的页面保存不会触发第二条，避免只改二买时误改类二买。"""
+    v = dict(values or {})
+    if legacy is None:
+        legacy = 'chan_pz' in v
+    if 'chan_pz' in v:
+        pz = v.pop('chan_pz')
+        for side in ('buy', 'sell'):
+            v.setdefault(f'chan_{side}1p', 1 if (str(pz) not in ('0', '', 'None') and str(v.get(f'chan_{side}1', 0)) not in ('0', '')) else 0)
+    if legacy:
+        for side in ('buy', 'sell'):
+            if f'chan_{side}2' in v: v.setdefault(f'chan_{side}2s', v[f'chan_{side}2'])
+    return v
+
+
 def validate_params(opts=None):
+    opts = migrate_params(opts)
     p = {**PARAMS, **_RUNTIME, **(opts or {})}
     unknown = set(opts or {}) - set(PARAMS)
     if unknown:
@@ -91,7 +113,7 @@ def validate_params(opts=None):
             'bb_n': (2, 100), 'macd_fast': (1, 100), 'macd_slow': (2, 100),
             'macd_signal': (1, 100), 'rsi_n': (2, 100), 'don_n': (2, 100),
             'max_hold_bars': (1, 2016), 'structure_bars': (5, 100), 'chan_level': (0, 3), 'orderflow_mode': (0, 2), 'chan_grace_bars': (0, 3)}
-    for key in ('dynamic_tp','close_confirm','runner','chan_buy1','chan_buy2','chan_buy3','chan_sell1','chan_sell2','chan_sell3','chan_mtf','chan_exit_opposite','chan_pz','chan_pen','chan_macd'):
+    for key in ('dynamic_tp','close_confirm','runner','chan_buy1','chan_buy2','chan_buy3','chan_sell1','chan_sell2','chan_sell3','chan_mtf','chan_exit_opposite','chan_buy1p','chan_sell1p','chan_buy2s','chan_sell2s','chan_pen','chan_macd'):
         ints[key]=(0,1)
     for k, (lo, hi) in ints.items():
         try: v = float(p[k])
@@ -151,7 +173,7 @@ def load_saved_params() -> dict:
         return {}
     try:
         saved = _json.loads(path.read_text(encoding='utf-8'))
-        saved = {k: v for k, v in saved.items() if k in PARAMS}  # 旧版本多出的键忽略，新增的键用默认值
+        saved = {k: v for k, v in migrate_params(saved, legacy='chan_buy2s' not in saved).items() if k in PARAMS}  # 旧版本多出的键忽略，新增的键用默认值
         _RUNTIME = {}
         values = validate_params(saved)
         _RUNTIME = {k: values[k] for k in PARAMS}
@@ -168,11 +190,11 @@ def get_runtime_params() -> dict:
 
 
 CHAN_KEYS=('chan_level','chan_exit_opposite','chan_buy1','chan_buy2','chan_buy3','chan_sell1','chan_sell2','chan_sell3',
-           'chan_pz','chan_pen','chan_macd','chan_grace_bars')
+           'chan_buy1p','chan_sell1p','chan_buy2s','chan_sell2s','chan_pen','chan_macd','chan_grace_bars')
 
 
 def chan_context(p):
-    return {k:p[k] for k in ('chan_level','chan_pen','chan_macd','chan_pz') if k in p}
+    return {k:p[k] for k in ('chan_level','chan_pen','chan_macd') if k in p}
 
 
 def chan_center_target(analysis,event):
@@ -356,13 +378,13 @@ def decide(symbol, data, params=None):
         if strat == 'chan_quant' and 'chan' in analysis:
             from alpha_v7_chan import select_signal
             structure=analysis['chan']
-            from alpha_v7_chan import signal_class
+            from alpha_v7_chan import signal_switch
             current=[e for e in structure['signals'] if int(f['ts'][-1])-p['chan_grace_bars']*bar_ms<=e['known_at']<=int(f['ts'][-1])]
             out['adaptive_context']['chan_diagnostics']={
                 'level':p['chan_level'], 'confirmed_pens':len(structure['strokes']),
                 'confirmed_segments':len(structure['segments']),
                 'current_points':[e['label'] for e in current],
-                'enabled_points':[e['label'] for e in current if p.get('chan_'+('buy' if e['side']==1 else 'sell')+str(signal_class(e))) and (e.get('kind')!='T1P' or p['chan_pz'])],
+                'enabled_points':[e['label'] for e in current if p.get(signal_switch(e))],
             }
             event=select_signal(structure,int(f['ts'][-1]),p,bar_ms)
             sig={'side':event['side'],'reason':event['label']+'严格规则确认','chan_signal':event} if event else None
@@ -661,6 +683,7 @@ def exit_plan(position, price, now, frames=None, trailing=False):
         cf=frames.get(bt) or {};mask=np.asarray(cf.get('ts',[]))+bar_ms<=now*1000
         if np.count_nonzero(mask)>=60:
             cf={k:np.asarray(v)[mask] for k,v in cf.items()}
+            chan_config=migrate_params(chan_config, legacy='chan_buy2s' not in chan_config)  # 旧持仓锁定的开关按新开关解释
             result=analyze(cf,chan_context({**PARAMS,**chan_config}))
             from alpha_v7_chan import select_signal
             event=select_signal(result['chan'],int(cf['ts'][-1]),{**PARAMS,**chan_config},bar_ms)

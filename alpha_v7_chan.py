@@ -289,6 +289,13 @@ def signal_class(event):
  label=event['label']
  return int(next(ch for ch in label if ch in '123'))
 
+SWITCH_SUFFIX={'T1':'1','T1P':'1p','T2':'2','T2S':'2s','T3':'3'}
+
+def signal_switch(event):
+ """页面开关名：chan_buy1/1p/2/2s/3 与 chan_sell 同理；旧记录没有 kind 时按类别推断。"""
+ suffix=SWITCH_SUFFIX.get(event.get('kind')) or str(signal_class(event))
+ return 'chan_'+('buy' if event['side']==1 else 'sell')+suffix
+
 def select_signal(result,known,config,bar_ms=None):
  """Filter enabled, still-valid events before prioritizing simultaneous signals.
  chan_grace_bars>0 时，最近 N 根内确认、至今未失效的信号仍可被选中，避免漏扫一根就永久丢失。
@@ -296,8 +303,7 @@ def select_signal(result,known,config,bar_ms=None):
  eligible=[];grace=int(config.get('chan_grace_bars',0) or 0)
  earliest=known-grace*int(bar_ms or 0) if grace and bar_ms else known
  for event in result.get('signals',[]):
-  klass=signal_class(event);key='chan_'+('buy' if event['side']==1 else 'sell')+str(klass)
-  if event.get('kind')=='T1P' and not config.get('chan_pz'):continue
+  key=signal_switch(event)
   status=result.get('signal_status',{}).get(event['id'],{})
   invalidated=status.get('invalidated_at')
   if earliest<=event['known_at']<=known and config.get(key) and (invalidated is None or invalidated>known):eligible.append(event)

@@ -65,6 +65,13 @@ class ParamPersistenceTests(unittest.TestCase):
         self.assertEqual(v7.load_saved_params()['chan_level'],0)
 
 
+    def test_old_saved_file_is_migrated(self):
+        self.path.write_text(json.dumps(dict(strategy='chan_quant',chan_pz=1,chan_buy1=1,chan_sell1=0,chan_buy2=0,chan_sell2=1)))
+        p=v7.load_saved_params()
+        self.assertEqual((p['chan_buy1p'],p['chan_sell1p'],p['chan_buy2s'],p['chan_sell2s']),(1,0,0,1))
+        self.assertNotIn('chan_pz',p)
+
+
 class ExitSwitchApiTests(unittest.TestCase):
     def test_get_and_set_two_global_switches_only(self):
         from fastapi import FastAPI

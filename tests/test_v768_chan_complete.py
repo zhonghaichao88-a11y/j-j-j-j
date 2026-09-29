@@ -48,13 +48,17 @@ class PointTests(unittest.TestCase):
         sig=[s for s in self.signals() if s['label']=='盘背1买'];result=dict(signals=sig,signal_status={})
         known=sig[0]['known_at']
         self.assertIsNone(select_signal(result,known,dict(chan_buy1=1)))
-        self.assertEqual(select_signal(result,known,dict(chan_buy1=1,chan_pz=1))['label'],'盘背1买')
-        self.assertIsNone(select_signal(result,known,dict(chan_buy1=0,chan_pz=1)))
+        # 盘背1买只看自己的开关，不再依赖一买开关。
+        self.assertEqual(select_signal(result,known,dict(chan_buy1=0,chan_buy1p=1))['label'],'盘背1买')
+        self.assertIsNone(select_signal(result,known,dict(chan_buy1=1,chan_buy1p=0)))
 
-    def test_class2_uses_buy2_switch(self):
-        sig=[s for s in self.signals() if s['label']=='类2买'];result=dict(signals=sig,signal_status={})
-        self.assertIsNotNone(select_signal(result,sig[0]['known_at'],dict(chan_buy2=1)))
-        self.assertIsNone(select_signal(result,sig[0]['known_at'],dict(chan_buy2=0)))
+    def test_second_and_class2_have_separate_switches(self):
+        sig=self.signals();result=dict(signals=sig,signal_status={})
+        second=next(s for s in sig if s['label']=='2买');class2=next(s for s in sig if s['label']=='类2买')
+        self.assertIsNotNone(select_signal(result,second['known_at'],dict(chan_buy2=1,chan_buy2s=0)))
+        self.assertIsNone(select_signal(result,second['known_at'],dict(chan_buy2=0,chan_buy2s=1)))
+        self.assertIsNotNone(select_signal(result,class2['known_at'],dict(chan_buy2=0,chan_buy2s=1)))
+        self.assertIsNone(select_signal(result,class2['known_at'],dict(chan_buy2=1,chan_buy2s=0)))
 
     def test_mirror_gives_sells(self):
         us=units([300-p for p in PRICES]);zs,_,_=centers(us,0,[dict(children=list(range(1,len(us))),known_at=0)])
@@ -108,10 +112,26 @@ class PenAndPrefixTests(unittest.TestCase):
 
 class ParamTests(unittest.TestCase):
     def test_new_params_validated_and_locked_into_position(self):
-        p=alpha_fast_v7.validate_params(dict(chan_pz=1,chan_pen=1,chan_macd=0,chan_grace_bars=2))
-        self.assertEqual((p['chan_pz'],p['chan_pen'],p['chan_macd'],p['chan_grace_bars']),(1,1,0,2))
+        p=alpha_fast_v7.validate_params(dict(chan_buy1p=1,chan_sell2s=0,chan_pen=1,chan_macd=0,chan_grace_bars=2))
+        self.assertEqual((p['chan_buy1p'],p['chan_sell2s'],p['chan_pen'],p['chan_macd'],p['chan_grace_bars']),(1,0,1,0,2))
         with self.assertRaises(ValueError):alpha_fast_v7.validate_params(dict(chan_grace_bars=5))
-        for key in ('chan_pz','chan_pen','chan_macd','chan_grace_bars'):self.assertIn(key,alpha_fast_v7.CHAN_KEYS)
+        for key in ('chan_buy1p','chan_sell1p','chan_buy2s','chan_sell2s','chan_pen','chan_macd','chan_grace_bars'):self.assertIn(key,alpha_fast_v7.CHAN_KEYS)
+
+    def test_defaults_match_page_plan(self):
+        d=alpha_fast_v7.PARAMS
+        self.assertEqual([d[k] for k in ('chan_buy1','chan_sell1','chan_buy1p','chan_sell1p','chan_buy2','chan_buy2s','chan_buy3')],[1,1,0,0,1,1,1])
+
+    def test_old_format_is_migrated(self):
+        m=alpha_fast_v7.migrate_params
+        # 旧：盘整背驰下单开 + 一买开、一卖关 → 只有盘背1买开
+        v=m(dict(chan_pz=1,chan_buy1=1,chan_sell1=0,chan_buy2=0,chan_sell2=1))
+        self.assertNotIn('chan_pz',v);self.assertEqual((v['chan_buy1p'],v['chan_sell1p']),(1,0))
+        self.assertEqual((v['chan_buy2s'],v['chan_sell2s']),(0,1))  # 旧类2买跟随二买
+        self.assertEqual(m(dict(chan_pz=0,chan_buy1=1))['chan_buy1p'],0)
+        # 新格式只改二买时，不能顺带改类二买
+        self.assertNotIn('chan_buy2s',m(dict(chan_buy2=0)))
+        p=alpha_fast_v7.validate_params(dict(chan_pz=1,chan_buy1=1))
+        self.assertEqual(p['chan_buy1p'],1)
 
 
 if __name__=='__main__':
