@@ -16,7 +16,7 @@ class RunningLimitTests(unittest.TestCase):
 
     def test_update_mutates_the_loop_config_object(self):
         out = ae.update_running_limits(max_positions=2, risk_pct=0.005, leverage=None)
-        self.assertEqual(out, {'max_positions': 2, 'risk_pct': 0.005, 'leverage': 3})
+        self.assertEqual(out, {'max_positions': 2, 'risk_pct': 0.005, 'leverage': 3, 'max_same_side': 0})
         self.assertEqual(self.cfg['max_positions'], 2); self.assertEqual(self.cfg['other'], 1)   # 交易循环拿到的就是这个对象
 
     def test_out_of_range_is_rejected_without_partial_change(self):
@@ -37,7 +37,7 @@ class ApiTests(unittest.TestCase):
         cfg = {'max_positions': 5, 'risk_pct': 0.02, 'leverage': 3}
         with patch.object(ae, 'RUNNING_CFG', cfg), patch.dict(ae.STATE, {'running': True}), patch.object(ae, '_activity', lambda *a, **k: None):
             r = c.post('/tv/api/limits', json={'max_positions': 3, 'risk_pct': 0.01}).json()
-            self.assertEqual(r['limits'], {'max_positions': 3, 'risk_pct': 0.01, 'leverage': 3})
+            self.assertEqual(r['limits'], {'max_positions': 3, 'risk_pct': 0.01, 'leverage': 3, 'max_same_side': 0})
             self.assertEqual(c.get('/tv/api/params').json()['limits']['max_positions'], 3)
             self.assertEqual(c.post('/tv/api/limits', json={'max_positions': 20}).status_code, 400)
         with patch.dict(ae.STATE, {'running': False}):

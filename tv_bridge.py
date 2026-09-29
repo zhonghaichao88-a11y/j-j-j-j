@@ -211,6 +211,7 @@ class TVStartRequest(BaseModel):
     leverage: int = 3
     max_positions: int = 5
     risk_pct: float = 0.02
+    max_same_side: int = 0
     top: int = 20
     confirm: Optional[str] = None
     params: Optional[Dict[str, Any]] = None
@@ -255,6 +256,7 @@ def tv_start(req: TVStartRequest):
             "strategy_mode": "FAST",
             "auto_select": True,
             "max_positions": int(req.max_positions),
+            "max_same_side": max(0, min(10, int(req.max_same_side))),
             "risk_pct": float(req.risk_pct),
             "leverage": int(req.leverage),
         }
@@ -386,6 +388,7 @@ def tv_get_params():
 
 class TVLimitsRequest(BaseModel):
     max_positions: Optional[int] = None
+    max_same_side: Optional[int] = None
     risk_pct: Optional[float] = None
     leverage: Optional[int] = None
 
@@ -396,7 +399,8 @@ def tv_set_limits(req: TVLimitsRequest):
     """运行中修改最大持仓/单笔风险/杠杆，只影响之后的新开仓；未运行时下次启动生效。"""
     import alpha_engine
     try:
-        limits = alpha_engine.update_running_limits(max_positions=req.max_positions, risk_pct=req.risk_pct, leverage=req.leverage)
+        limits = alpha_engine.update_running_limits(max_positions=req.max_positions, risk_pct=req.risk_pct, leverage=req.leverage,
+                                                    max_same_side=req.max_same_side)
     except (ValueError, TypeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"success": True, "limits": limits,

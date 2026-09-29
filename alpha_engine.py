@@ -67,7 +67,7 @@ DEFAULT = {
     "timeframe": "15m", "lookback": 10000,
     "dev_ratio": 0.70, "purge_bars": 48,
     "fee_pct": 0.0005, "slippage_pct": 0.0005,
-    "risk_pct": 0.05, "leverage": 3, "max_positions": 4,
+    "risk_pct": 0.05, "leverage": 3, "max_positions": 4, "max_same_side": 0,
     "max_notional_pct": 0.40,
     # CVaR: soft threshold resizes moderate tail risk; hard threshold is a true block.
     "risk_cvar_soft_limit": 0.05, "risk_cvar_hard_limit": 0.12,
@@ -2395,7 +2395,7 @@ def _paper_step(symbol,pred,cfg):
         block=_risk_block(cfg)
         if block:
             _activity(f"模拟盘 {symbol}：当前禁止开仓，原因={block}", "warning")
-        if symbol not in STATE["positions"] and not block and len(STATE["positions"])<cfg["max_positions"]:
+        if symbol not in STATE["positions"] and not block and len(STATE["positions"])<cfg["max_positions"] and not _same_side_blocked(symbol,pred,cfg):
             recent=[t for t in reversed(STATE["paper_trades"]) if t.get("symbol")==symbol]
             if not recent or now-recent[0]["time"]>=cfg["cooldown_minutes"]*60:
                 side="long" if pred["signal"]=="LONG" else ("short" if pred["signal"]=="SHORT" else None)
@@ -2499,6 +2499,32 @@ def _fast_detail(symbol, stage, message, level="info"):
 
 def _is_fast(pred):
     return str((pred or {}).get("strategy_mode") or "").upper() == "FAST"
+
+def _is_v7(pred):
+    return ((pred or {}).get("fast_strategy") or {}).get("engine_version") == "v7"
+
+def _v7_priority(pred):
+    """空位不够时的开仓顺序：往返成本占止损距离的比例越小越优先（止损越宽、手续费占比越低）。"""
+    fs=(pred or {}).get("fast_strategy") or {}
+    return float(fs.get("estimated_round_cost") or 0.0022)/max(float(pred.get("sl") or 0),1e-6)
+
+def _v7_entry_plan(preds, held, max_positions):
+    """本轮处理顺序：已持仓的币先管理；V7 新开仓信号按成本占比从低到高；其余照原顺序。
+    返回 (顺序, 需要按满额单笔风险下单的币, 空位不够时的提示)。"""
+    new=[s for s,p in preds.items() if s not in held and p.get("signal") in ("LONG","SHORT") and p.get("model_ready") and _is_v7(p)]
+    new.sort(key=lambda s:_v7_priority(preds[s]))
+    free=max(0,int(max_positions)-len(held))
+    msg=f"V7 本轮 {len(new)} 个开仓信号、空位 {free} 个；按成本占比优先：{'、'.join(new[:free]) or '无'}" if len(new)>free else ""
+    order=[s for s in preds if s in held]+new+[s for s in preds if s not in held and s not in new]
+    return order,new,msg
+
+def _same_side_blocked(symbol, pred, cfg):
+    """同方向持仓数上限（0=不限制）。返回原因文字或空字符串。"""
+    cap=int(cfg.get("max_same_side") or 0)
+    if cap<=0 or pred.get("signal") not in ("LONG","SHORT"): return ""
+    side="long" if pred["signal"]=="LONG" else "short"
+    with LOCK: n=sum(1 for p in (STATE.get("positions") or {}).values() if p.get("side")==side)
+    return f"同方向（{'多' if side=='long' else '空'}）持仓已达上限 {n}/{cap}" if n>=cap else ""
 
 def _black_window_pipeline_chain(symbol, pred, pipeline):
     """Write every pre-trade gate and the final decision to the black window."""
@@ -2796,6 +2822,10 @@ def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
             _activity(f"实盘 {symbol}：信号={pred.get('signal')} 但未开仓，原因=本系统已有该币持仓", "warning")
             _activity(f"实盘 {symbol}：FINAL       → NO ORDER")
             _activity(f"实盘 {symbol}：原因        → DUPLICATE POSITION", "warning")
+            return
+        _ss=_same_side_blocked(symbol,pred,cfg) if symbol not in STATE["positions"] else ""
+        if _ss:
+            _activity(f"实盘 {symbol}：信号={pred.get('signal')} 但未开仓，原因={_ss}", "warning")
             return
         if gate_enabled("max_positions") and len(STATE["positions"])>=cfg["max_positions"]:
             _activity(f"实盘 {symbol}：信号={pred.get('signal')} 但未开仓，原因=达到最大持仓数 {len(STATE['positions'])}/{cfg['max_positions']}", "warning")
@@ -4149,7 +4179,14 @@ def _loop(cfg):
             if raw:
                 from alpha_institutional import portfolio_allocator
                 alloc=portfolio_allocator(raw,vols,max_weight=1.0,max_gross=1.0)
-            for s,pred in preds.items():
+            # V7：每笔都按设定的单笔风险下单，不按“同一轮碰巧出了几个信号”平分；总风险由最大持仓数控制。
+            # 空位不够时，按成本占止损的比例从低到高优先开仓，而不是按涨幅榜顺序先到先得。
+            with LOCK: _held=set((STATE.get("positions") or {}).keys())
+            _order,_full,_msg=_v7_entry_plan(preds,_held,int(cfg.get("max_positions",4)))
+            for s in _full: alloc[s]=1.0
+            if _msg: _activity(_msg)
+            for s in _order:
+                pred=preds[s]
                 if not STATE["running"]: break
                 if STATE["mode"]=="live":
                     base_alloc=float(alloc.get(s,0.0))
@@ -4177,7 +4214,7 @@ def _loop(cfg):
             logger.exception(f"[ALPHA-X ULTRA] loop error: {exc}"); time.sleep(5 if str(STATE.get('strategy_mode') or '').upper()=='FAST' else 10)
 
 
-LIMIT_BOUNDS={"max_positions":(1,10,int),"risk_pct":(0.001,0.10,float),"leverage":(1,50,int)}
+LIMIT_BOUNDS={"max_positions":(1,10,int),"risk_pct":(0.001,0.10,float),"leverage":(1,50,int),"max_same_side":(0,10,int)}
 
 
 def running_limits():
@@ -4185,7 +4222,7 @@ def running_limits():
     cfg=RUNNING_CFG
     with LOCK:running=bool(STATE.get("running"))
     if not running or cfg is None:return None
-    return {k:cfg.get(k) for k in LIMIT_BOUNDS}
+    return {k:cfg.get(k,0 if k=='max_same_side' else None) for k in LIMIT_BOUNDS}
 
 
 def update_running_limits(**values):

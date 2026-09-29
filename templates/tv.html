@@ -596,7 +596,7 @@ function scanTop() {
 }
 window.scanTop = scanTop;
 // 资金与风控：启动时使用；运行中修改立即推送给引擎（只影响之后的新开仓）。本机记住上次的值。
-const LIMIT_FIELDS = [['max_positions', '最大同时持仓数（1~10）', 5, 1, 10, 1], ['risk_pct', '单笔风险占本金（%，0.1~10）', 2, 0.1, 10, 0.1], ['leverage', '杠杆（1~50）', 3, 1, 50, 1]];
+const LIMIT_FIELDS = [['max_positions', '最大同时持仓数（1~10）', 5, 1, 10, 1], ['max_same_side', '同方向最多持仓数（0=不限制）', 0, 0, 10, 1], ['risk_pct', '单笔风险占本金（%，0.1~10）', 2, 0.1, 10, 0.1], ['leverage', '杠杆（1~50）', 3, 1, 50, 1]];
 function riskLimits() {
   const out = {};
   LIMIT_FIELDS.forEach(([k, , def, lo, hi]) => {
