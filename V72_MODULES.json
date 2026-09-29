@@ -1,0 +1,366 @@
+[
+  {
+    "number": 1,
+    "name": "EMA均线组",
+    "output": "ema9/ema21/ema50",
+    "meaning": "判断短中期方向，9/21/50顺序一致表示方向较统一",
+    "status": "已实现"
+  },
+  {
+    "number": 2,
+    "name": "SMA简单均线",
+    "output": "sma20",
+    "meaning": "20根平均收盘价，用作价格中轴",
+    "status": "已实现"
+  },
+  {
+    "number": 3,
+    "name": "布林带",
+    "output": "boll_up/boll_low",
+    "meaning": "均线加减两倍标准差，观察扩张与极值",
+    "status": "已实现"
+  },
+  {
+    "number": 4,
+    "name": "MACD",
+    "output": "macd/macd_signal/macd_hist",
+    "meaning": "快慢均线差及其动量变化，不代表胜率",
+    "status": "已实现"
+  },
+  {
+    "number": 5,
+    "name": "RSI",
+    "output": "rsi",
+    "meaning": "0至100相对强弱，极值不等于立即反转",
+    "status": "已实现"
+  },
+  {
+    "number": 6,
+    "name": "ATR",
+    "output": "atr",
+    "meaning": "平均真实波动幅度，用于止损和追踪距离",
+    "status": "已实现"
+  },
+  {
+    "number": 7,
+    "name": "ADX",
+    "output": "adx",
+    "meaning": "趋势强度，越高表示方向延续特征越明显，不区分涨跌",
+    "status": "已实现"
+  },
+  {
+    "number": 8,
+    "name": "DMI",
+    "output": "dmi_plus/dmi_minus",
+    "meaning": "多空方向运动强度对比",
+    "status": "已实现"
+  },
+  {
+    "number": 9,
+    "name": "超级趋势",
+    "output": "supertrend",
+    "meaning": "递归ATR通道，价格翻越通道形成方向变化",
+    "status": "已实现"
+  },
+  {
+    "number": 10,
+    "name": "HMA赫尔均线",
+    "output": "hma",
+    "meaning": "加权均线组合，减少平滑延迟",
+    "status": "已实现"
+  },
+  {
+    "number": 11,
+    "name": "VIDYA动态均线",
+    "output": "vidya",
+    "meaning": "按动量效率调整平滑速度",
+    "status": "已实现"
+  },
+  {
+    "number": 12,
+    "name": "唐奇安通道",
+    "output": "don_high/don_low",
+    "meaning": "近20根最高和最低价，突破策略排除当前根计算门槛",
+    "status": "已实现"
+  },
+  {
+    "number": 13,
+    "name": "肯特纳通道",
+    "output": "keltner_up/keltner_low",
+    "meaning": "EMA加减1.5ATR，观察波动空间",
+    "status": "已实现"
+  },
+  {
+    "number": 14,
+    "name": "吊灯退出",
+    "output": "chandelier_long/chandelier_short",
+    "meaning": "22根极值减加3ATR，研究用保护线",
+    "status": "已实现"
+  },
+  {
+    "number": 15,
+    "name": "平滑RSI",
+    "output": "rsi_smooth",
+    "meaning": "RSI五期指数平滑；不是QQE MOD原版",
+    "status": "已实现"
+  },
+  {
+    "number": 16,
+    "name": "WaveTrend",
+    "output": "wavetrend",
+    "meaning": "典型价偏离与平滑，观察动量转变",
+    "status": "已实现"
+  },
+  {
+    "number": 17,
+    "name": "压缩状态",
+    "output": "squeeze",
+    "meaning": "布林带在肯特纳通道内为压缩",
+    "status": "已实现"
+  },
+  {
+    "number": 18,
+    "name": "随机RSI",
+    "output": "stoch_rsi",
+    "meaning": "RSI在自身14根区间内的位置",
+    "status": "已实现"
+  },
+  {
+    "number": 19,
+    "name": "样本VWAP",
+    "output": "vwap",
+    "meaning": "最近288根窗口起点锚定的量价均值，不是全天VWAP",
+    "status": "已实现"
+  },
+  {
+    "number": 20,
+    "name": "转折锚定VWAP",
+    "output": "anchored_vwap",
+    "meaning": "从最近已确认转折锚定计算量价均值",
+    "status": "已实现"
+  },
+  {
+    "number": 21,
+    "name": "MFI",
+    "output": "mfi",
+    "meaning": "价格方向与成交量构成资金流指标，非真实资金净流入",
+    "status": "已实现"
+  },
+  {
+    "number": 22,
+    "name": "CMF",
+    "output": "cmf",
+    "meaning": "收盘在高低区间中的位置乘成交量",
+    "status": "已实现"
+  },
+  {
+    "number": 23,
+    "name": "OBV",
+    "output": "obv",
+    "meaning": "按收盘涨跌累加成交量，非买卖成交差",
+    "status": "已实现"
+  },
+  {
+    "number": 24,
+    "name": "放量比",
+    "output": "volume_ratio",
+    "meaning": "本根成交量除以20根均量",
+    "status": "已实现"
+  },
+  {
+    "number": 25,
+    "name": "SSL通道",
+    "output": "ssl_side/ssl_high/ssl_low",
+    "meaning": "高低价均线通道与穿越方向",
+    "status": "已实现"
+  },
+  {
+    "number": 26,
+    "name": "ROC",
+    "output": "roc_10",
+    "meaning": "10根价格变化百分比",
+    "status": "已实现"
+  },
+  {
+    "number": 27,
+    "name": "CCI",
+    "output": "cci",
+    "meaning": "收盘价偏离20根均值的标准化程度（收盘价版本）",
+    "status": "已实现"
+  },
+  {
+    "number": 28,
+    "name": "威廉指标",
+    "output": "williams_r",
+    "meaning": "价格在14根高低范围的位置",
+    "status": "已实现"
+  },
+  {
+    "number": 29,
+    "name": "趋势效率",
+    "output": "efficiency_ratio",
+    "meaning": "净位移除以20根总路径，越大越顺畅",
+    "status": "已实现"
+  },
+  {
+    "number": 30,
+    "name": "相对ATR",
+    "output": "atr_percent",
+    "meaning": "ATR除以价格，可比较不同币种波动",
+    "status": "已实现"
+  },
+  {
+    "number": 31,
+    "name": "摆动高低点",
+    "output": "Swing",
+    "meaning": "左右各两根确认的局部极值",
+    "status": "已实现"
+  },
+  {
+    "number": 32,
+    "name": "HH/HL/LH/LL",
+    "output": "结构标签",
+    "meaning": "与同类前一高低点比较",
+    "status": "已实现"
+  },
+  {
+    "number": 33,
+    "name": "BOS",
+    "output": "结构突破",
+    "meaning": "收盘突破已确认结构位且延续当前方向",
+    "status": "已实现"
+  },
+  {
+    "number": 34,
+    "name": "CHOCH",
+    "output": "结构转向",
+    "meaning": "收盘突破位与此前结构方向相反",
+    "status": "已实现"
+  },
+  {
+    "number": 35,
+    "name": "内外部结构",
+    "output": "双尺度",
+    "meaning": "两根局部转折与五根外部转折分离",
+    "status": "已实现"
+  },
+  {
+    "number": 36,
+    "name": "支撑阻力",
+    "output": "水平线",
+    "meaning": "最近已确认高低点，非保证不会突破",
+    "status": "已实现"
+  },
+  {
+    "number": 37,
+    "name": "趋势线",
+    "output": "连接线",
+    "meaning": "最近两个同类转折连线",
+    "status": "已实现"
+  },
+  {
+    "number": 38,
+    "name": "回归通道",
+    "output": "通道",
+    "meaning": "50根线性回归加减两倍残差标准差；当前估计会随窗口变化",
+    "status": "已实现"
+  },
+  {
+    "number": 39,
+    "name": "等高流动性",
+    "output": "EQH",
+    "meaning": "两高点差不超过0.15ATR，仅为流动性位置推测",
+    "status": "已实现"
+  },
+  {
+    "number": 40,
+    "name": "等低流动性",
+    "output": "EQL",
+    "meaning": "两低点差不超过0.15ATR，仅为流动性位置推测",
+    "status": "已实现"
+  },
+  {
+    "number": 41,
+    "name": "清扫收回",
+    "output": "Sweep/Reclaim",
+    "meaning": "影线越过已知极值但收盘收回，不声称能识别操纵者",
+    "status": "已实现"
+  },
+  {
+    "number": 42,
+    "name": "FVG",
+    "output": "三根缺口",
+    "meaning": "当前与前两根影线不重叠形成缺口区域",
+    "status": "已实现"
+  },
+  {
+    "number": 43,
+    "name": "IFVG",
+    "output": "失效缺口",
+    "meaning": "收盘穿越FVG另一侧，标记原缺口失效/反向",
+    "status": "已实现"
+  },
+  {
+    "number": 44,
+    "name": "订单块",
+    "output": "OB",
+    "meaning": "结构突破前10根内最后一根反向K线区间，明确量化定义",
+    "status": "已实现"
+  },
+  {
+    "number": 45,
+    "name": "Breaker",
+    "output": "失效订单块",
+    "meaning": "收盘越过订单块外缘后标记反向",
+    "status": "已实现"
+  },
+  {
+    "number": 46,
+    "name": "回补/缓解",
+    "output": "Mitigation",
+    "meaning": "后续K线触及已知缺口或订单块",
+    "status": "已实现"
+  },
+  {
+    "number": 47,
+    "name": "溢价折价",
+    "output": "区间位置",
+    "meaning": "50根高低区间中点及当前0至1位置",
+    "status": "已实现"
+  },
+  {
+    "number": 48,
+    "name": "前日高低",
+    "output": "UTC日",
+    "meaning": "仅有完整上一UTC日数据才绘制",
+    "status": "已实现"
+  },
+  {
+    "number": 49,
+    "name": "前周高低",
+    "output": "UTC周",
+    "meaning": "仅有完整上一UTC周数据才绘制",
+    "status": "已实现"
+  },
+  {
+    "number": 50,
+    "name": "观察时段",
+    "output": "伦敦/纽约",
+    "meaning": "纽约当地02–05与07–10观察窗口，随夏令时调整；不是交易门槛",
+    "status": "已实现"
+  },
+  {
+    "number": 51,
+    "name": "RSI背离",
+    "output": "已确认转折",
+    "meaning": "价格新极值而同类RSI未新极值",
+    "status": "已实现"
+  },
+  {
+    "number": 52,
+    "name": "MACD背离",
+    "output": "已确认转折",
+    "meaning": "价格新极值而同类MACD柱未新极值",
+    "status": "已实现"
+  }
+]

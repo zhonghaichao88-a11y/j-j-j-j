@@ -1,0 +1,32 @@
+{
+  "base": "ALPHA-X-V7.1(2).zip",
+  "release": "V7.2",
+  "changed": [
+    "alpha_engine.py",
+    "alpha_fast_mode.py",
+    "alpha_fast_v7.py",
+    "requirements.txt",
+    "static/tv_plus.js",
+    "templates/tv.html",
+    "tests/test_v7_repairs.py",
+    "tv_plus.py"
+  ],
+  "added": [
+    "V72_MODULES.json",
+    "V72_MODULES.md",
+    "V72_READ_FIRST.md",
+    "V72_REPLAY_RESULTS.json",
+    "V72_RUN_REPLAY.py",
+    "V72_TEST_RESULTS.txt",
+    "alpha_v7_analysis.py",
+    "alpha_v7_replay.py",
+    "static/v7_analysis.js",
+    "tests/check_v72_ui.cjs",
+    "tests/test_v72_analysis.py",
+    "tests/test_v72_api.py"
+  ],
+  "tests": 55,
+  "browser_visual_verified": false,
+  "live_exchange_verified": false,
+  "chan_implementation": "量化近似，完整原著递归未实现"
+}

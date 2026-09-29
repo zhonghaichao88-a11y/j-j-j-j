@@ -1,0 +1,39 @@
+{
+  "original_archive": "ALPHA-X-FAST-v5-maker-engine-xs-auto.zip",
+  "original_sha256": "fc7427e86085eafbab3074d64e556987790862754feb769d61f6d8a969653c62",
+  "original_file_count": 188,
+  "modified": [
+    "alpha_engine.py",
+    "alpha_fast_mode.py",
+    "api_server.py",
+    "templates/index.html"
+  ],
+  "unchanged_count": 184,
+  "deleted": [],
+  "added": [
+    "RUN_V6_OKX_BACKTEST.bat",
+    "RUN_V6_SYNTHETIC.bat",
+    "V6_说明与测试报告.md",
+    "alpha_fast_v6.py",
+    "alpha_fast_v6_data.py",
+    "alpha_ledger.sqlite3-shm",
+    "alpha_ledger.sqlite3-wal",
+    "alpha_market_data.sqlite3-shm",
+    "alpha_market_data.sqlite3-wal",
+    "backtest/download_v6.py",
+    "backtest/test_v6.py",
+    "backtest/v6_legacy_check.txt",
+    "backtest/v6_replay.py",
+    "backtest/v6_results_switches/metrics.csv",
+    "backtest/v6_results_switches/summary.json",
+    "backtest/v6_results_switches/trades.csv",
+    "backtest/v6_results_synthetic/metrics.csv",
+    "backtest/v6_results_synthetic/summary.json",
+    "backtest/v6_results_synthetic/trades.csv",
+    "backtest/v6_results_synthetic_stress/metrics.csv",
+    "backtest/v6_results_synthetic_stress/summary.json",
+    "backtest/v6_results_synthetic_stress/trades.csv",
+    "backtest/v6_test_log.txt",
+    "V6_CHANGE_MANIFEST.json"
+  ]
+}

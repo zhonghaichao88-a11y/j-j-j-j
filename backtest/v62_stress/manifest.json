@@ -1,0 +1,68 @@
+{
+  "variants": {
+    "V61": [
+      false,
+      {}
+    ],
+    "V62趋势": [
+      true,
+      {
+        "entry_set": "trend"
+      }
+    ],
+    "V62背景": [
+      true,
+      {
+        "entry_set": "context"
+      }
+    ],
+    "V62突破": [
+      true,
+      {
+        "entry_set": "breakout_only"
+      }
+    ]
+  },
+  "stress": 2.0,
+  "data": {
+    "AAVEUSDT_5m.csv": "a8ce2bff5ceaf81df344427f0a022dc463f92307acbc9e8a47752a32774479a8",
+    "ADAUSDT_5m.csv": "7321af07d08ec4c48ce4be6a8025582e2b5fb8e5eb658a5b8a56e7c757fa0e7c",
+    "APTUSDT_5m.csv": "86df934781372149de99e50861fccbd9013c394c831f3ec74c7b78439de2968f",
+    "ARBUSDT_5m.csv": "2ecbebf2cee12c4bed6ea00139819e8872e15c1648c33953ee18ab3a5e50a7c0",
+    "AVAXUSDT_5m.csv": "b48a62bbc18b1d05459c80fd26b6ff447ba6e55cdd04bbd08a15435623f7f5c5",
+    "BOMEUSDT_5m.csv": "fcc5b7c8997f489afc5973364cb69157a6b8e3928264991cf1139ab05e454b59",
+    "BONKUSDT_5m.csv": "e6a1a309326c797ef7d7cd6addddbeb657f64a66a7be7b72a847562f8e039983",
+    "BTCUSDT_5m.csv": "bb1281edf78f1b13256e154e943c067938436a9ed0ee04cdeae1cea0a85f80f1",
+    "DOGEUSDT_5m.csv": "d5eb56bb22bdf26557b542ce480eb10955327507f3008ce6cfbda15082aee5ce",
+    "DOTUSDT_5m.csv": "77ce5d8c07ea20b33ab9cc025b57ce75ef5eeafb62513a3e5b1e3aa98b38bbe0",
+    "ENAUSDT_5m.csv": "af4e6e80db598dce741e25901757c2c7fc96900bbcd69ae2d7c7cb3df073f4a3",
+    "ETHUSDT_5m.csv": "84faf6e775bb629cf462e204d8bfd9ec30394082764b0fb4bc0e9c819d46a8b6",
+    "FLOKIUSDT_5m.csv": "42f0a7f5035056cbce283a0377cc7186bfe1c35dd8fdfa60c397394120f945d7",
+    "INJUSDT_5m.csv": "e3952067a93c4ad2b069e2417f5560a5335579355a5c24fedfc07a349a740fcf",
+    "JUPUSDT_5m.csv": "b26005f9b6d2a09fd87191c50b3be885bef258277f701d6b968d1ed9182985d9",
+    "LINKUSDT_5m.csv": "1b4e1ebe9720dfd82bb9ddffd0597e35bb0c977b2fe162e49aa3e98ddcf5b156",
+    "NEARUSDT_5m.csv": "d53a87b4d97b7e0a2abe92562960a444c5021834c6b330361c38e1d2fa0c8178",
+    "ONDOUSDT_5m.csv": "91c2e1d40546e440a89b2e4ecc2eefd161c53c69a6eba660d8aaf435754947a8",
+    "OPUSDT_5m.csv": "08968f6b555dd52d4da30ed7aff74b6405efc524196b6a0f24c9c7e21ccb4323",
+    "ORDIUSDT_5m.csv": "a0386510d68aecbefb30e047060288912de94c17554c2ad71260b1b69c43ebfb",
+    "PEPEUSDT_5m.csv": "f8c265eeaa8d4795ef255070551772a27414f335090d238aaba4f777d460a41f",
+    "PYTHUSDT_5m.csv": "ade6932d1e533c08c50b85640490ca824cc555637be4eb67a83f51e72ba43af1",
+    "RUNEUSDT_5m.csv": "1cba943712a42a9036d4aa4eb50aaafaaab4fcd60960b37257a47c952d61e0c2",
+    "SANDUSDT_5m.csv": "9e013d4cabab7a093486db695e33f5f17fa3170cdd24591a4b67d9e75064ccc8",
+    "SEIUSDT_5m.csv": "e10df4619fb92e8f16b7774eb68e6be8358fd84fcb21a30cda7a058225eac95f",
+    "SOLUSDT_5m.csv": "cff2a48de9bc7c16dfbffd33bd0212c878c7d4a1cf6e4c894a08d52517a42b85",
+    "STXUSDT_5m.csv": "03548b8d5f060c7ed592c5020b68ce93d3b7323b88a992dad2ebb0d0ae860b66",
+    "SUIUSDT_5m.csv": "4f08492504b1d4140aa4953620336c47391a3df12c8dda9ca1133d575b58ebf7",
+    "TIAUSDT_5m.csv": "ec7ed34fe5a2f23f737494e84338082a23b761cf0853a64af3d2d9d6aab842be",
+    "UNIUSDT_5m.csv": "16117ab71bd42a43e49749d394e74b96fc831d75e0885c5b8e3d9f86d2b278a9",
+    "WIFUSDT_5m.csv": "df2925e392baba8b6cf219e6a2899084edc5d8e2b0616d31e5bab94d6122aa54",
+    "WLDUSDT_5m.csv": "7c30509293ceade0d98c71e1f9954939973a91deb2507f1b55f173d4524a27e9",
+    "XRPUSDT_5m.csv": "0591196970484b796c5efd65fe92ef0a4241c90dac88605648056bde40944805"
+  },
+  "code": {
+    "alpha_fast_v6.py": "f6d6899e8a6f008c7fde3372bba0c09c4518eb5697b51a34fcb428e38c619514",
+    "alpha_fast_v62.py": "4a5e42991be060c5faaa41941d2b336df4e32b38689d686d834102a67d9ce20b",
+    "backtest/v6_replay.py": "4a11bbac6ac77b3dee298491fd796d40a3144e943a58034bb2ef2387a225d70a"
+  },
+  "note": "全部历史已复用，不称独立未知样本；每币独立账户，无资金费和真实执行验证"
+}

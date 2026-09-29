@@ -1,0 +1,6 @@
+__pycache__/
+.pytest_cache/
+.venv/
+.env
+v7_chan_history/
+data_v62/

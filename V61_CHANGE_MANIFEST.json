@@ -1,0 +1,26 @@
+{
+  "base_archive": "ALPHA-X-FAST-v6-experimental-tested.zip",
+  "base_sha256": "f7aeb871a1100d3929a834659f1f74b0721637fe082c1dae82c6e4949ae90257",
+  "original_file_count": 212,
+  "modified": [
+    "alpha_engine.py",
+    "alpha_live.py",
+    "templates/index.html",
+    "alpha_fast_v6.py",
+    "backtest/test_v6.py",
+    "backtest/v6_replay.py"
+  ],
+  "deleted": [],
+  "added": [
+    "RUN_V61_USER_BACKTEST.bat",
+    "V61_CHANGE_MANIFEST.json",
+    "V61_READ_FIRST.md",
+    "V61_REPORT.md",
+    "backtest/audit_uploaded.py",
+    "backtest/research_v61.py",
+    "backtest/test_v61.py",
+    "backtest/v6_original_reference.py",
+    "backtest/verify_v61_delivery.py"
+  ],
+  "source_data_sha256": "3458d182fae25119aa62f5cd31add464e9f5562de2cecbd30d2c067038c86d14"
+}

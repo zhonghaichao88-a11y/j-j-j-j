@@ -1,0 +1,20 @@
+ALPHA-X 本地一键启动
+
+日常使用：
+1. Windows 双击：启动 ALPHA-X.bat
+2. macOS/Linux：运行 ./start.sh
+3. 首次启动会自动创建 .venv 并安装 requirements.txt
+4. 若 .env 不存在，会复制 .env.example；已有 .env 不会覆盖
+5. API 健康检查通过后，Windows/macOS/Linux 会尝试自动打开浏览器
+6. 本版本不需要 AWS 节点，WWW 和后端均可在本机运行
+
+安全：
+- 不要把 OKX Secret Key / Passphrase 粘贴到聊天或脚本中
+- 建议 OKX API 只开 Read + Trade，不开 Withdraw
+- 启动器不会打印 API 密钥
+
+说明：
+- 启动器不会删除或替换原有旧文件
+- 旧 ML 文件保留
+- 888888 保护机制按原包保留
+- OKX 实际连通性取决于本机网络与 .env 配置；连不上时系统不应把失败当成成功

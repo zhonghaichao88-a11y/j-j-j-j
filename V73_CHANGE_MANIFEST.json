@@ -1,0 +1,16 @@
+{
+  "version": "V7.3-current-delivery",
+  "tests": 103,
+  "live_exchange_acceptance": false,
+  "browser_render_acceptance": false,
+  "pine": "explicit supported subset",
+  "chan_rules": "CX-73-strict-5bar-feature-gap",
+  "files": {
+    "alpha_v7_analysis.py": "7e4f265018503b932462c661c1bc727d58c20f20bf5144ffb3417fd05fcd7f83",
+    "alpha_v7_chan.py": "3ba9991fe1939b05d2415907ded6eac8fe3976f1967edb644c871ea46f422ecc",
+    "alpha_v7_feed.py": "f3b3115dcb056e4a6dcd78c8394faa3379ab4d3fbee8cf2d055be0d563c83709",
+    "alpha_v7_orderflow.py": "1b794014efcc7743135617f18dbca4ff5ae939bfc1795cbbd07cd5da5507734b",
+    "alpha_v7_pine.py": "f220eed3f82fc2982900d68210e56cb491be6eb9745f552f93bd66c76e989bdc",
+    "alpha_v7_replay.py": "9a13ad6e72192b1f34af63aec5f113ccff8d2a0dfbe979a39392d0ca0473b533"
+  }
+}

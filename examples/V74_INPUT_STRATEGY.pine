@@ -1,0 +1,19 @@
+//@version=6
+strategy("V74 configured EMA", overlay=true)
+fastLength = input.int(9, title="Fast EMA", minval=2, maxval=40)
+slowLength = input.int(21, title="Slow EMA", minval=10, maxval=100)
+allowShort = input.bool(true, title="Allow short")
+src = input.source(close, title="Price source")
+fast = ta.ema(source=src, length=fastLength)
+slow = ta.ema(source=src, length=slowLength)
+up = ta.crossover(fast, slow)
+down = ta.crossunder(fast, slow)
+plot(fast, title="Fast EMA")
+plot(slow, title="Slow EMA")
+if up
+    strategy.close("S")
+    strategy.entry("L", strategy.long)
+else if down
+    strategy.close("L")
+    if allowShort
+        strategy.entry("S", strategy.short)

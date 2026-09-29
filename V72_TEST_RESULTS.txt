@@ -1,0 +1,64 @@
+test_alerts (test_v71_execution.ChartDataTests.test_alerts) ... ok
+test_backtest_no_future_bars_and_costs (test_v71_execution.ChartDataTests.test_backtest_no_future_bars_and_costs) ... ok
+test_bars_dedup_sort_and_pagination (test_v71_execution.ChartDataTests.test_bars_dedup_sort_and_pagination) ... ok
+test_cancel_uncertain_blocks_fallback (test_v71_execution.ExecutionTests.test_cancel_uncertain_blocks_fallback) ... ok
+test_confirmed_empty_cancel_allows_distinct_market_child (test_v71_execution.ExecutionTests.test_confirmed_empty_cancel_allows_distinct_market_child) ... ok
+test_fee_array (test_v71_execution.ExecutionTests.test_fee_array) ... ok
+test_fee_dict (test_v71_execution.ExecutionTests.test_fee_dict) ... ok
+test_market_canceled_partial_booked (test_v71_execution.ExecutionTests.test_market_canceled_partial_booked) ... ok
+test_market_child_timeout_keeps_child_identity (test_v71_execution.ExecutionTests.test_market_child_timeout_keeps_child_identity) ... ok
+test_market_open_partial_nonterminal_not_booked (test_v71_execution.ExecutionTests.test_market_open_partial_nonterminal_not_booked) ... ok
+test_native_fee_sign_and_null_info (test_v71_execution.ExecutionTests.test_native_fee_sign_and_null_info) ... ok
+test_native_order_normalized (test_v71_execution.ExecutionTests.test_native_order_normalized) ... ok
+test_partial_cancel_books_only_filled (test_v71_execution.ExecutionTests.test_partial_cancel_books_only_filled) ... ok
+test_partial_missing_average_blocks_market (test_v71_execution.ExecutionTests.test_partial_missing_average_blocks_market) ... ok
+test_submit_timeout_never_resubmits (test_v71_execution.ExecutionTests.test_submit_timeout_never_resubmits) ... ok
+test_chan_confirmed_prefix_invariance (test_v72_analysis.AnalysisTests.test_chan_confirmed_prefix_invariance) ... ok
+test_close_stop_ignores_preentry_and_unfinished (test_v72_analysis.AnalysisTests.test_close_stop_ignores_preentry_and_unfinished) ... ok
+test_indicator_prefix_invariance (test_v72_analysis.AnalysisTests.test_indicator_prefix_invariance) ... ok
+test_long_short_native_risk_scaling (test_v72_analysis.AnalysisTests.test_long_short_native_risk_scaling) ... ok
+test_new_parameter_bounds (test_v72_analysis.AnalysisTests.test_new_parameter_bounds) ... ok
+test_new_strategies_reachable_without_schema_errors (test_v72_analysis.AnalysisTests.test_new_strategies_reachable_without_schema_errors) ... ok
+test_no_stop_loosen_or_wrong_side (test_v72_analysis.AnalysisTests.test_no_stop_loosen_or_wrong_side) ... ok
+test_partial_floor_without_trailing (test_v72_analysis.AnalysisTests.test_partial_floor_without_trailing) ... ok
+test_structure_events_only_after_confirmation (test_v72_analysis.AnalysisTests.test_structure_events_only_after_confirmation) ... ok
+test_wide_structure_stop_sizes_risk_truthfully (test_v72_analysis.AnalysisTests.test_wide_structure_stop_sizes_risk_truthfully) ... ok
+test_runner_failure_restores_before_cancel (test_v72_analysis.NativeTests.test_runner_failure_restores_before_cancel) ... ok
+test_trigger_is_not_fill_and_stage_id_stable (test_v72_analysis.NativeTests.test_trigger_is_not_fill_and_stage_id_stable) ... ok
+test_four_switch_combinations_execute_without_future_data (test_v72_analysis.ReplayTests.test_four_switch_combinations_execute_without_future_data) ... ok
+/root/.local/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+test_analysis_json_and_closed_only (test_v72_api.APITests.test_analysis_json_and_closed_only) ... ok
+test_backtest_switches_route (test_v72_api.APITests.test_backtest_switches_route) ... ok
+test_bad_data_error (test_v72_api.APITests.test_bad_data_error) ... ok
+test_gap_rejected (test_v72_api.APITests.test_gap_rejected) ... ok
+test_v7_fetch_only_requests_5m (test_v7_repairs.DataTests.test_v7_fetch_only_requests_5m) ... ok
+test_fill_aggregation_and_missing_data (test_v7_repairs.EngineTests.test_fill_aggregation_and_missing_data) ... ok
+test_no_phantom_close_without_fills (test_v7_repairs.EngineTests.test_no_phantom_close_without_fills) ... ok
+test_restart_restores_dedupe (test_v7_repairs.EngineTests.test_restart_restores_dedupe) ... ok
+test_same_bar_guard_blocks_after_restore (test_v7_repairs.EngineTests.test_same_bar_guard_blocks_after_restore) ... ok
+test_worker_checks_before_restart (test_v7_repairs.EngineTests.test_worker_checks_before_restart) ... ok
+test_failed_process_never_ready (test_v7_repairs.LauncherTests.test_failed_process_never_ready) ... ok
+test_ready_opens_only_matching_service (test_v7_repairs.LauncherTests.test_ready_opens_only_matching_service) ... ok
+test_wrong_service_not_ready (test_v7_repairs.LauncherTests.test_wrong_service_not_ready) ... ok
+test_params_api_returns_400 (test_v7_repairs.RouteTests.test_params_api_returns_400) ... ok
+test_reset_cannot_clear_live (test_v7_repairs.RouteTests.test_reset_cannot_clear_live) ... ok
+test_reset_checks_position_flag_too (test_v7_repairs.RouteTests.test_reset_checks_position_flag_too) ... ok
+test_reset_clears_paper_risk_state (test_v7_repairs.RouteTests.test_reset_clears_paper_risk_state) ... ok
+test_running_start_never_mutates_engine (test_v7_repairs.RouteTests.test_running_start_never_mutates_engine) ... ok
+test_start_false_not_success (test_v7_repairs.RouteTests.test_start_false_not_success) ... ok
+test_switch_with_position_rejected (test_v7_repairs.RouteTests.test_switch_with_position_rejected) ... ok
+test_bad_params_rejected_atomically (test_v7_repairs.StrategyTests.test_bad_params_rejected_atomically) ... ok
+test_boll_uses_previous_band (test_v7_repairs.StrategyTests.test_boll_uses_previous_band) ... ok
+test_donchian_metadata_locked (test_v7_repairs.StrategyTests.test_donchian_metadata_locked) ... ok
+test_donchian_only_post_entry_closed_bars (test_v7_repairs.StrategyTests.test_donchian_only_post_entry_closed_bars) ... ok
+test_donchian_short_invalidation (test_v7_repairs.StrategyTests.test_donchian_short_invalidation) ... ok
+test_risk_measured_from_current_price (test_v7_repairs.StrategyTests.test_risk_measured_from_current_price) ... ok
+test_unfinished_bar_rejected (test_v7_repairs.StrategyTests.test_unfinished_bar_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 55 tests in 2.275s
+
+OK
+
+UI contract passed: registered region, finite coordinates, four overlay types, off switch. No browser rendering claimed.

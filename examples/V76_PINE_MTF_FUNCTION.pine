@@ -1,0 +1,16 @@
+//@version=6
+strategy("V7 confirmed MTF EMA", overlay=true)
+length = input.int(9, "EMA length", minval=2, maxval=100)
+emaOf(src, period) => ta.ema(src, period)
+fast = emaOf(close, length)
+confirmedHigher = request.security(syminfo.tickerid, "60", emaOf(close, length), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+crossUp = ta.crossover(close, fast)
+aboveHigher = close > confirmedHigher
+longSignal = crossUp and aboveHigher
+exitSignal = ta.crossunder(close, fast)
+if longSignal
+    strategy.entry("Long", strategy.long)
+if exitSignal
+    strategy.close("Long")
+plot(fast, "5m EMA")
+plot(confirmedHigher, "Confirmed 1h EMA")

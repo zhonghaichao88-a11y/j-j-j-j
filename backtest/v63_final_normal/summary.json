@@ -1,0 +1,32 @@
+[
+  {
+    "candidate": "V63固定方案",
+    "phase": "前段",
+    "trades": 175,
+    "win_pct": 33.14285714285714,
+    "profit_factor": 1.8147854122303904,
+    "net_pnl": 1531.3459159545355,
+    "worst_symbol_drawdown_pct": 1.2546301531605115,
+    "profitable_symbols": 22
+  },
+  {
+    "candidate": "V63固定方案",
+    "phase": "中段",
+    "trades": 110,
+    "win_pct": 28.18181818181818,
+    "profit_factor": 0.9508134853856103,
+    "net_pnl": -69.0753528205711,
+    "worst_symbol_drawdown_pct": 1.7288560200304868,
+    "profitable_symbols": 13
+  },
+  {
+    "candidate": "V63固定方案",
+    "phase": "后段",
+    "trades": 163,
+    "win_pct": 27.607361963190186,
+    "profit_factor": 1.1026052934617399,
+    "net_pnl": 218.84919948911437,
+    "worst_symbol_drawdown_pct": 2.379946520627427,
+    "profitable_symbols": 16
+  }
+]

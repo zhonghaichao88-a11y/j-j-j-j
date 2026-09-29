@@ -1,0 +1,56 @@
+[
+ {
+  "contract": "ETH_USDT",
+  "sym": "ETHUSDT",
+  "last": 2420.17,
+  "qv": 6552881649.0,
+  "pct": 1.19,
+  "score": 0.8073793103448275,
+  "spread_bps": 0.04131437554256529
+ },
+ {
+  "contract": "SOL_USDT",
+  "sym": "SOLUSDT",
+  "last": 98.95,
+  "qv": 439307622.0,
+  "pct": 2.41,
+  "score": 0.7563918853741105,
+  "spread_bps": 1.010560355716326
+ },
+ {
+  "contract": "CL_USDT",
+  "sym": "CLUSDT",
+  "last": 97.32,
+  "qv": 64205401.0,
+  "pct": -2.63,
+  "score": 0.7006652477202239,
+  "spread_bps": 1.0275908133371943
+ },
+ {
+  "contract": "XRP_USDT",
+  "sym": "XRPUSDT",
+  "last": 1.2945,
+  "qv": 112080870.0,
+  "pct": 1.15,
+  "score": 0.6875074382866385,
+  "spread_bps": 2.3177656738901145
+ },
+ {
+  "contract": "ZEC_USDT",
+  "sym": "ZECUSDT",
+  "last": 1359.66,
+  "qv": 299627801.0,
+  "pct": 23.11,
+  "score": 0.6508805207092906,
+  "spread_bps": 1.1773449399911293
+ },
+ {
+  "contract": "LSK_USDT",
+  "sym": "LSKUSDT",
+  "last": 0.496,
+  "qv": 50444669.0,
+  "pct": 34.82,
+  "score": 0.5559322991281489,
+  "spread_bps": 12.101653892698456
+ }
+]

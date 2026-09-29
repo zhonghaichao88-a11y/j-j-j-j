@@ -1,0 +1,10 @@
+//@version=5
+indicator("布林与MACD示例", overlay=true)
+length = input.int(20, title="布林周期", minval=2, maxval=100)
+[basis, upper, lower] = ta.bb(close, length, 2)
+[macdLine, signalLine, histogram] = ta.macd(close, 12, 26, 9)
+up = ta.crossover(macdLine, signalLine)
+plot(basis, title="布林中线")
+plot(upper, title="布林上轨")
+plot(lower, title="布林下轨")
+plotshape(up, title="MACD交叉", text="MACD上穿")

@@ -1,0 +1,14 @@
+//@version=5
+strategy("V7 EMA示例", overlay=true)
+fast = ta.ema(close, 9)
+slow = ta.ema(close, 21)
+longSignal = ta.crossover(fast, slow)
+shortSignal = ta.crossunder(fast, slow)
+plot(fast, title="快线")
+plot(slow, title="慢线")
+if longSignal
+    strategy.close("S")
+    strategy.entry("L", strategy.long)
+if shortSignal
+    strategy.close("L")
+    strategy.entry("S", strategy.short)

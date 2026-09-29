@@ -1,0 +1,362 @@
+[
+  {
+    "candidate": "A01",
+    "phase": "前段",
+    "trades": 360,
+    "win_pct": 26.666666666666668,
+    "profit_factor": 1.0762318936159392,
+    "net_pnl": 303.24160487788515,
+    "worst_symbol_drawdown_pct": 2.3424354385967594,
+    "profitable_symbols": 18
+  },
+  {
+    "candidate": "A01",
+    "phase": "中段",
+    "trades": 182,
+    "win_pct": 24.725274725274726,
+    "profit_factor": 0.6242145646931233,
+    "net_pnl": -888.7868650142163,
+    "worst_symbol_drawdown_pct": 2.1997762050471303,
+    "profitable_symbols": 6
+  },
+  {
+    "candidate": "A01",
+    "phase": "后段",
+    "trades": 239,
+    "win_pct": 27.19665271966527,
+    "profit_factor": 1.2390029794211188,
+    "net_pnl": 702.4980661285289,
+    "worst_symbol_drawdown_pct": 2.6769899743433236,
+    "profitable_symbols": 16
+  },
+  {
+    "candidate": "A02",
+    "phase": "前段",
+    "trades": 283,
+    "win_pct": 26.501766784452297,
+    "profit_factor": 1.1588652143600422,
+    "net_pnl": 518.7114593027537,
+    "worst_symbol_drawdown_pct": 2.2400836156041715,
+    "profitable_symbols": 17
+  },
+  {
+    "candidate": "A02",
+    "phase": "中段",
+    "trades": 157,
+    "win_pct": 27.388535031847134,
+    "profit_factor": 0.732725842169434,
+    "net_pnl": -533.2330689375772,
+    "worst_symbol_drawdown_pct": 1.7288560200304868,
+    "profitable_symbols": 9
+  },
+  {
+    "candidate": "A02",
+    "phase": "后段",
+    "trades": 224,
+    "win_pct": 25.44642857142857,
+    "profit_factor": 1.0689572148834297,
+    "net_pnl": 193.51203967451448,
+    "worst_symbol_drawdown_pct": 2.3799465206273904,
+    "profitable_symbols": 15
+  },
+  {
+    "candidate": "A03",
+    "phase": "前段",
+    "trades": 233,
+    "win_pct": 28.75536480686695,
+    "profit_factor": 1.3557606846223387,
+    "net_pnl": 926.0016185680827,
+    "worst_symbol_drawdown_pct": 1.7081085418939188,
+    "profitable_symbols": 19
+  },
+  {
+    "candidate": "A03",
+    "phase": "中段",
+    "trades": 143,
+    "win_pct": 29.37062937062937,
+    "profit_factor": 0.7787755016579264,
+    "net_pnl": -392.50145648951275,
+    "worst_symbol_drawdown_pct": 1.7288560200304868,
+    "profitable_symbols": 11
+  },
+  {
+    "candidate": "A03",
+    "phase": "后段",
+    "trades": 202,
+    "win_pct": 26.732673267326735,
+    "profit_factor": 1.0538579449529923,
+    "net_pnl": 140.72706776629494,
+    "worst_symbol_drawdown_pct": 2.3799465206273998,
+    "profitable_symbols": 16
+  },
+  {
+    "candidate": "A04",
+    "phase": "前段",
+    "trades": 202,
+    "win_pct": 31.683168316831683,
+    "profit_factor": 1.5987558600376663,
+    "net_pnl": 1305.4054792916604,
+    "worst_symbol_drawdown_pct": 1.298695728662149,
+    "profitable_symbols": 22
+  },
+  {
+    "candidate": "A04",
+    "phase": "中段",
+    "trades": 120,
+    "win_pct": 27.500000000000004,
+    "profit_factor": 0.8766553419703866,
+    "net_pnl": -188.5371191662382,
+    "worst_symbol_drawdown_pct": 1.7288560200304868,
+    "profitable_symbols": 11
+  },
+  {
+    "candidate": "A04",
+    "phase": "后段",
+    "trades": 178,
+    "win_pct": 26.40449438202247,
+    "profit_factor": 0.9882606069520344,
+    "net_pnl": -28.093632913885244,
+    "worst_symbol_drawdown_pct": 2.379946520627427,
+    "profitable_symbols": 14
+  },
+  {
+    "candidate": "A05",
+    "phase": "前段",
+    "trades": 181,
+    "win_pct": 33.70165745856354,
+    "profit_factor": 1.7745146664209293,
+    "net_pnl": 1496.2123724215112,
+    "worst_symbol_drawdown_pct": 1.2546301531605115,
+    "profitable_symbols": 22
+  },
+  {
+    "candidate": "A05",
+    "phase": "中段",
+    "trades": 115,
+    "win_pct": 27.82608695652174,
+    "profit_factor": 0.9310196621827083,
+    "net_pnl": -101.22334323459887,
+    "worst_symbol_drawdown_pct": 1.7288560200304868,
+    "profitable_symbols": 11
+  },
+  {
+    "candidate": "A05",
+    "phase": "后段",
+    "trades": 166,
+    "win_pct": 27.710843373493976,
+    "profit_factor": 1.0800709910468926,
+    "net_pnl": 174.92138783494988,
+    "worst_symbol_drawdown_pct": 2.379946520627427,
+    "profitable_symbols": 15
+  },
+  {
+    "candidate": "A06",
+    "phase": "前段",
+    "trades": 169,
+    "win_pct": 35.50295857988166,
+    "profit_factor": 1.8148435519343398,
+    "net_pnl": 1499.2945737910454,
+    "worst_symbol_drawdown_pct": 1.233815281516935,
+    "profitable_symbols": 21
+  },
+  {
+    "candidate": "A06",
+    "phase": "中段",
+    "trades": 86,
+    "win_pct": 24.418604651162788,
+    "profit_factor": 0.7456397556730651,
+    "net_pnl": -322.4033719117424,
+    "worst_symbol_drawdown_pct": 1.7002455547018114,
+    "profitable_symbols": 10
+  },
+  {
+    "candidate": "A06",
+    "phase": "后段",
+    "trades": 156,
+    "win_pct": 25.64102564102564,
+    "profit_factor": 0.9088844404028296,
+    "net_pnl": -199.16766094166996,
+    "worst_symbol_drawdown_pct": 2.379946520627427,
+    "profitable_symbols": 13
+  },
+  {
+    "candidate": "A08",
+    "phase": "前段",
+    "trades": 154,
+    "win_pct": 38.961038961038966,
+    "profit_factor": 1.8906637061842453,
+    "net_pnl": 1526.4250973364901,
+    "worst_symbol_drawdown_pct": 1.233815281516935,
+    "profitable_symbols": 21
+  },
+  {
+    "candidate": "A08",
+    "phase": "中段",
+    "trades": 59,
+    "win_pct": 18.64406779661017,
+    "profit_factor": 0.3648282768084384,
+    "net_pnl": -553.5762076711733,
+    "worst_symbol_drawdown_pct": 1.2178985745814717,
+    "profitable_symbols": 6
+  },
+  {
+    "candidate": "A08",
+    "phase": "后段",
+    "trades": 158,
+    "win_pct": 26.582278481012654,
+    "profit_factor": 0.8168198720754707,
+    "net_pnl": -411.46125111634683,
+    "worst_symbol_drawdown_pct": 2.379946520627427,
+    "profitable_symbols": 14
+  },
+  {
+    "candidate": "A03R40",
+    "phase": "前段",
+    "trades": 224,
+    "win_pct": 27.67857142857143,
+    "profit_factor": 1.3611282134123064,
+    "net_pnl": 913.195434735945,
+    "worst_symbol_drawdown_pct": 1.7994762649571097,
+    "profitable_symbols": 19
+  },
+  {
+    "candidate": "A03R40",
+    "phase": "中段",
+    "trades": 138,
+    "win_pct": 30.434782608695656,
+    "profit_factor": 0.7917091597670756,
+    "net_pnl": -355.97337983541365,
+    "worst_symbol_drawdown_pct": 1.7288560200304868,
+    "profitable_symbols": 12
+  },
+  {
+    "candidate": "A03R40",
+    "phase": "后段",
+    "trades": 199,
+    "win_pct": 26.633165829145728,
+    "profit_factor": 1.0720670765943632,
+    "net_pnl": 184.59101853867872,
+    "worst_symbol_drawdown_pct": 2.3799465206273998,
+    "profitable_symbols": 15
+  },
+  {
+    "candidate": "A03R60",
+    "phase": "前段",
+    "trades": 244,
+    "win_pct": 28.688524590163933,
+    "profit_factor": 1.2789195373627753,
+    "net_pnl": 781.3281452659727,
+    "worst_symbol_drawdown_pct": 2.5570552921906,
+    "profitable_symbols": 18
+  },
+  {
+    "candidate": "A03R60",
+    "phase": "中段",
+    "trades": 148,
+    "win_pct": 29.054054054054053,
+    "profit_factor": 0.735022796149337,
+    "net_pnl": -491.05751458008064,
+    "worst_symbol_drawdown_pct": 1.7288560200304868,
+    "profitable_symbols": 9
+  },
+  {
+    "candidate": "A03R60",
+    "phase": "后段",
+    "trades": 207,
+    "win_pct": 25.60386473429952,
+    "profit_factor": 1.0115086541031348,
+    "net_pnl": 31.230459367434236,
+    "worst_symbol_drawdown_pct": 2.3799465206273998,
+    "profitable_symbols": 14
+  },
+  {
+    "candidate": "A05R40",
+    "phase": "前段",
+    "trades": 171,
+    "win_pct": 32.16374269005848,
+    "profit_factor": 1.7797266793845832,
+    "net_pnl": 1448.4871496024564,
+    "worst_symbol_drawdown_pct": 1.2546301531605115,
+    "profitable_symbols": 22
+  },
+  {
+    "candidate": "A05R40",
+    "phase": "中段",
+    "trades": 108,
+    "win_pct": 27.77777777777778,
+    "profit_factor": 0.928429352487905,
+    "net_pnl": -100.33981127589783,
+    "worst_symbol_drawdown_pct": 1.7288560200304868,
+    "profitable_symbols": 13
+  },
+  {
+    "candidate": "A05R40",
+    "phase": "后段",
+    "trades": 163,
+    "win_pct": 27.607361963190186,
+    "profit_factor": 1.10260529346174,
+    "net_pnl": 218.8491994891142,
+    "worst_symbol_drawdown_pct": 2.379946520627427,
+    "profitable_symbols": 16
+  },
+  {
+    "candidate": "A05R60",
+    "phase": "前段",
+    "trades": 195,
+    "win_pct": 33.33333333333333,
+    "profit_factor": 1.614949603759949,
+    "net_pnl": 1330.2761687362722,
+    "worst_symbol_drawdown_pct": 1.750728701517915,
+    "profitable_symbols": 22
+  },
+  {
+    "candidate": "A05R60",
+    "phase": "中段",
+    "trades": 125,
+    "win_pct": 28.799999999999997,
+    "profit_factor": 0.8958090890690961,
+    "net_pnl": -165.85408941435279,
+    "worst_symbol_drawdown_pct": 1.7288560200304868,
+    "profitable_symbols": 10
+  },
+  {
+    "candidate": "A05R60",
+    "phase": "后段",
+    "trades": 171,
+    "win_pct": 25.730994152046783,
+    "profit_factor": 1.0138521588178053,
+    "net_pnl": 31.948848919916998,
+    "worst_symbol_drawdown_pct": 2.379946520627427,
+    "profitable_symbols": 14
+  },
+  {
+    "candidate": "A05严格区间",
+    "phase": "前段",
+    "trades": 175,
+    "win_pct": 33.14285714285714,
+    "profit_factor": 1.8147854122303908,
+    "net_pnl": 1531.345915954536,
+    "worst_symbol_drawdown_pct": 1.2546301531605115,
+    "profitable_symbols": 22
+  },
+  {
+    "candidate": "A05严格区间",
+    "phase": "中段",
+    "trades": 110,
+    "win_pct": 28.18181818181818,
+    "profit_factor": 0.9508134853856103,
+    "net_pnl": -69.07535282057107,
+    "worst_symbol_drawdown_pct": 1.7288560200304868,
+    "profitable_symbols": 13
+  },
+  {
+    "candidate": "A05严格区间",
+    "phase": "后段",
+    "trades": 163,
+    "win_pct": 27.607361963190186,
+    "profit_factor": 1.1026052934617399,
+    "net_pnl": 218.84919948911443,
+    "worst_symbol_drawdown_pct": 2.379946520627427,
+    "profitable_symbols": 16
+  }
+]

@@ -1,0 +1,316 @@
+--- "/home/user/Doubao/chats/38441842719101186/FAST\350\243\270K\344\277\256\345\244\215\347\211\210/alpha_fast_mode.\344\277\256\345\244\215\345\211\215\345\216\237\347\211\210.py"	2026-09-16 03:41:55.310603000 +0800
++++ alpha_fast_mode.py	2026-09-16 07:13:00.552681000 +0800
+@@ -455,13 +455,20 @@
+     # 改进5：波动缓冲下限。结构止损之外，再用近20根5m/15m中位波幅设最小止损距离，防止止损贴太近被正常噪声扫掉。
+     r15=np.maximum(h15[-min(len(h15),20):]-l15[-min(len(l15),20):],1e-12)
+     r5=np.maximum(h5[-min(len(h5),20):]-l5[-min(len(l5),20):],1e-12)
+-    min_stop_pct=max(float(np.median(r5))*1.2/entry, float(np.median(r15))*0.5/entry, 0.0015)
++    # 修补：除中位波幅外，止损还必须覆盖最近3根5m的最大单根波幅（突破脉冲），
++    # 避免刚追在脉冲末端、止损却放在脉冲噪声里被立刻扫掉。
++    recent_expansion_pct=float(np.max(r5[-3:]))*0.9/entry
++    min_stop_pct=max(float(np.median(r5))*1.2/entry, float(np.median(r15))*0.5/entry, recent_expansion_pct, 0.0015)
++    pools=_liquidity_pools(frame15)
+     if side=="LONG":
+         lows=[float(x[1]) for x in _swings(frame5)[1][-6:]]+[float(x[1]) for x in _swings(frame15)[1][-6:]]
+         support=max([x for x in lows if x<entry], default=float(np.min(l5[-12:])))
+         struct_stop_pct=max((entry-support)/entry,0.0015)*1.08
+         stop_pct=max(struct_stop_pct,min_stop_pct)
+-        candidates=sorted(set([float(x[1]) for x in _swings(frame15)[0][-12:] if float(x[1])>entry]+[float(np.max(h15[-24:]))]), key=lambda x:x)
++        # v2：把等高高点(买方流动性池)作为优先止盈目标之一——机构行情通常朝最近流动性池交付。
++        _eqh=float(pools.get("eqh_price",0) or 0)
++        liq_targets=[_eqh] if (_USE_LIQUIDITY_TP and _eqh>entry) else []
++        candidates=sorted(set([float(x[1]) for x in _swings(frame15)[0][-12:] if float(x[1])>entry]+liq_targets+[float(np.max(h15[-24:]))]), key=lambda x:x)
+         sl_px=entry*(1-stop_pct)
+         chosen=None
+         for target in candidates:
+@@ -474,7 +481,10 @@
+         resistance=min([x for x in highs if x>entry], default=float(np.max(h5[-12:])))
+         struct_stop_pct=max((resistance-entry)/entry,0.0015)*1.08
+         stop_pct=max(struct_stop_pct,min_stop_pct)
+-        candidates=sorted(set([float(x[1]) for x in _swings(frame15)[1][-12:] if float(x[1])<entry]+[float(np.min(l15[-24:]))]), key=lambda x:x, reverse=True)
++        # v2：把等低低点(卖方流动性池)作为优先止盈目标之一。
++        _eql=float(pools.get("eql_price",0) or 0)
++        liq_targets=[_eql] if (_USE_LIQUIDITY_TP and 0<_eql<entry) else []
++        candidates=sorted(set([float(x[1]) for x in _swings(frame15)[1][-12:] if float(x[1])<entry]+liq_targets+[float(np.min(l15[-24:]))]), key=lambda x:x, reverse=True)
+         sl_px=entry*(1+stop_pct)
+         chosen=None
+         for target in candidates:
+@@ -557,6 +567,106 @@
+     return {"position":pos,"score":score,"mid":mid,"high":hi,"low":lo,"label":pos}
+ 
+ 
++def _efficiency_ratio(close: np.ndarray, n: int = 14) -> float:
++    """Kaufman 效率比 ER=|净位移|/路径总长，区间[0,1]。
++
++    趋势单边 ER 高(→1)，来回拉锯的震荡 ER 低(→0)。用于在震荡市关掉顺势结构/突破单。
++    """
++    c=np.asarray(close,float)
++    if len(c)<n+1: return 0.5
++    seg=c[-(n+1):]; net=abs(seg[-1]-seg[0]); path=float(np.sum(np.abs(np.diff(seg))))
++    if path<=1e-12: return 0.0
++    return float(np.clip(net/path,0.0,1.0))
++
++
++def _dealing_range(frame: Dict[str, np.ndarray]) -> Dict[str, Any]:
++    """裸K日内“交易区间/折扣-溢价”：用最近一腿已确认摆动低->高定义 dealing range。
++
++    多头只在折扣区（区间下半、回踩到位）接，空头只在溢价区（区间上半、反弹到位）接；
++    区间正中间是“无人区”，不做顺势单。区间外视为已突破，交给突破回踩路径处理。
++    """
++    h=frame.get("high",np.array([])); l=frame.get("low",np.array([])); c=frame.get("close",np.array([]))
++    if len(c)<15:
++        return {"ok":False,"pos":0.5,"low":0.0,"high":0.0,"mid":0.0,"beyond":0,"zone":"数据不足"}
++    highs,lows=_swings(frame)
++    if highs and lows:
++        rh=float(highs[-1][1]); rl=float(lows[-1][1])
++        if rh<=rl: rh,rl=float(np.max(h[-20:])),float(np.min(l[-20:]))
++    else:
++        rh,rl=float(np.max(h[-20:])),float(np.min(l[-20:]))
++    span=max(rh-rl,1e-12); px=float(c[-1]); pos=float(np.clip((px-rl)/span,0.0,1.0))
++    beyond=1 if px>rh else (-1 if px<rl else 0)
++    if beyond!=0: zone="区间外(突破)"
++    elif pos<=0.45: zone="折扣区"
++    elif pos>=0.55: zone="溢价区"
++    else: zone="中部无人区"
++    # OTE 甜区：多头约在区间 0.18~0.45（对应0.55~0.82回撤），空头镜像。
++    sweet_long = (0.18<=pos<=0.45); sweet_short = (0.55<=pos<=0.82)
++    return {"ok":True,"pos":pos,"low":rl,"high":rh,"mid":(rh+rl)/2.0,"beyond":beyond,
++            "zone":zone,"sweet_long":sweet_long,"sweet_short":sweet_short}
++
++
++def _ob_fvg_mitigation(frame: Dict[str, np.ndarray], direction: int, px: float, tol: float = 0.0030) -> Dict[str, Any]:
++    """裸K日内高质量进场：价格回补(mitigation)到“同向订单块 ∩ 同向FVG”共振区。
++
++    机构订单块要有效，需先有位移/失衡(FVG)；价格只缓解一次该区域。
++    返回是否构成共振回补、是否触及OB、是否触及FVG。
++    """
++    ob=_order_block(frame); fvg=_fvg(frame)
++    ob_a = bool(direction*float(ob.get("score",0) or 0)>0 and float(ob.get("high",0) or 0)>0)
++    fvg_a = bool(direction*float(fvg.get("score",0) or 0)>0 and float(fvg.get("high",0) or 0)>0)
++    def tap(z):
++        lo=float(z.get("low",0) or 0); hi=float(z.get("high",0) or 0)
++        if hi<=lo or px<=0: return False
++        return lo*(1-tol) <= px <= hi*(1+tol)
++    mit_ob=ob_a and tap(ob); mit_fvg=fvg_a and tap(fvg)
++    overlap=False
++    if ob_a and fvg_a:
++        ol=max(float(ob["low"]),float(fvg["low"])); oh=min(float(ob["high"]),float(fvg["high"]))
++        overlap=oh>=ol
++        merged_lo=min(float(ob["low"]),float(fvg["low"])); merged_hi=max(float(ob["high"]),float(fvg["high"]))
++    else:
++        merged_lo=merged_hi=0.0
++    in_merged = bool(merged_hi>0 and merged_lo*(1-tol) <= px <= merged_hi*(1+tol))
++    # 共振：OB与FVG区间重叠，且价格正在回补该合并区，且至少OB被触及（OB为进场触发）。
++    confluence=bool(overlap and in_merged and mit_ob)
++    return {"confluence":confluence,"mit_ob":mit_ob,"mit_fvg":mit_fvg,"overlap":overlap,
++            "ob_label":ob.get("label",""),"fvg_label":fvg.get("label","")}
++
++
++def _killzone_ok(ts_ms: float) -> bool:
++    """可选：ICT killzone 时段（UTC）。伦敦 07:00-10:00、纽约 12:00-16:00 为主窗口。
++
++    加密24/7，该过滤默认关闭(_REQUIRE_KILLZONE=False)，开启前请用真实时间戳验证。
++    """
++    try:
++        import datetime as _dt
++        h=_dt.datetime.utcfromtimestamp(float(ts_ms)/1000.0).hour
++        return (7<=h<10) or (12<=h<16)
++    except Exception:
++        return True
++
++
++# v2 修补开关（在v1基础上叠加裸K日内机构模型）
++# 是否只在伦敦/纽约 killzone 时段交易（默认关，需真实数据验证后再开）。
++_REQUIRE_KILLZONE = False
++# 震荡过滤（可选，默认关闭）：15m Kaufman效率比低于该值视为拉锯震荡，
++# 低ER时回避“假突破 + 区间中部结构单”，保留边缘回踩/扫盘MSS/机构区回补。
++# 回放：开启(0.30)能显著提升混合/震荡市单笔期望，但会减少成交并削掉一部分强趋势利润，
++# 取舍因人而异，故默认 0=关闭；震荡行情多、想少做单的用户可设 0.30 自行用真实数据验证。
++_CHOP_ER_MAX = 0.0
++# 机构区(OB∩FVG)回补的最低15m效率比：低于该值说明在拉锯震荡、回补多为假回补，不做。
++_MITIGATION_MIN_ER = 0.30
++# 是否把等高高点/等低低点(流动性池)作为优先止盈目标（朝最近 resting liquidity 交付）。
++_USE_LIQUIDITY_TP = True
++
++# 修补开关：是否允许“强趋势加速”不等回踩直接市价追单。
++# 回放显示该追单是“进场即被反打止损”的主要来源之一，默认关闭，统一要求回踩确认。
++_ALLOW_ACCELERATION_CHASE = False
++# 修补开关：裸15m结构突破（无完整回踩/扫盘反转）时，是否必须等到5m回踩或扫盘收回确认才进场。
++# True=只买回踩/重新站回，不打突破第一根（回放中显著降低即损、提升期望）。
++_REQUIRE_5M_RETEST_FOR_STRUCTURE = True
++
+ def _fast_entry_quality(
+     symbol: str,
+     frame5: Dict[str, np.ndarray],
+@@ -584,6 +694,7 @@
+     quality of the current price location and trigger, while allowing either
+     a breakout/reclaim path or a liquidity/reversal path.
+     """
++    o15=frame15.get("open",frame15.get("close",np.array([])))
+     h15=frame15.get("high",np.array([])); l15=frame15.get("low",np.array([]))
+     c15=frame15.get("close",np.array([])); c5=frame5.get("close",np.array([]))
+     if len(c15)<20 or len(c5)<10 or px<=0:
+@@ -699,13 +810,23 @@
+          direction*pb15.get("score",0) >= 0.75)
+     )
+ 
+-    # Two legitimate intraday entry archetypes:
+-    # A) displacement/BOS -> breakout -> pullback/reclaim
+-    # B) liquidity sweep -> rejection/CHOCH -> continuation/reversal
++    # ---- v2: 裸K日内机构进场模型 ----
++    px15=float(c15[-1])
++    er15=_efficiency_ratio(c15,14)
++    deal=_dealing_range({"open":o15,"high":h15,"low":l15,"close":c15})
++    mit=_ob_fvg_mitigation({"open":o15,"high":h15,"low":l15,"close":c15}, direction, px15)
++    raw_mitigation=bool(mit.get("confluence"))   # 同向 OB∩FVG 回补（候选）
++
++    # Three legitimate intraday entry archetypes:
++    # A) displacement/BOS -> breakout -> pullback/reclaim（突破回踩重新站回）
++    # B) liquidity sweep -> CHoCH/MSS -> displacement/FVG（扫损→结构位移，完整MSS序列）
++    # C) mitigation into aligned OB∩FVG in discount/premium（回补机构区）
+     breakout_path = direction*pb15.get("score",0) >= 0.75
++    # v2收紧扫盘反转：必须 扫损 + CHoCH结构位移 + (位移K 或 FVG失衡)，不再接受单根影线反转。
+     sweep_path = (
+         direction*sweep15.get("score",0) >= 0.55 and
+-        (direction*bos15.get("choch",0) >= 0.45 or direction*reject15.get("score",0) >= 0.45)
++        direction*bos15.get("choch",0) >= 0.45 and
++        (direction*disp15.get("score",0) >= 0.55 or direction*fvg15.get("score",0) >= 0.45)
+     )
+     structure_path = len(aligned_categories)>=2 and (
+         direction*bos15.get("bos",0)>=0.45 or
+@@ -713,6 +834,17 @@
+         direction*n15.get("score",0)>=0.65 or
+         direction*disp15.get("score",0)>=0.65
+     )
++    # 机构区回补只在“有趋势效率”时做：震荡(低ER)里价格反复在边缘假回补，回放全亏；
++    # 趋势中ER高、或属于扫盘MSS路径时才放行。该门独立于可选的全局震荡过滤，默认生效。
++    mitigation_path = bool(raw_mitigation and (sweep_path or er15>=_MITIGATION_MIN_ER))
++    # v2折扣/溢价位置：顺势单必须在正确半区，除非是已确认的突破回踩/扫盘MSS/OB∩FVG回补。
++    if direction>0:
++        good_zone = bool(deal.get("pos",0.5)<=0.55)
++        sweet_zone = bool(deal.get("sweet_long"))
++    else:
++        good_zone = bool(deal.get("pos",0.5)>=0.45)
++        sweet_zone = bool(deal.get("sweet_short"))
++    location_exempt = bool(breakout_path or sweep_path or mitigation_path)
+     trigger_score=float(trigger.get("score",0) or 0)
+     trigger_ok=bool(trigger.get("ok") and trigger_score>=0.30 and trigger.get("aligned_votes",0)>=1)
+ 
+@@ -724,12 +856,17 @@
+         0.20*min(max(direction*disp15.get("score",0),0.0),1.0),
+         0,1
+     ))
+-    path_ok=breakout_path or sweep_path or structure_path
++    path_ok=breakout_path or sweep_path or mitigation_path or structure_path
+     reverse_penalty=0.08 if reverse_single else 0.0
++    # v2：OB∩FVG回补共振、OTE甜区 给予质量加分；错误半区轻度扣分（降级而非一律拦）。
++    mit_bonus = 0.10 if mitigation_path else (0.04 if mit.get("mit_ob") else 0.0)
++    zone_bonus = 0.05 if sweet_zone else (0.0 if (good_zone or location_exempt) else -0.03)
++    no_mans_land = bool(0.40 <= deal.get("pos",0.5) <= 0.60)
+     score=float(np.clip(
+-        0.48*structure_quality +
+-        0.27*trigger_score +
+-        0.20*location_score -
++        0.46*structure_quality +
++        0.26*trigger_score +
++        0.18*location_score +
++        mit_bonus + zone_bonus -
+         chase_penalty -
+         reverse_penalty,
+         0,1
+@@ -770,6 +907,7 @@
+         # same direction, with real body expansion. This avoids turning every
+         # breakout into an automatic chase entry.
+         acceleration_follow=bool(
++            _ALLOW_ACCELERATION_CHASE and
+             above_breakout and
+             continuation_gap>=0.0020 and
+             dir_count>=2 and
+@@ -824,8 +962,43 @@
+         return {"decision":"WAIT","score":score,"tier":"不做","reason":"5m实体扩张后已经延伸，避免日内裸K追单",
+                 "position":pos,"location_score":location_score,"chase":chase,"aligned_count":len(aligned),"aligned_categories":aligned_categories,"path":"追价"}
+ 
+-    # 改进4：突破型路径必须有量能配合，无量突破假突破概率高；扫盘反转路径不卡量，数据不足也不拦截。
+-    needs_volume=bool((breakout_path or structure_path) and not sweep_path)
++    # 修补：裸结构/动量突破 与 OB∩FVG回补（15m无完整回踩、也不是扫盘MSS）都必须再等到
++    # 5m出现“突破回踩重新站回”或“扫流动性后收回”二次确认，不打突破第一根、不接未确认的机构区。
++    # 回放统计：未确认的“结构触发/OB回补”在震荡里容易被均值回归反打；“突破回踩”路径期望显著为正。
++    need_5m_confirm = (structure_path or mitigation_path) and not breakout_path and not sweep_path and not acceleration_follow
++    if _REQUIRE_5M_RETEST_FOR_STRUCTURE and need_5m_confirm:
++        trig_struct=list(trigger.get("structural_evidence") or [])
++        retest5=("突破回踩" in trig_struct) or ("流动性扫盘" in trig_struct)
++        if not retest5:
++            return {"decision":"WAIT","score":score,"tier":"观察",
++                    "reason":"15m结构/机构区已出现但5m尚未回踩/扫盘收回确认，等待重新站回再进，不抢第一根",
++                    "position":pos,"location_score":location_score,"chase":chase,
++                    "aligned_count":len(aligned),"aligned_categories":aligned_categories,"path":"等待5m回踩"}
++
++    # v2位置门：只硬拦“区间正中间无人区”（盈亏比最差、上下都被动）。
++    # 错误半区(浅溢价/浅折价)的趋势延续不硬拦，改为综合分轻度扣分+降档处理；
++    # 突破回踩、扫盘MSS、OB∩FVG回补 三类机构路径位置已定义好，豁免。
++    if not acceleration_follow and no_mans_land and not location_exempt:
++        return {"decision":"WAIT","score":score,"tier":"观察",
++                "reason":"价格处于15m区间正中间无人区（非折扣/溢价边缘、无机构区），等回踩到边缘或机构区再进",
++                "position":pos,"location_score":location_score,"chase":chase,
++                "aligned_count":len(aligned),"aligned_categories":aligned_categories,
++                "path":"无人区过滤","deal_pos":round(float(deal.get("pos",0.5)),2)}
++
++    # v2震荡门（克制版）：15m效率比过低=来回拉锯时，只拦两类最容易被均值回归反打的单——
++    #   ①假突破(breakout_path)；②不在正确半区的中部结构单。
++    # 保留：正确半区(多在折扣/空在溢价)的边缘顺势回踩、区间边缘扫盘MSS、机构区(OB∩FVG)回补。
++    _chop = _CHOP_ER_MAX>0 and er15 < _CHOP_ER_MAX and not sweep_path and not mitigation_path
++    _chop_block = _chop and (breakout_path or (structure_path and not good_zone))
++    if _chop_block:
++        return {"decision":"WAIT","score":score,"tier":"观察",
++                "reason":f"15m趋势效率比{er15:.2f}过低（拉锯震荡），回避假突破/中部结构单，等边缘回踩或趋势展开",
++                "position":pos,"location_score":location_score,"chase":chase,
++                "aligned_count":len(aligned),"aligned_categories":aligned_categories,
++                "path":"震荡过滤","er15":round(er15,2)}
++
++    # 改进4：突破型路径必须有量能配合，无量突破假突破概率高；扫盘反转/OB回补是回踩性质，不卡量，数据不足也不拦截。
++    needs_volume=bool((breakout_path or (structure_path and not mitigation_path)) and not sweep_path)
+     if needs_volume and len(v5)>=21 and vol_ratio<0.9:
+         return {"decision":"WAIT","score":score,"tier":"观察","reason":f"突破量能不足（近3根/前18根量比={vol_ratio:.2f}<0.90），等待放量确认，防假突破",
+                 "position":pos,"location_score":location_score,"chase":chase,"aligned_count":len(aligned),"aligned_categories":aligned_categories,"path":"无量突破","vol_ratio":vol_ratio}
+@@ -848,12 +1021,23 @@
+         tier="一般"
+         entry_size_multiplier=0.50
+ 
++    if acceleration_follow:
++        path_label="加速跟随"; path_reason=acceleration_reason
++    elif mitigation_path:
++        path_label="OB/FVG回补"; path_reason="同向订单块∩FVG回补确认"
++    elif breakout_path:
++        path_label="突破回踩"; path_reason="突破→回踩重新站回"
++    elif sweep_path:
++        path_label="扫盘MSS"; path_reason="流动性扫损→CHoCH位移→确认"
++    else:
++        path_label="结构触发"; path_reason="结构+5m回踩触发"
+     return {
+         "decision":"ENTER","score":score,"tier":tier,
+-        "reason":(acceleration_reason if acceleration_follow else ("突破→回踩" if breakout_path else "流动性扫损→反转确认" if sweep_path else "结构+触发"))+
+-                 "；当前位置可参与；非明显追价",
++        "reason":path_reason+f"；位于15m{deal.get('zone','区间')}，位置可参与；非明显追价",
+         "position":pos,"location_score":location_score,"chase":chase,
+-        "aligned_count":len(aligned),"path":"突破回踩" if breakout_path else "扫盘反转" if sweep_path else "结构触发",
++        "aligned_count":len(aligned),"path":path_label,
++        "deal_zone":deal.get("zone"),"deal_pos":round(float(deal.get("pos",0.5)),2),
++        "ob_fvg_mitigation":bool(mitigation_path),
+         "evidence_count":len(aligned),"strong_evidence_count":len(strong),"evidence_categories":aligned_categories,
+         "entry_size_multiplier":entry_size_multiplier,
+         "opposite_score":opposite,
+@@ -918,6 +1102,14 @@
+     # price-action context score and is kept separate from model mode.
+     context_score=float(np.clip(0.55*ctx["agreement"]+0.45*structure_score,0,1))
+ 
++    # 可选 killzone 时段过滤（默认关闭）：开启后只在伦敦/纽约高波动窗口进场。
++    if _REQUIRE_KILLZONE:
++        _ts5=frames["5m"].get("ts",np.array([]))
++        if len(_ts5) and not _killzone_ok(float(np.asarray(_ts5)[-1])):
++            return {"symbol":symbol,"strategy_mode":"FAST","signal":"FLAT","confidence":0.0,
++                    "signal_tier":"FAST","direction":0,"reason":"当前不在伦敦/纽约killzone高概率时段，空仓等待",
++                    "tp":0.0,"sl":0.0,"fast_strategy":{"primary":"4H/1H方向 + 15m结构 + 5m触发","uses_model":False}}
++
+     entry=_fast_entry_quality(
+         symbol,
+         frames["5m"],frames["15m"],direction,px,s15,bos15,n15,fvg15,

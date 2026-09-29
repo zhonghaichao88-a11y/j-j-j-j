@@ -1,0 +1,26 @@
+test_all_engines_both_sides (__main__.Tests.test_all_engines_both_sides) ... ok
+test_api_and_frontend (__main__.Tests.test_api_and_frontend) ... ok
+test_bad_data_rejected (__main__.Tests.test_bad_data_rejected) ... ok
+test_breakout_two_post_entry_bars (__main__.Tests.test_breakout_two_post_entry_bars) ... ok
+test_cost_chase_spread (__main__.Tests.test_cost_chase_spread) ... ok
+test_duplicate_guard (__main__.Tests.test_duplicate_guard) ... ok
+test_exit_and_trail (__main__.Tests.test_exit_and_trail) ... ok
+test_flow_budget_once (__main__.Tests.test_flow_budget_once) ... ok
+test_gap_and_double_touch (__main__.Tests.test_gap_and_double_touch) ... ok
+test_live_amend_confirmation (__main__.Tests.test_live_amend_confirmation) ... ok
+test_live_close_confirmation (__main__.Tests.test_live_close_confirmation) ... ok
+test_missing_micro_not_zero (__main__.Tests.test_missing_micro_not_zero) ... ok
+test_net_metrics (__main__.Tests.test_net_metrics) ... ok
+test_no_future_leak (__main__.Tests.test_no_future_leak) ... ok
+test_paper_partial (__main__.Tests.test_paper_partial) ... ok
+test_partial_switch (__main__.Tests.test_partial_switch) ... ok
+test_real_fast_routing (__main__.Tests.test_real_fast_routing) ... ok
+test_replay_gap_and_segment (__main__.Tests.test_replay_gap_and_segment) ... ok
+test_two_book_updates (__main__.Tests.test_two_book_updates) ... ok
+test_unclosed_and_stale (__main__.Tests.test_unclosed_and_stale) ... ok
+test_v6_structure_distances_not_overwritten (__main__.Tests.test_v6_structure_distances_not_overwritten) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 2.811s
+
+OK

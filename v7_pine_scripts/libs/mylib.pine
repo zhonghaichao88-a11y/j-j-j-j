@@ -1,0 +1,6 @@
+//@version=5
+// library
+doubleit(x) => x * 2
+triple(x) =>
+    y = x * 3
+    y

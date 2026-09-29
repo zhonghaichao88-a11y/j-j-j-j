@@ -1,0 +1,585 @@
+{
+  "version": "7.6-PINE-EXPANDED",
+  "complete": true,
+  "results": [
+    {
+      "symbol": "BTCUSDT",
+      "strategy": "sweep_reversal",
+      "params": {
+        "strategy": "sweep_reversal"
+      },
+      "summary": {
+        "交易数": 0,
+        "成交片段": 0,
+        "胜率": 0,
+        "净收益": 0.0,
+        "收益率": 0.0,
+        "最大回撤": 0,
+        "盈利因子": null
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 5.95
+    },
+    {
+      "symbol": "BTCUSDT",
+      "strategy": "structure_retest",
+      "params": {
+        "strategy": "structure_retest"
+      },
+      "summary": {
+        "交易数": 3,
+        "成交片段": 3,
+        "胜率": 0.3333333333333333,
+        "净收益": -38.04742948358398,
+        "收益率": -0.0038047429483584194,
+        "最大回撤": 0.009444114187011292,
+        "盈利因子": 0.22784533890081257
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "BTCUSDT",
+      "strategy": "fvg_continuation",
+      "params": {
+        "strategy": "fvg_continuation"
+      },
+      "summary": {
+        "交易数": 4,
+        "成交片段": 4,
+        "胜率": 0.0,
+        "净收益": -26.99129273278595,
+        "收益率": -0.0026991292732786443,
+        "最大回撤": 0.006737212449570581,
+        "盈利因子": 0.0
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "BTCUSDT",
+      "strategy": "donchian_retest",
+      "params": {
+        "strategy": "donchian_retest"
+      },
+      "summary": {
+        "交易数": 3,
+        "成交片段": 4,
+        "胜率": 0.3333333333333333,
+        "净收益": 2.7919464521764894,
+        "收益率": 0.0002791946452176397,
+        "最大回撤": 0.004279973784268118,
+        "盈利因子": 1.150124834576798
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "BTCUSDT",
+      "strategy": "squeeze_breakout",
+      "params": {
+        "strategy": "squeeze_breakout"
+      },
+      "summary": {
+        "交易数": 2,
+        "成交片段": 2,
+        "胜率": 0.0,
+        "净收益": -57.3170117710506,
+        "收益率": -0.005731701177105086,
+        "最大回撤": 0.007579591621230975,
+        "盈利因子": 0.0
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "BTCUSDT",
+      "strategy": "ema_pullback",
+      "params": {
+        "strategy": "ema_pullback"
+      },
+      "summary": {
+        "交易数": 1,
+        "成交片段": 1,
+        "胜率": 0.0,
+        "净收益": -7.707517739154355,
+        "收益率": -0.0007707517739153902,
+        "最大回撤": 0.003913676246263326,
+        "盈利因子": 0.0
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "BTCUSDT",
+      "strategy": "vwap_reclaim",
+      "params": {
+        "strategy": "vwap_reclaim"
+      },
+      "summary": {
+        "交易数": 0,
+        "成交片段": 0,
+        "胜率": 0,
+        "净收益": 0.0,
+        "收益率": 0.0,
+        "最大回撤": 0,
+        "盈利因子": null
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "BTCUSDT",
+      "strategy": "vwap_revert",
+      "params": {
+        "strategy": "vwap_revert"
+      },
+      "summary": {
+        "交易数": 0,
+        "成交片段": 0,
+        "胜率": 0,
+        "净收益": 0.0,
+        "收益率": 0.0,
+        "最大回撤": 0,
+        "盈利因子": null
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "BTCUSDT",
+      "strategy": "supertrend_structure",
+      "params": {
+        "strategy": "supertrend_structure"
+      },
+      "summary": {
+        "交易数": 2,
+        "成交片段": 4,
+        "胜率": 1.0,
+        "净收益": 109.46494466358126,
+        "收益率": 0.010946494466358203,
+        "最大回撤": 0.0032870127177930045,
+        "盈利因子": null
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "BTCUSDT",
+      "strategy": "ssl_channel",
+      "params": {
+        "strategy": "ssl_channel"
+      },
+      "summary": {
+        "交易数": 3,
+        "成交片段": 5,
+        "胜率": 0.3333333333333333,
+        "净收益": 52.60614735279887,
+        "收益率": 0.005260614735279834,
+        "最大回撤": 0.006434566585210086,
+        "盈利因子": 1.9378402710437859
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "BTCUSDT",
+      "strategy": "liquidity_fvg_ob",
+      "params": {
+        "strategy": "liquidity_fvg_ob"
+      },
+      "summary": {
+        "交易数": 0,
+        "成交片段": 0,
+        "胜率": 0,
+        "净收益": 0.0,
+        "收益率": 0.0,
+        "最大回撤": 0,
+        "盈利因子": null
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "BTCUSDT",
+      "strategy": "auto_regime",
+      "params": {
+        "strategy": "auto_regime"
+      },
+      "summary": {
+        "交易数": 4,
+        "成交片段": 4,
+        "胜率": 0.0,
+        "净收益": -106.54997576934329,
+        "收益率": -0.010654997576934333,
+        "最大回撤": 0.012606438625546798,
+        "盈利因子": 0.0
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "BTCUSDT",
+      "strategy": "chan_L0_single_tf",
+      "params": {
+        "strategy": "chan_quant",
+        "chan_level": 0,
+        "chan_mtf": 0
+      },
+      "summary": {
+        "交易数": 1,
+        "成交片段": 1,
+        "胜率": 1.0,
+        "净收益": 33.45660150747426,
+        "收益率": 0.0033456601507473316,
+        "最大回撤": 0.0019511671821046254,
+        "盈利因子": null
+      },
+      "from_ms": 1789513500000,
+      "to_ms": 1790173200000,
+      "seconds": 30.05
+    },
+    {
+      "symbol": "BTCUSDT",
+      "strategy": "chan_L1_mtf",
+      "params": {
+        "strategy": "chan_quant",
+        "chan_level": 1
+      },
+      "summary": {
+        "交易数": 0,
+        "成交片段": 0,
+        "胜率": 0,
+        "净收益": 0.0,
+        "收益率": 0.0,
+        "最大回撤": 0,
+        "盈利因子": null
+      },
+      "from_ms": 1789513500000,
+      "to_ms": 1790173200000,
+      "seconds": 29.6
+    },
+    {
+      "symbol": "BTCUSDT",
+      "strategy": "pine_import",
+      "params": {
+        "strategy": "pine_import",
+        "pine_id": "a4276dc6309b65040e87f6653694e5e834bfb281ff74e20891f251b774a9b252"
+      },
+      "summary": {
+        "交易数": 3,
+        "成交片段": 3,
+        "胜率": 0.6666666666666666,
+        "净收益": -0.42924634691189567,
+        "收益率": -4.2924634691243746e-05,
+        "最大回撤": 0.009298384196538246,
+        "盈利因子": 0.9928828985161817
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 4.56
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "sweep_reversal",
+      "params": {
+        "strategy": "sweep_reversal"
+      },
+      "summary": {
+        "交易数": 1,
+        "成交片段": 1,
+        "胜率": 0.0,
+        "净收益": -81.95115405066281,
+        "收益率": -0.008195115405066233,
+        "最大回撤": 0.009167702347818885,
+        "盈利因子": 0.0
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 5.51
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "structure_retest",
+      "params": {
+        "strategy": "structure_retest"
+      },
+      "summary": {
+        "交易数": 5,
+        "成交片段": 8,
+        "胜率": 0.4,
+        "净收益": 5.548560123470452,
+        "收益率": 0.0005548560123469493,
+        "最大回撤": 0.016840102040992445,
+        "盈利因子": 1.0456910158627486
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "fvg_continuation",
+      "params": {
+        "strategy": "fvg_continuation"
+      },
+      "summary": {
+        "交易数": 4,
+        "成交片段": 7,
+        "胜率": 0.5,
+        "净收益": 96.7652785465034,
+        "收益率": 0.00967652785465023,
+        "最大回撤": 0.01136060820677125,
+        "盈利因子": 3.4083111985737045
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.34
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "donchian_retest",
+      "params": {
+        "strategy": "donchian_retest"
+      },
+      "summary": {
+        "交易数": 4,
+        "成交片段": 7,
+        "胜率": 0.5,
+        "净收益": 81.5955976392761,
+        "收益率": 0.008159559763927682,
+        "最大回撤": 0.012670369845761996,
+        "盈利因子": 2.540975284555461
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "squeeze_breakout",
+      "params": {
+        "strategy": "squeeze_breakout"
+      },
+      "summary": {
+        "交易数": 3,
+        "成交片段": 3,
+        "胜率": 0.6666666666666666,
+        "净收益": 37.4454077168557,
+        "收益率": 0.0037445407716856227,
+        "最大回撤": 0.010133752262762852,
+        "盈利因子": 2.2373237268615753
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "ema_pullback",
+      "params": {
+        "strategy": "ema_pullback"
+      },
+      "summary": {
+        "交易数": 4,
+        "成交片段": 7,
+        "胜率": 0.5,
+        "净收益": 87.84793514442572,
+        "收益率": 0.008784793514442502,
+        "最大回撤": 0.010652877489635887,
+        "盈利因子": 3.2039434330043686
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "vwap_reclaim",
+      "params": {
+        "strategy": "vwap_reclaim"
+      },
+      "summary": {
+        "交易数": 0,
+        "成交片段": 0,
+        "胜率": 0,
+        "净收益": 0.0,
+        "收益率": 0.0,
+        "最大回撤": 0,
+        "盈利因子": null
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "vwap_revert",
+      "params": {
+        "strategy": "vwap_revert"
+      },
+      "summary": {
+        "交易数": 0,
+        "成交片段": 0,
+        "胜率": 0,
+        "净收益": 0.0,
+        "收益率": 0.0,
+        "最大回撤": 0,
+        "盈利因子": null
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "supertrend_structure",
+      "params": {
+        "strategy": "supertrend_structure"
+      },
+      "summary": {
+        "交易数": 0,
+        "成交片段": 0,
+        "胜率": 0,
+        "净收益": 0.0,
+        "收益率": 0.0,
+        "最大回撤": 0,
+        "盈利因子": null
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "ssl_channel",
+      "params": {
+        "strategy": "ssl_channel"
+      },
+      "summary": {
+        "交易数": 3,
+        "成交片段": 4,
+        "胜率": 0.3333333333333333,
+        "净收益": 37.182313033632454,
+        "收益率": 0.0037182313033632397,
+        "最大回撤": 0.009416306721145433,
+        "盈利因子": 1.880503984740114
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "liquidity_fvg_ob",
+      "params": {
+        "strategy": "liquidity_fvg_ob"
+      },
+      "summary": {
+        "交易数": 0,
+        "成交片段": 0,
+        "胜率": 0,
+        "净收益": 0.0,
+        "收益率": 0.0,
+        "最大回撤": 0,
+        "盈利因子": null
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "auto_regime",
+      "params": {
+        "strategy": "auto_regime"
+      },
+      "summary": {
+        "交易数": 5,
+        "成交片段": 6,
+        "胜率": 0.4,
+        "净收益": -79.8814302824776,
+        "收益率": -0.007988143028247796,
+        "最大回撤": 0.016719104544125195,
+        "盈利因子": 0.34219624245609664
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 0.04
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "chan_L0_single_tf",
+      "params": {
+        "strategy": "chan_quant",
+        "chan_level": 0,
+        "chan_mtf": 0
+      },
+      "summary": {
+        "交易数": 0,
+        "成交片段": 0,
+        "胜率": 0,
+        "净收益": 0.0,
+        "收益率": 0.0,
+        "最大回撤": 0,
+        "盈利因子": null
+      },
+      "from_ms": 1789513500000,
+      "to_ms": 1790173200000,
+      "seconds": 31.24
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "chan_L1_mtf",
+      "params": {
+        "strategy": "chan_quant",
+        "chan_level": 1
+      },
+      "summary": {
+        "交易数": 0,
+        "成交片段": 0,
+        "胜率": 0,
+        "净收益": 0.0,
+        "收益率": 0.0,
+        "最大回撤": 0,
+        "盈利因子": null
+      },
+      "from_ms": 1789513500000,
+      "to_ms": 1790173200000,
+      "seconds": 31.92
+    },
+    {
+      "symbol": "ETHUSDT",
+      "strategy": "pine_import",
+      "params": {
+        "strategy": "pine_import",
+        "pine_id": "a4276dc6309b65040e87f6653694e5e834bfb281ff74e20891f251b774a9b252"
+      },
+      "summary": {
+        "交易数": 0,
+        "成交片段": 0,
+        "胜率": 0,
+        "净收益": 0.0,
+        "收益率": 0.0,
+        "最大回撤": 0,
+        "盈利因子": null
+      },
+      "from_ms": 1790029500000,
+      "to_ms": 1790173200000,
+      "seconds": 3.91
+    }
+  ],
+  "note": "Bundled candle source not independently verified. No real fills or historical order flow. Zero trades is not a trade-chain acceptance."
+}

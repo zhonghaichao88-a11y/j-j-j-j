@@ -1,0 +1,18 @@
+//@version=5
+strategy("V7 Pine stop/limit example", overlay=true)
+
+length = input.int(20, title="EMA period", minval=2, maxval=200)
+atrLength = input.int(14, title="ATR period", minval=2, maxval=100)
+emaLine = ta.ema(close, length)
+atrValue = ta.atr(atrLength)
+longSignal = ta.crossover(close, emaLine)
+shortSignal = ta.crossunder(close, emaLine)
+
+if longSignal
+    strategy.entry("Long", strategy.long)
+if shortSignal
+    strategy.entry("Short", strategy.short)
+
+strategy.exit("Long bracket", from_entry="Long", stop=close - 2 * atrValue, limit=close + 3 * atrValue)
+strategy.exit("Short bracket", from_entry="Short", stop=close + 2 * atrValue, limit=close - 3 * atrValue)
+plot(emaLine, title="EMA")
