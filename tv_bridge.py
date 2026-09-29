@@ -327,6 +327,35 @@ def tv_reset():
     return {"success": True, "message": "V7 模拟账户已重置为 10000 USDT"}
 
 
+class TVExitSwitchRequest(BaseModel):
+    trend_trail: Optional[bool] = None
+    partial_tp: Optional[bool] = None
+
+
+def _exit_switches():
+    import alpha_engine
+    return {k: alpha_engine.gate_enabled(k) for k in ("trend_trail", "partial_tp")}
+
+
+@router.get("/api/exit-switches")
+def tv_get_exit_switches():
+    """全局出场开关：移动止损(趋势跟踪)与分批止盈。对 V6/V7 所有策略生效。"""
+    return {"success": True, "switches": _exit_switches()}
+
+
+@router.post("/api/exit-switches")
+@_control
+def tv_set_exit_switches(req: TVExitSwitchRequest):
+    import alpha_engine
+    values = {k: v for k, v in (("trend_trail", req.trend_trail), ("partial_tp", req.partial_tp)) if v is not None}
+    try:
+        alpha_engine.set_gate_switches(values)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return {"success": True, "switches": _exit_switches(),
+            "message": "全局出场开关已生效；实盘已有持仓同步挂/撤交易所原生单"}
+
+
 class TVParamsRequest(BaseModel):
     params: Optional[Dict[str, Any]] = None
     top: Optional[int] = None

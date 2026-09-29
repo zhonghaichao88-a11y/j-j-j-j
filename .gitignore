@@ -4,3 +4,4 @@ __pycache__/
 .env
 v7_chan_history/
 data_v62/
+v7_params.json

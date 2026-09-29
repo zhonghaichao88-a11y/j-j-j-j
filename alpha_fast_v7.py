@@ -69,6 +69,13 @@ LABELS['pine_import']='Pine导入策略'
 
 # 运行时参数（页面可调，覆盖默认；测试前固定，运行时可改）
 _RUNTIME: dict = {}
+# 页面保存的参数写到磁盘，重启后自动恢复（可用环境变量 ALPHA_V7_PARAMS_FILE 指定位置）。
+import json as _json, os as _os
+from pathlib import Path as _Path
+
+
+def params_file() -> _Path:
+    return _Path(_os.getenv('ALPHA_V7_PARAMS_FILE') or _Path(__file__).with_name('v7_params.json'))
 
 
 def validate_params(opts=None):
@@ -126,6 +133,33 @@ def set_runtime_params(opts: dict | None) -> dict:
     global _RUNTIME
     values = validate_params(opts)
     _RUNTIME = {k: values[k] for k in PARAMS}
+    path = params_file(); tmp = path.with_suffix('.tmp')
+    try:
+        tmp.write_text(_json.dumps(_RUNTIME, ensure_ascii=False, indent=1), encoding='utf-8')
+        _os.replace(tmp, path)
+    except OSError as exc:
+        from loguru import logger
+        logger.warning(f'[V7] 参数已生效，但保存到 {path} 失败：{exc}')
+    return dict(_RUNTIME)
+
+
+def load_saved_params() -> dict:
+    """启动时读取已保存参数；文件损坏或参数不再合法（如 Pine 脚本被删）时退回默认值并记录原因。"""
+    global _RUNTIME
+    path = params_file()
+    if not path.exists():
+        return {}
+    try:
+        saved = _json.loads(path.read_text(encoding='utf-8'))
+        saved = {k: v for k, v in saved.items() if k in PARAMS}  # 旧版本多出的键忽略，新增的键用默认值
+        _RUNTIME = {}
+        values = validate_params(saved)
+        _RUNTIME = {k: values[k] for k in PARAMS}
+    except (OSError, ValueError, TypeError) as exc:
+        _RUNTIME = {}
+        from loguru import logger
+        logger.warning(f'[V7] 已保存参数无法使用，改用默认参数：{exc}')
+        return {}
     return dict(_RUNTIME)
 
 
@@ -480,6 +514,10 @@ def decide(symbol, data, params=None):
         if direction*(center_target-px)>risk*.6:
             target=center_target-direction*.1*float(a[-1]);target_reason='缠论背驰回抽目标：最后中枢核心边界（预留0.1ATR）'
         else:target_reason='缠论背驰点已回到最后中枢，沿用风险倍数目标'
+    elif chan_signal and chan_signal.get('kind')=='T3' and p['dynamic_tp']:
+        # 3买/3卖是离开中枢后的顺势点，本来就预期突破离开段高/低点；
+        # 截到最近小波段高点会与信号含义冲突（实测是“目标空间不足”拒单的主要来源），这里按风险倍数目标。
+        target_reason='缠论3类点：风险倍数目标（不截到最近小波段）'
     elif p['dynamic_tp'] and p['sl_mode']=='structure':
         if analysis is None:analysis=analyze(f)
         levels=[e['price'] for e in analysis['events'] if e['label'] in ('HH','LH','HL','LL','等高流动性','等低流动性') and direction*(e['price']-px)>risk*.6]
@@ -532,7 +570,8 @@ def decide(symbol, data, params=None):
                directional_margin=score, signal_tier='指标信号',
                tp=float(tp), sl=float(sl), base_tp=float(tp), base_sl=float(sl),
                fast_entry_size_multiplier=1.0)
-    if strat in ('boll_revert','rsi','vwap_revert','sweep_reversal','chan_quant'):
+    # 缠论趋势仓跟随页面“追踪时保留趋势仓”开关，不再强制关闭。
+    if strat in ('boll_revert','rsi','vwap_revert','sweep_reversal'):
         fs['v7_exit_config']['runner']=0
     out['dynamic_tp_sl'] = {'tp': float(tp), 'sl': float(sl),
                             'reason': 'V7 '+{'structure':'结构及影线缓冲止损','atr':'ATR止损','fixed':'固定止损'}[p['sl_mode']]+'；'+target_reason}
@@ -689,3 +728,6 @@ def runner_target(position):
     entry=num(position.get('entry'));d=1 if position.get('side')=='long' else -1
     if not cfg.get('runner'):return num(position.get('original_tp_price') or position.get('tp'))
     return entry*(1+d*max(num(position.get('base_tp_pct')),num(position.get('base_sl_pct'))*num(cfg.get('runner_rr'),5)))
+
+
+load_saved_params()

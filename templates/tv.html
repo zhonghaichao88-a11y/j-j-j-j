@@ -537,7 +537,7 @@ const FIELD_META = [
   ['close_confirm','收盘确认结构失效','select',{'0':'关闭','1':'开启'}],['disaster_atr','硬止损额外ATR距离','float'],
   ['dynamic_tp','就近结构目标','select',{'0':'关闭','1':'开启'}],
   ['trail_activate_r','追踪激活风险倍数','float'],['trail_atr_k','追踪回撤ATR倍数','float'],
-  ['runner','追踪时保留趋势仓','select',{'0':'关闭','1':'开启'}],['runner_rr','趋势仓最终目标R','float'],
+  ['runner','追踪时保留趋势仓(需开全局移动止损)','select',{'0':'关闭','1':'开启'}],['runner_rr','趋势仓最终目标R','float'],
   ['chan_buy1','缠论一买','select',{'0':'关闭','1':'开启'}],['chan_buy2','缠论二买','select',{'0':'关闭','1':'开启'}],['chan_buy3','缠论三买','select',{'0':'关闭','1':'开启'}],
   ['chan_sell1','缠论一卖','select',{'0':'关闭','1':'开启'}],['chan_sell2','缠论二卖','select',{'0':'关闭','1':'开启'}],['chan_sell3','缠论三卖','select',{'0':'关闭','1':'开启'}],
   ['chan_level','缠论交易结构级别','select',{'0':'笔级','1':'线段级','2':'递归2级','3':'递归3级'}],
@@ -576,9 +576,32 @@ async function buildForm() {
     input.id = 'fp_' + key;
     box.appendChild(el); box.appendChild(input);
   });
+  await buildExitSwitches(box);
   // 主级别下拉切换：先保存全部参数，再按新级别整体重画（图表周期+自动结构+Pine+持仓线）
   const btEl = document.getElementById('fp_base_tf');
   if (btEl) btEl.onchange = () => onBaseTfChange(btEl.value);
+}
+// 全局出场开关：与旧面板“移动止损/分批止盈”是同一组后端开关，改动立即生效，影响所有策略。
+async function buildExitSwitches(box) {
+  const g = document.createElement('div'); g.className = 'grp-title'; g.textContent = '— 全局出场开关（所有策略共用，立即生效）—'; box.appendChild(g);
+  let sw = {};
+  try { sw = (await api('/tv/api/exit-switches')).switches || {}; } catch (e) { flash('读取出场开关失败: ' + e.message, true); }
+  [['trend_trail', '移动止损（趋势跟踪）', '盈利达到“追踪激活风险倍数”后挂交易所移动止损，回撤“追踪回撤ATR倍数”离场；与“追踪时保留趋势仓”一起开才会把止盈挪到趋势仓目标'],
+   ['partial_tp', '分批止盈', '30%/30%/40% 分别在止盈目标的 50%/80%/100% 平仓']].forEach(([key, lab, tip]) => {
+    const el = document.createElement('label'); el.textContent = lab; el.title = tip;
+    const input = document.createElement('select'); input.id = 'xs_' + key; input.title = tip;
+    [['0', '关闭'], ['1', '开启']].forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; input.appendChild(o); });
+    input.value = sw[key] ? '1' : '0';
+    input.onchange = async () => {
+      try {
+        const body = {}; body[key] = input.value === '1';
+        const r = await api('/tv/api/exit-switches', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        flash(lab + '：' + (r.switches[key] ? '已开启' : '已关闭') + '（所有策略）');
+      } catch (e) { input.value = input.value === '1' ? '0' : '1'; flash(lab + '切换失败: ' + e.message, true); }
+    };
+    box.appendChild(el); box.appendChild(input);
+    const note = document.createElement('div'); note.style.cssText = 'font-size:10px;color:#6b7280;margin-top:2px'; note.textContent = tip; box.appendChild(note);
+  });
 }
 async function onBaseTfChange(tf) {
   if (!['5m','15m','1h'].includes(tf)) { flash('主级别仅支持5分钟/15分钟/1小时', true); return; }
