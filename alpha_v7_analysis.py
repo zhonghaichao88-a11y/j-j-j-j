@@ -82,28 +82,32 @@ def pivots(f,span=2):
 from collections import OrderedDict
 import hashlib,threading
 _CHAN_CACHE=OrderedDict();_CHAN_LOCK=threading.RLock()
-def chan(f,ind=None,signal_level=1):
+def chan(f,ind=None,signal_level=1,pen_mode=0,macd_mode='same'):
  from alpha_v7_chan import analyze as strict_chan
  digest=hashlib.sha256()
  for key in ('ts','high','low','close'):digest.update(np.asarray(f[key],dtype=np.float64).tobytes())
- cache_key=(digest.digest(),signal_level)
+ cache_key=(digest.digest(),signal_level,pen_mode,macd_mode)
  with _CHAN_LOCK:
   if cache_key in _CHAN_CACHE:
    _CHAN_CACHE.move_to_end(cache_key);return _CHAN_CACHE[cache_key]
  if ind is None:
   line=ema(f['close'],12)-ema(f['close'],26);hist=line-ema(line,9)
  else:hist=ind['macd_hist']
- result=strict_chan(f,hist,signal_level=signal_level)
+ result=strict_chan(f,hist,signal_level=signal_level,pen_mode=pen_mode,macd_mode=macd_mode)
  with _CHAN_LOCK:
   _CHAN_CACHE[cache_key]=result
   while len(_CHAN_CACHE)>24:_CHAN_CACHE.popitem(last=False)
  return result
 
 
+def chan_options(context):
+ context=context or {}
+ return dict(signal_level=int(context.get('chan_level',1)),pen_mode=int(context.get('chan_pen',0)),macd_mode='abs' if int(context.get('chan_macd',1))==0 else 'same')
+
 def analyze(f,context=None):
  full_chan=None
  if len(f['close'])>=1500:
-  full_chan=chan(f,signal_level=int((context or {}).get('chan_level',1)))
+  full_chan=chan(f,**chan_options(context))
   f={k:np.asarray(v)[-288:] for k,v in f.items()}
  c,o,h,l,v,ts=[np.asarray(f[k],float) for k in ('close','open','high','low','volume','ts')]
  if len(c)<60:raise ValueError('至少需要60根已收盘K线')
@@ -138,7 +142,7 @@ def analyze(f,context=None):
   if invalid is not None:event('IFVG' if z['label']=='FVG' else 'Breaker',invalid,(z['low']+z['high'])/2,-z['side'],'供需')
   touch=next((i for i in later if l[i]<=z['high'] and h[i]>=z['low']),None)
   if touch is not None:event('回补' if z['label']=='FVG' else '订单块回踩',touch,(z['low']+z['high'])/2,z['side'],'供需')
- recent=[e for e in events if e['known_at']==int(ts[-1])];values={k:float(x[-1]) for k,x in ind.items()};ch=full_chan or chan(f,ind,signal_level=int((context or {}).get('chan_level',1)))
+ recent=[e for e in events if e['known_at']==int(ts[-1])];values={k:float(x[-1]) for k,x in ind.items()};ch=full_chan or chan(f,ind,**chan_options(context))
  regime='趋势' if values['adx']>=25 and abs(values['ema9']-values['ema21'])>.3*a else '震荡'
  if values['squeeze']:regime='压缩'
  if any(e['label']=='BOS' for e in recent):regime='突破'
@@ -164,7 +168,7 @@ def analyze(f,context=None):
  put('vwap_revert',1 if regime=='震荡' and l[-1]<vw[-1]-2*a and price>vw[-1]-2*a else -1 if regime=='震荡' and h[-1]>vw[-1]+2*a and price<vw[-1]+2*a else 0,'震荡行情VWAP两倍ATR极值收回')
  put('supertrend_structure',1 if ind['supertrend_side'][-2]<0 and values['supertrend_side']>0 and values['adx']>=20 and last_l is not None and price>last_l['price'] else -1 if ind['supertrend_side'][-2]>0 and values['supertrend_side']<0 and values['adx']>=20 and last_h is not None and price<last_h['price'] else 0,'超级趋势翻转、ADX达到20且站在确认结构保护位有利侧')
  put('ssl_channel',1 if ind['ssl_side'][-2]<0 and values['ssl_side']>0 else -1 if ind['ssl_side'][-2]>0 and values['ssl_side']<0 else 0,'收盘穿越SSL高低均线通道')
- signals=[x for x in ch['signals'] if x['known_at']==int(ts[-1])]
+ signals=[x for x in ch['signals'] if x['known_at']==int(ts[-1]) and (x.get('kind')!='T1P' or (context or {}).get('chan_pz'))]
  put('chan_quant',signals[-1]['side'] if signals else 0,signals[-1]['label']+'严格规则确认' if signals else '')
  if signals:candidates['chan_quant']['chan_signal']=signals[-1]
  sweeps=[e for e in events if e['label']=='清扫收回' and e['known_at']>=ts[-6]]

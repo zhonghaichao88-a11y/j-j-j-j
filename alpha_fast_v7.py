@@ -21,7 +21,7 @@ import numpy as np
 from alpha_v7_analysis import STRATEGIES, analyze
 from alpha_v7_feed import tf_ms, higher_tfs
 
-VERSION = '7.6.6-BASE-TF'
+VERSION = '7.6.8-CHAN-BSP'
 
 PARAMS = dict(
     strategy='ema_cross',
@@ -43,6 +43,8 @@ PARAMS = dict(
     close_confirm=1, disaster_atr=0.75, trail_activate_r=1.0, trail_atr_k=1.5,
     runner=1, runner_rr=5.0, chan_buy1=0, chan_buy2=1, chan_buy3=1,
     chan_sell1=0, chan_sell2=1, chan_sell3=1, chan_level=1, chan_mtf=1, chan_exit_opposite=1, pine_id='', orderflow_mode=0,
+    # 缠论补全：盘背1买/1卖是否下单、笔模式(0老笔/1新笔)、背驰面积(0绝对值/1同向)、信号宽限根数
+    chan_pz=0, chan_pen=0, chan_macd=1, chan_grace_bars=1,
     # 成本与门槛（口径同 V6）
     fee_side=0.0006, slip_side=0.0003,
     min_stop=0.002, max_stop=0.035,
@@ -81,8 +83,8 @@ def validate_params(opts=None):
     ints = {'ema_fast': (1, 100), 'ema_slow': (2, 100), 'ema_trend': (0, 100),
             'bb_n': (2, 100), 'macd_fast': (1, 100), 'macd_slow': (2, 100),
             'macd_signal': (1, 100), 'rsi_n': (2, 100), 'don_n': (2, 100),
-            'max_hold_bars': (1, 2016), 'structure_bars': (5, 100), 'chan_level': (0, 3), 'orderflow_mode': (0, 2)}
-    for key in ('dynamic_tp','close_confirm','runner','chan_buy1','chan_buy2','chan_buy3','chan_sell1','chan_sell2','chan_sell3','chan_mtf','chan_exit_opposite'):
+            'max_hold_bars': (1, 2016), 'structure_bars': (5, 100), 'chan_level': (0, 3), 'orderflow_mode': (0, 2), 'chan_grace_bars': (0, 3)}
+    for key in ('dynamic_tp','close_confirm','runner','chan_buy1','chan_buy2','chan_buy3','chan_sell1','chan_sell2','chan_sell3','chan_mtf','chan_exit_opposite','chan_pz','chan_pen','chan_macd'):
         ints[key]=(0,1)
     for k, (lo, hi) in ints.items():
         try: v = float(p[k])
@@ -129,6 +131,24 @@ def set_runtime_params(opts: dict | None) -> dict:
 
 def get_runtime_params() -> dict:
     return {**PARAMS, **_RUNTIME}
+
+
+CHAN_KEYS=('chan_level','chan_exit_opposite','chan_buy1','chan_buy2','chan_buy3','chan_sell1','chan_sell2','chan_sell3',
+           'chan_pz','chan_pen','chan_macd','chan_grace_bars')
+
+
+def chan_context(p):
+    return {k:p[k] for k in ('chan_level','chan_pen','chan_macd','chan_pz') if k in p}
+
+
+def chan_center_target(analysis,event):
+    """1/盘背1/2/类2 类点返回其所属 1 类点中枢的核心近端（买点取 ZD，卖点取 ZG）；3 类点返回 None。"""
+    if not analysis or not event or event.get('kind') not in ('T1','T1P','T2','T2S'):return None
+    structure=analysis.get('chan') or {}
+    first=event if event['kind'] in ('T1','T1P') else next((x for x in structure.get('signals',[]) if x['id']==(event.get('evidence') or {}).get('first_signal')),None)
+    zone=next((z for z in structure.get('zones',[]) if first and z['id']==first.get('zone_id')),None)
+    if not zone:return None
+    return float(zone['low'] if event['side']==1 else zone['high'])
 
 
 def num(x, default=0.0):
@@ -290,7 +310,7 @@ def decide(symbol, data, params=None):
     analysis = None
     chan_signal=None;pine_event=None
     if strat in STRATEGIES or strat == 'auto_regime':
-        analysis = analyze(f,{'chan_level':p['chan_level']})
+        analysis = analyze(f,chan_context(p))
         candidates = analysis['candidates']
         if strat == 'auto_regime':
             allowed = {'趋势':['ema_pullback','fvg_continuation','supertrend_structure'],
@@ -302,23 +322,22 @@ def decide(symbol, data, params=None):
         if strat == 'chan_quant' and 'chan' in analysis:
             from alpha_v7_chan import select_signal
             structure=analysis['chan']
-            current=[e for e in structure['signals'] if e['known_at']==int(f['ts'][-1])]
+            from alpha_v7_chan import signal_class
+            current=[e for e in structure['signals'] if int(f['ts'][-1])-p['chan_grace_bars']*bar_ms<=e['known_at']<=int(f['ts'][-1])]
             out['adaptive_context']['chan_diagnostics']={
                 'level':p['chan_level'], 'confirmed_pens':len(structure['strokes']),
                 'confirmed_segments':len(structure['segments']),
                 'current_points':[e['label'] for e in current],
-                'enabled_points':[e['label'] for e in current if p.get('chan_'+('buy' if e['side']==1 else 'sell')+e['label'][0])],
+                'enabled_points':[e['label'] for e in current if p.get('chan_'+('buy' if e['side']==1 else 'sell')+str(signal_class(e))) and (e.get('kind')!='T1P' or p['chan_pz'])],
             }
-            event=select_signal(structure,int(f['ts'][-1]),p)
+            event=select_signal(structure,int(f['ts'][-1]),p,bar_ms)
             sig={'side':event['side'],'reason':event['label']+'严格规则确认','chan_signal':event} if event else None
             if not event:
                 if current:return wait('缠论买卖点已确认，但对应开关关闭或信号在确认时失效')
                 return wait('缠论当前没有新确认的买卖点；已确认笔=%d，线段=%d' %
                             (len(structure['strokes']),len(structure['segments'])))
         if sig and strat == 'chan_quant':
-            label=sig['reason'][:2];key='chan_'+('buy' if label[1]=='买' else 'sell')+label[0]
-            if not p.get(key): sig=None
-            if sig:chan_signal=sig.get('chan_signal')
+            chan_signal=sig.get('chan_signal')
         if sig and strat=='chan_quant' and p['chan_mtf']:
             from alpha_v7_analysis import chan as chan_structure
             biases={}
@@ -328,7 +347,7 @@ def decide(symbol, data, params=None):
                 step=tf_ms(tf)
                 timestamps=np.asarray(higher.get('ts',[]))
                 if data.get('as_of_ms') and (timestamps[-1]+step>data['as_of_ms'] or data['as_of_ms']-timestamps[-1]-step>step+15000):return wait(tf+'数据未收盘或过期')
-                structure=chan_structure(higher)
+                structure=chan_structure(higher,pen_mode=p['chan_pen'],macd_mode='same' if p['chan_macd'] else 'abs')
                 segs=structure['segments']
                 biases[tf]=segs[-1]['side'] if segs else 0
             out['adaptive_context']['multi_timeframe']=biases
@@ -454,7 +473,14 @@ def decide(symbol, data, params=None):
         return wait('止损距离不适合日内成本/波动预算')
     target = ref + direction * float(p['rr']) * risk
     target_reason='风险倍数目标'
-    if p['dynamic_tp'] and p['sl_mode']=='structure':
+    center_target=chan_center_target(analysis,chan_signal) if chan_signal and p['dynamic_tp'] else None
+    if center_target is not None:
+        # 背驰类买卖点（1/盘背1/2/类2）：背驰后至少回到最后一个中枢（第29/33课），目标取中枢核心近端边界。
+        # 中枢只是最低目标；确认时已接近或回到中枢，则沿用风险倍数目标，不再截到就近小波段。
+        if direction*(center_target-px)>risk*.6:
+            target=center_target-direction*.1*float(a[-1]);target_reason='缠论背驰回抽目标：最后中枢核心边界（预留0.1ATR）'
+        else:target_reason='缠论背驰点已回到最后中枢，沿用风险倍数目标'
+    elif p['dynamic_tp'] and p['sl_mode']=='structure':
         if analysis is None:analysis=analyze(f)
         levels=[e['price'] for e in analysis['events'] if e['label'] in ('HH','LH','HL','LL','等高流动性','等低流动性') and direction*(e['price']-px)>risk*.6]
         if strat in ('boll_revert','vwap_revert'):
@@ -489,10 +515,11 @@ def decide(symbol, data, params=None):
               rr=float(tp / sl), net_rr=float((tp - cost) / (sl + cost)),
               estimated_round_cost=float(cost), maker_preferred=False,
               entry_size_multiplier=1.0, reference_price=ref,
-              v7_chan_config={k:p[k] for k in ('chan_level','chan_exit_opposite','chan_buy1','chan_buy2','chan_buy3','chan_sell1','chan_sell2','chan_sell3')},
+              v7_chan_config={k:p[k] for k in CHAN_KEYS},
               v7_don_n=don_n, v7_chan_signal=chan_signal, v7_pine_id=p['pine_id'] if strat=='pine_import' else '',v7_pine_entry_id=pine_event['id'] if pine_event else '',
               v7_base_tf=bt,
-              signal_id=f'{symbol}|v7|{int(f["ts"][-1])}|{side}',
+              # 缠论信号可在宽限期内被连续两根K看到，用事件ID去重，避免同一买卖点重复开仓。
+              signal_id=f'{symbol}|v7|chan|{chan_signal["id"]}|{side}' if chan_signal else f'{symbol}|v7|{int(f["ts"][-1])}|{side}',
               max_seconds=max_seconds, invalidation_level=float(level),
               bar_ts=int(f['ts'][-1]), score_is_probability=False,
               target_reason=target_reason, exit_policy='adaptive',
@@ -595,9 +622,9 @@ def exit_plan(position, price, now, frames=None, trailing=False):
         cf=frames.get(bt) or {};mask=np.asarray(cf.get('ts',[]))+bar_ms<=now*1000
         if np.count_nonzero(mask)>=60:
             cf={k:np.asarray(v)[mask] for k,v in cf.items()}
-            result=analyze(cf,{'chan_level':chan_config.get('chan_level',1)})
+            result=analyze(cf,chan_context({**PARAMS,**chan_config}))
             from alpha_v7_chan import select_signal
-            event=select_signal(result['chan'],int(cf['ts'][-1]),chan_config)
+            event=select_signal(result['chan'],int(cf['ts'][-1]),{**PARAMS,**chan_config},bar_ms)
             if event and event['side']==-side and event['known_at']+bar_ms>num(position.get('opened_at'),now)*1000:
                 reason='缠论反向'+event['label']+'确认'
     if not reason and position.get('v7_pine_id') and frames:

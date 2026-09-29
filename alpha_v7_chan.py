@@ -1,16 +1,17 @@
-"""Versioned, causal Chan structure engine (CX-73).
+"""Versioned, causal Chan structure engine (CX-75).
 
-Rules: direction-aware K inclusion; strict 5-merged-bar pens; standard
+Rules: direction-aware K inclusion; old (strict 5-merged-bar) or new pens; standard
 characteristic sequences, both gap cases and first-pen destruction;
 recursive segment levels; fixed-core centers and expansion events.
 All confirmed records have independent price time and knowledge time.
 Divergence is an explicit MACD-area implementation, not a theorem of profits.
+Buy/sell points: 1 (trend divergence), 盘背1 (range divergence), 2, 类2, 3.
 """
 from __future__ import annotations
 from copy import deepcopy
 import numpy as np
 
-RULESET='CX-74-strict-5bar-feature-gap'
+RULESET='CX-75-bsp-complete'
 
 def included(a,b):
  return (a['high']>=b['high'] and a['low']<=b['low']) or (b['high']>=a['high'] and b['low']<=a['low'])
@@ -21,8 +22,11 @@ def merge_bar(a,b,direction):
  return dict(high=hi,low=lo,hi_t=a['hi_t'] if hi==a['high'] else b['hi_t'],lo_t=a['lo_t'] if lo==a['low'] else b['lo_t'],
              first=a['first'],last=b['last'],ts=b['ts'],i=a['i'])
 
-def pens(f):
- """Seal a pen only when the next opposite endpoint is valid. Last pen is provisional."""
+def pens(f,mode=0):
+ """Seal a pen only when the next opposite endpoint is valid. Last pen is provisional.
+ mode=0 老笔：顶底分型中间K（含）之间至少5根合并K；
+ mode=1 新笔：合并K跨度>=3 且两分型之间（不含）原始K线>=3根（顶底分型不共用K线）。
+ """
  bars=[];fractals=[];ends=[];sealed=[];direction=1
  ts=np.asarray(f['ts']);h=np.asarray(f['high']);l=np.asarray(f['low'])
  def accept(x,known):
@@ -31,7 +35,10 @@ def pens(f):
   if x['kind']==previous['kind']:
    if d*(x['price']-previous['price'])>0:ends[-1]=x
    return
-  if x['i']-previous['i']<4:return
+  span=x['i']-previous['i']
+  if mode==1:
+   if span<3 or sum(b['last']-b['first']+1 for b in bars[previous['i']+1:x['i']])<3:return
+  elif span<4:return
   # No overlapping fractal centers; both high and low must be ordered.
   if d*(x['high']-previous['high'])<=0 or d*(x['low']-previous['low'])<=0:return
   between=bars[previous['i']:x['i']+1]
@@ -132,14 +139,28 @@ def segments(units,level=1):
   provisional.update(level=level,confirmed=False,state='形成中')
  return out,provisional,audit
 
-def centers(units,level):
- """A center's initial core is immutable. Extension/expansion are timestamped events."""
+def segment_direction(units,parent,i,known):
+ """Direction of the segment containing unit i, using only segments confirmed by `known`.
+ Units after the last confirmed segment belong to the forming segment, whose start is already fixed."""
+ start=0
+ for seg in parent:
+  if seg['known_at']>known:break
+  if i<=seg['children'][-1]:start=seg['children'][0];break
+  start=seg['children'][-1]+1
+ return units[min(start,len(units)-1)]['side']
+
+def centers(units,level,parent=None):
+ """A center's initial core is immutable. Extension/expansion are timestamped events.
+ parent: confirmed segments built from these units. When given, a center must start with a unit
+ opposite to its segment (下跌段里的中枢是“上下上”), so the entering move is never counted inside it.
+ """
  zones=[];events=[];i=0;current=None;outside=[]
  while i<len(units):
   u=units[i]
   if current is None:
    if i+2>=len(units):break
    trip=units[i:i+3];low=max(x['low'] for x in trip);high=min(x['high'] for x in trip)
+   if parent is not None and trip[0]['side']==segment_direction(units,parent,i,max(x['known_at'] for x in trip)):i+=1;continue
    if low<high:
     current=dict(id=f'L{level}:{trip[0]["ts"]}:{trip[2]["to"]}',level=level,low=low,high=high,
      gg=max(x['high'] for x in trip),dd=min(x['low'] for x in trip),start=i,end=i+2,ts=trip[0]['ts'],to=trip[2]['to'],
@@ -183,39 +204,59 @@ def zone_snapshot(z,known):
  result['extended']=len(result['snapshots'])>1
  return result
 
-def trade_signals(units,zones,hist,raw_ts,level=0,divergence_ratio=.9):
- """Trend divergence (two disjoint centers), first retrace (2), first outside retrace (3).
- Range divergence is a separate observation, NEVER relabeled as a first buy/sell.
+def trade_signals(units,zones,hist,raw_ts,level=0,divergence_ratio=.9,macd_mode='same',class2_follow=2):
+ """Six buy/sell point classes on confirmed units only.
+ 1买/1卖  (T1)  趋势背驰：两个 GG/DD 不重叠的同向中枢（第20课），离开段创新低且力度弱于进入段。
+ 盘背1买 (T1P) 盘整背驰：只有一个中枢或中枢重叠，离开段创新低且力度弱于进入段；单独开关，默认不下单。
+ 2买/2卖  (T2)  1买（含盘背1买）后第一次回抽不破 1买。
+ 类2买    (T2S) 2买之后 class2_follow 次以内的回抽，仍不破 1买，且仍在 2买后反弹段范围内震荡。
+ 3买/3卖  (T3)  离开中枢后第一次回抽不回到中枢核心。
+ Range divergence that fails the entering-move test stays an observation, never a buy/sell point.
  """
- signals=[];observations=[];first={};used_third=set()
+ signals=[];observations=[];first={};second={};used_third=set();hist=np.asarray(hist,float)
  def power(u):
-  mask=(raw_ts>=u['ts'])&(raw_ts<=u['to']);return float(np.sum(np.abs(hist[mask])))
- def add(label,u,j,zone=None,extra=None):
+  mask=(raw_ts>=u['ts'])&(raw_ts<=u['to']);h=hist[mask]
+  if macd_mode=='abs':return float(np.sum(np.abs(h)))
+  # 同向面积：上涨段只计红柱，下跌段只计绿柱（第24/25课的“对应段落 MACD 面积”）。
+  return float(np.sum(np.maximum(h,0))) if u['side']>0 else float(np.sum(np.maximum(-h,0)))
+ def add(label,klass,kind,u,j,zone=None,extra=None):
   side=1 if label.endswith('买') else -1
-  item=dict(id=f'{RULESET}|L{level}|{label}|{u["to"]}|{u["known_at"]}',label=label,side=side,price=u['b']['price'],ts=u['to'],known_at=u['known_at'],state='已确认',level=level,unit_index=j,
+  item=dict(id=f'{RULESET}|L{level}|{label}|{u["to"]}|{u["known_at"]}',label=label,bsp_class=klass,kind=kind,side=side,price=u['b']['price'],ts=u['to'],known_at=u['known_at'],state='已确认',level=level,unit_index=j,
             invalidation=u['b']['price'],zone_id=zone['id'] if zone else None,evidence=extra or {},rule=RULESET)
   signals.append(item);return item
  for j,u in enumerate(units):
   known=u['known_at'];side=-u['side'];available=[zone_snapshot(z,known) for z in zones if z['known_at']<=known]
   available=[z for z in available if z and z['start']<j]
-  # One/two points are tied to a concrete confirmed lower-level move.
+  buy=side==1
+  # A new extreme beyond the class-1 point ends its 2/类2 chain.
+  a=first.get(side)
+  if a and j>a['unit_index'] and side*(u['b']['price']-a['price'])<0:first.pop(side,None);second.pop(side,None)
   if j>=2:
    prior=units[j-2];weaker=power(u)<power(prior)*divergence_ratio;new_extreme=side*(u['b']['price']-prior['b']['price'])<0
    if weaker and new_extreme and available:
     z=available[-1];trend=False
     if len(available)>=2:
      prev=available[-2]
-     trend=(z['gg']<prev['dd']) if side==1 else (z['dd']>prev['gg'])
-    outside=u['b']['price']<z['low'] if side==1 else u['b']['price']>z['high']
+     trend=(z['gg']<prev['dd']) if buy else (z['dd']>prev['gg'])
+    outside=u['b']['price']<z['low'] if buy else u['b']['price']>z['high']
     entry_index=z['start']-1
     entering=units[entry_index] if entry_index>=0 else None
     trend_div=bool(entering and entering['side']==u['side'] and power(u)<power(entering)*divergence_ratio)
+    evidence=dict(current_power=power(u),previous_power=power(entering) if entering else None,ratio=divergence_ratio,entering_unit=entry_index,macd_mode=macd_mode)
     if trend and outside and trend_div:
-     first[side]=add('1买' if side==1 else '1卖',u,j,z,dict(current_power=power(u),previous_power=power(entering),ratio=divergence_ratio,trend_centers=2,entering_unit=entry_index))
+     first[side]=add('1买' if buy else '1卖',1,'T1',u,j,z,{**evidence,'trend_centers':2});second.pop(side,None)
+    elif outside and trend_div:
+     first[side]=add('盘背1买' if buy else '盘背1卖',1,'T1P',u,j,z,{**evidence,'trend_centers':1});second.pop(side,None)
     else:observations.append(dict(label='盘整背驰观察',side=side,ts=u['to'],price=u['b']['price'],known_at=known,level=level))
-   a=first.get(side)
-   if a and j==a['unit_index']+2 and side*(u['b']['price']-a['price'])>0:
-    add('2买' if side==1 else '2卖',u,j,extra=dict(first_signal=a['id'],first_price=a['price']))
+  a=first.get(side)
+  if a and j==a['unit_index']+2 and side*(u['b']['price']-a['price'])>0:
+   second[side]=add('2买' if buy else '2卖',2,'T2',u,j,extra=dict(first_signal=a['id'],first_price=a['price'],first_kind=a['kind']))
+  b=second.get(side)
+  if a and b and j>b['unit_index'] and (j-b['unit_index'])%2==0 and (j-b['unit_index'])//2<=class2_follow and side*(u['b']['price']-a['price'])>0:
+   rebound=units[b['unit_index']+1]
+   # 仍在 2买后的反弹段范围内：回抽低点没有跑出反弹段的高点（否则已是离开，交给3买判断）。
+   inside=rebound['low']<=u['b']['price']<=rebound['high']
+   if inside:add('类2买' if buy else '类2卖',2,'T2S',u,j,extra=dict(first_signal=a['id'],second_signal=b['id'],first_price=a['price'],second_price=b['price']))
   # Do not use the final enlarged center envelope. Core was fixed at creation.
   if j>=1:
    departure=units[j-1]
@@ -228,7 +269,7 @@ def trade_signals(units,zones,hist,raw_ts,level=0,divergence_ratio=.9):
     held=u['low']>z['high'] if d==1 else u['high']<z['low']
     if held:
      used_third.add(key)
-     add('3买' if d==1 else '3卖',u,j,z,dict(departure=j-1,first_return=True,core=[z['low'],z['high']]))
+     add('3买' if d==1 else '3卖',3,'T3',u,j,z,dict(departure=j-1,first_return=True,core=[z['low'],z['high']]))
     break
  return signals,observations
 
@@ -242,26 +283,36 @@ def signal_status(signals,raw_ts,close):
    invalidated_at=invalidated,invalid_at_confirmation=invalidated is not None and invalidated<=event['known_at'])
  return status
 
-def select_signal(result,known,config):
- """Filter enabled, still-valid events before prioritizing simultaneous signals."""
- eligible=[]
+def signal_class(event):
+ """1/2/3 类；旧记录没有 bsp_class 时按标签首字推断。"""
+ if event.get('bsp_class'):return int(event['bsp_class'])
+ label=event['label']
+ return int(next(ch for ch in label if ch in '123'))
+
+def select_signal(result,known,config,bar_ms=None):
+ """Filter enabled, still-valid events before prioritizing simultaneous signals.
+ chan_grace_bars>0 时，最近 N 根内确认、至今未失效的信号仍可被选中，避免漏扫一根就永久丢失。
+ """
+ eligible=[];grace=int(config.get('chan_grace_bars',0) or 0)
+ earliest=known-grace*int(bar_ms or 0) if grace and bar_ms else known
  for event in result.get('signals',[]):
-  label=event['label'];key='chan_'+('buy' if event['side']==1 else 'sell')+label[0]
+  klass=signal_class(event);key='chan_'+('buy' if event['side']==1 else 'sell')+str(klass)
+  if event.get('kind')=='T1P' and not config.get('chan_pz'):continue
   status=result.get('signal_status',{}).get(event['id'],{})
   invalidated=status.get('invalidated_at')
-  if event['known_at']==known and config.get(key) and (invalidated is None or invalidated>known):eligible.append(event)
+  if earliest<=event['known_at']<=known and config.get(key) and (invalidated is None or invalidated>known):eligible.append(event)
  if len({e['side'] for e in eligible})>1:return None
- return max(eligible,key=lambda e:(int(e['label'][0]),e['ts'])) if eligible else None
+ return max(eligible,key=lambda e:(e['known_at'],signal_class(e),e['ts'])) if eligible else None
 
-def analyze(f,hist=None,max_level=3,signal_level=0,divergence_ratio=.9):
+def analyze(f,hist=None,max_level=3,signal_level=0,divergence_ratio=.9,pen_mode=0,macd_mode='same'):
  n=len(f.get('close',[]))
  if n<5:return dict(fractals=[],strokes=[],segments=[],zones=[],signals=[],levels=[],observations=[],rule=RULESET)
  raw_ts=np.asarray(f['ts']);hist=np.asarray(hist if hist is not None else np.zeros(n),float)
- base=pens(f);units=base['units'];levels=[];all_signals=[];observations=[];all_zones=[];by_level={}
+ base=pens(f,pen_mode);units=base['units'];levels=[];all_signals=[];observations=[];all_zones=[];by_level={}
  for level in range(max_level+1):
-  zs,events,expanded=centers(units,level)
-  sig,obs=trade_signals(units,zs,hist,raw_ts,level,divergence_ratio)
   next_units,forming,audit=segments(units,level+1) if len(units)>=3 else ([],None,[])
+  zs,events,expanded=centers(units,level,next_units)
+  sig,obs=trade_signals(units,zs,hist,raw_ts,level,divergence_ratio,macd_mode)
   trend='结构不足' if not zs else '盘整'
   if len(zs)>=2:
    previous,current=zs[-2:];trend='上涨' if current['dd']>previous['gg'] else '下跌' if current['gg']<previous['dd'] else '盘整/中枢扩展'
@@ -278,5 +329,5 @@ def analyze(f,hist=None,max_level=3,signal_level=0,divergence_ratio=.9):
  status=signal_status(all_signals+display_signals,raw_ts,f['close'])
  segment_list=levels[1]['units'] if len(levels)>1 else []
  return dict(fractals=base['fractals'],strokes=strokes,segments=segment_list,zones=all_zones,signals=all_signals,levels=levels,
-             observations=observations,display_signals=display_signals,signal_status=status,rule=RULESET,signal_level=signal_level,
+             observations=observations,display_signals=display_signals,signal_status=status,rule=RULESET,signal_level=signal_level,pen_mode=pen_mode,macd_mode=macd_mode,
              states={'确认':'事件确认后冻结','形成中':'可以延伸，不能下单','失效':'由实际价格穿越信号失效位决定，不擦除历史确认事件'})

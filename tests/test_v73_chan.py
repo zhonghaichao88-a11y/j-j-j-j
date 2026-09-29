@@ -58,8 +58,12 @@ class Chan73Tests(unittest.TestCase):
   prices=[120,110,116,108,114,100,107,102,106,95,105,98,110]
   for mirror in (False,True):
    us=units([300-x if mirror else x for x in prices]);zs,_,_=centers(us,0)
-   hist=np.geomspace(100,1,26);result,_=trade_signals(us,zs,hist,np.arange(26)*300000)
+   # Declines carry green (negative) bars, rallies red: same-direction MACD area (CX-75 default).
+   hist=np.geomspace(100,1,26)*(1 if mirror else -1);result,_=trade_signals(us,zs,hist,np.arange(26)*300000)
    self.assertIn('1卖' if mirror else '1买',[s['label'] for s in result]);self.assertIn('2卖' if mirror else '2买',[s['label'] for s in result])
+   # The pre-CX-75 absolute-area mode keeps its old behaviour on an unsigned histogram.
+   result,_=trade_signals(us,zs,np.geomspace(100,1,26),np.arange(26)*300000,macd_mode='abs')
+   self.assertIn('1卖' if mirror else '1买',[s['label'] for s in result])
  def test_all_signal_prefixes_on_confirmed_units(self):
   prices=[120,110,116,108,114,100,107,102,106,95,105,98,110,101,115,108,119,110,122]
   us=units(prices);hist=np.geomspace(100,1,40);ts=np.arange(40)*300000;zs,_,_=centers(us,0);full=trade_signals(us,zs,hist,ts)[0]

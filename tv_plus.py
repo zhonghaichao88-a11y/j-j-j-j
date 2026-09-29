@@ -199,7 +199,7 @@ def analysis_snapshot(req:AnalysisRequest):
     try:
         f=closed_frame(req.rows,req.tf,req.as_of_ms)
         if req.chan_level not in range(4):raise ValueError('缠论级别须为0至3')
-        result=analyze(f,{'chan_level':req.chan_level})
+        result=analyze(f,{**chart_chan_context(),'chan_level':req.chan_level})
         return {'success':True,**result,'history_bars':len(f['close'])}
     except (ValueError,TypeError,KeyError) as exc:raise HTTPException(400,str(exc))
 
@@ -241,6 +241,11 @@ def pine_source(identifier:str):
         return {'success':True,'source':source,'inputs':inputs}
     except (PineError,OSError) as exc:raise HTTPException(400,str(exc))
 
+def chart_chan_context():
+    # 画图与交易使用同一套笔模式/背驰面积/盘背开关。
+    from alpha_fast_v7 import get_runtime_params,chan_context
+    return chan_context(get_runtime_params())
+
 @router.get('/chan-analysis')
 def chan_analysis(symbol:str,tf:str='5m',level:int=1):
     from alpha_v7_feed import anchored_frame as frame
@@ -249,7 +254,7 @@ def chan_analysis(symbol:str,tf:str='5m',level:int=1):
         if level not in range(4):raise ValueError('级别必须为0至3')
         symbol=symbol_ok(symbol);cs=symbol.replace('-USDT-SWAP','/USDT:USDT')
         f=frame(exchange(),cs,tf,count=1500)
-        return {'success':True,**analyze(f,{'chan_level':level}),'history_bars':len(f['close'])}
+        return {'success':True,**analyze(f,{**chart_chan_context(),'chan_level':level}),'history_bars':len(f['close'])}
     except (ValueError,RuntimeError,KeyError) as exc:raise HTTPException(400,str(exc))
     except Exception as exc:raise HTTPException(502,'公开历史数据读取失败：'+str(exc))
 
