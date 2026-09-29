@@ -2010,9 +2010,40 @@ def _on_ws_event(event: Dict[str, Any]):
         logger.warning(f"[ALPHA-X] WS event handling failed: {exc}")
 
 
-def _live_account_snapshot():
-    a=alpha_live.account(); total=float(a.get("total") or 0); free=float(a.get("free") or 0)
-    return total,free
+EQUITY_ERROR_PREFIX="无法读取实时权益"
+EQUITY_STALE_OK=120.0          # 读不到时，最近一次成功读数在这个秒数内仍可继续使用
+_ACCOUNT_CACHE={"ts":0.0,"total":0.0,"free":0.0,"fails":0}
+_ACCOUNT_LOCK=threading.Lock()
+
+
+def _live_account_snapshot(max_age: float = 2.0, retries: int = 3):
+    """读取 OKX 账户权益/可用：失败自动重试；max_age 秒内的成功读数直接复用（多处同时读取时不重复请求）。
+    max_age=0 表示必须重新读取（下单前用）。成功时清掉界面上旧的“无法读取实时权益”提示。"""
+    with _ACCOUNT_LOCK:
+        if max_age>0 and time.time()-_ACCOUNT_CACHE["ts"]<=max_age:
+            return _ACCOUNT_CACHE["total"],_ACCOUNT_CACHE["free"]
+    last=None
+    for k in range(max(1,retries)):
+        try:
+            a=alpha_live.account(); total=float(a.get("total") or 0); free=float(a.get("free") or 0)
+            if total<=0 and free<=0: raise RuntimeError("OKX 返回的权益为 0，按读取失败处理")
+            with _ACCOUNT_LOCK: _ACCOUNT_CACHE.update(ts=time.time(),total=total,free=free,fails=0)
+            with LOCK:
+                if str(STATE.get("live_error") or "").startswith(EQUITY_ERROR_PREFIX): STATE["live_error"]=""
+            return total,free
+        except Exception as exc:
+            last=exc
+            if k<retries-1: time.sleep((0.4,1.0,2.0)[min(k,2)])
+    with _ACCOUNT_LOCK: _ACCOUNT_CACHE["fails"]+=1
+    raise RuntimeError(f"重试{max(1,retries)}次仍失败：{last}")
+
+
+def _last_good_account(max_age: float = EQUITY_STALE_OK):
+    """最近一次成功读数（秒数内有效），没有则返回 None。"""
+    with _ACCOUNT_LOCK:
+        if _ACCOUNT_CACHE["ts"] and time.time()-_ACCOUNT_CACHE["ts"]<=max_age:
+            return _ACCOUNT_CACHE["total"],_ACCOUNT_CACHE["free"],time.time()-_ACCOUNT_CACHE["ts"]
+    return None
 
 
 def _risk_block(cfg):
@@ -2861,8 +2892,15 @@ def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
             _activity(f"实盘 {symbol}：FINAL       → NO ORDER")
             _activity(f"实盘 {symbol}：原因        → EXCHANGE DUPLICATE POSITION", "warning")
             return
-        equity,free=_live_account_snapshot()
-        if equity<=0 or free<=0: raise RuntimeError("OKX USDT 权益/可用余额不足")
+        try:
+            equity,free=_live_account_snapshot(max_age=0)        # 下单前必须重新读取，保证可用余额是最新的
+        except Exception as exc:
+            # 只跳过这一个币的这次开仓，不中断整轮扫描（其余币的持仓管理照常进行）
+            _activity(f"实盘 {symbol}：下单前读取实时权益失败，本轮跳过该币开仓：{exc}", "warning")
+            return
+        if equity<=0 or free<=0:
+            _activity(f"实盘 {symbol}：OKX 权益/可用余额不足（权益={equity:.2f}，可用={free:.2f}），本轮不开仓", "warning")
+            return
         recon=_reconciliation_check(real)
         audit=_audit_check()
         clock=_clock_check(cfg) if gate_enabled("clock") else {"ok":True,"disabled":True}
@@ -4107,7 +4145,12 @@ def _loop(cfg):
                             STATE["day"]=time.strftime("%Y-%m-%d"); STATE["day_start_equity"]=equity; STATE["consecutive_losses"]=0
                         STATE["equity"]=equity; STATE["balance"]=equity; STATE["risk_block"]=_risk_block(cfg)
                 except Exception as exc:
-                    with LOCK: STATE["live_error"]=f"无法读取实时权益，暂停开仓: {exc}"
+                    good=_last_good_account()
+                    if good:
+                        # 偶发网络抖动：沿用最近一次成功读数，本轮照常运行，不挂错误
+                        logger.warning(f"[ALPHA-X] 本轮读取实时权益失败，沿用 {good[2]:.0f} 秒前的读数：{exc}")
+                    else:
+                        with LOCK: STATE["live_error"]=f"{EQUITY_ERROR_PREFIX}（超过{EQUITY_STALE_OK:.0f}秒没有成功读数），暂停开仓: {exc}"
             if str(STATE.get("strategy_mode") or "").upper()=="FAST" and STATE.get("auto_select") and _fast_mode.get_active_version()=="v7":
                 # V7 全自动选币：交易池 = 已持仓币(强制) + 24h涨幅榜前20
                 _note_fast_phase("selecting")
