@@ -845,6 +845,12 @@ async def alpha_update_config(req: AlphaConfigRequest, _: bool = Depends(verify_
     if req.max_positions is not None:
         ALPHA_RUNTIME_CONFIG["max_positions"] = max(1, min(10, req.max_positions))
         changed.append(f"最大持仓={ALPHA_RUNTIME_CONFIG['max_positions']}个")
+    # 同步到正在运行的引擎（包括从 /tv 启动的 V7），只影响之后的新开仓
+    import alpha_engine as _ae
+    if _ae.running_limits() is not None and (req.max_positions is not None or req.default_leverage is not None):
+        _ae.update_running_limits(max_positions=ALPHA_RUNTIME_CONFIG["max_positions"] if req.max_positions is not None else None,
+                                  leverage=ALPHA_RUNTIME_CONFIG["leverage"] if req.default_leverage is not None else None)
+        changed.append("已同步到正在运行的引擎")
     return {"success": True, "message": "配置已更新: " + ", ".join(changed), "changed": changed}
 
 

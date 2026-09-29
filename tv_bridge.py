@@ -379,7 +379,28 @@ def tv_set_params(req: TVParamsRequest):
 
 @router.get("/api/params")
 def tv_get_params():
-    return {"success": True, "params": alpha_fast_v7.get_runtime_params(), "top": int(tv_universe.S["cfg"].get("top", 20))}
+    import alpha_engine
+    return {"success": True, "params": alpha_fast_v7.get_runtime_params(), "top": int(tv_universe.S["cfg"].get("top", 20)),
+            "limits": alpha_engine.running_limits()}
+
+
+class TVLimitsRequest(BaseModel):
+    max_positions: Optional[int] = None
+    risk_pct: Optional[float] = None
+    leverage: Optional[int] = None
+
+
+@router.post("/api/limits")
+@_control
+def tv_set_limits(req: TVLimitsRequest):
+    """运行中修改最大持仓/单笔风险/杠杆，只影响之后的新开仓；未运行时下次启动生效。"""
+    import alpha_engine
+    try:
+        limits = alpha_engine.update_running_limits(max_positions=req.max_positions, risk_pct=req.risk_pct, leverage=req.leverage)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"success": True, "limits": limits,
+            "message": "已应用到正在运行的引擎（只影响之后的新开仓）" if limits else "引擎未运行，下次启动时生效"}
 
 
 # ---------------------------------------------------------------- 页面

@@ -156,6 +156,7 @@ DEFAULT_GATE_SWITCHES = {
 LOCK = threading.RLock()
 CONTROL_LOCK = threading.RLock()
 LOOP_THREAD = None
+RUNNING_CFG = None   # 交易循环正在使用的配置（同一个对象）；运行中修改仓位/风险/杠杆就改它
 
 def _control_serialized(fn):
     from functools import wraps
@@ -4176,6 +4177,33 @@ def _loop(cfg):
             logger.exception(f"[ALPHA-X ULTRA] loop error: {exc}"); time.sleep(5 if str(STATE.get('strategy_mode') or '').upper()=='FAST' else 10)
 
 
+LIMIT_BOUNDS={"max_positions":(1,10,int),"risk_pct":(0.001,0.10,float),"leverage":(1,50,int)}
+
+
+def running_limits():
+    """正在运行的引擎实际使用的最大持仓/单笔风险/杠杆；没运行时返回 None。"""
+    cfg=RUNNING_CFG
+    with LOCK:running=bool(STATE.get("running"))
+    if not running or cfg is None:return None
+    return {k:cfg.get(k) for k in LIMIT_BOUNDS}
+
+
+def update_running_limits(**values):
+    """运行中修改最大持仓/单笔风险/杠杆：只影响之后的新开仓，已有持仓不变。未运行时不做任何事。"""
+    clean={}
+    for k,v in values.items():
+        if v is None or k not in LIMIT_BOUNDS:continue
+        lo,hi,cast=LIMIT_BOUNDS[k];v=cast(v)
+        if not (lo<=v<=hi) or (isinstance(v,float) and not math.isfinite(v)):raise ValueError(f"{k} 必须在 {lo}~{hi} 之间")
+        clean[k]=v
+    cfg=RUNNING_CFG
+    with LOCK:running=bool(STATE.get("running"))
+    if not running or cfg is None or not clean:return running_limits()
+    with LOCK:cfg.update(clean)
+    _activity("运行中修改仓位参数（只影响之后的新开仓）："+"，".join(f"{k}={v}" for k,v in clean.items()))
+    return running_limits()
+
+
 def attribution_summary():
     with LOCK:
         rows=list(STATE.get("attribution") or [])
@@ -4401,6 +4429,8 @@ def start(settings=None):
         except Exception as exc:
             with LOCK: STATE["ws"]={"error":str(exc)}
     _persist()
+    global RUNNING_CFG
+    RUNNING_CFG=cfg
     LOOP_THREAD=threading.Thread(target=_loop,args=(cfg,),daemon=True,name="alpha-ultra-loop")
     LOOP_THREAD.start()
     return True

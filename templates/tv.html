@@ -582,6 +582,7 @@ async function buildForm() {
     box.appendChild(el); box.appendChild(input);
   });
   buildScanTop(box, d.top);
+  buildRiskLimits(box, d.limits);
   await buildExitSwitches(box);
   // 主级别下拉切换：先保存全部参数，再按新级别整体重画（图表周期+自动结构+Pine+持仓线）
   const btEl = document.getElementById('fp_base_tf');
@@ -594,6 +595,35 @@ function scanTop() {
   return (v >= 1 && v <= 100) ? v : 20;
 }
 window.scanTop = scanTop;
+// 资金与风控：启动时使用；运行中修改立即推送给引擎（只影响之后的新开仓）。本机记住上次的值。
+const LIMIT_FIELDS = [['max_positions', '最大同时持仓数（1~10）', 5, 1, 10, 1], ['risk_pct', '单笔风险占本金（%，0.1~10）', 2, 0.1, 10, 0.1], ['leverage', '杠杆（1~50）', 3, 1, 50, 1]];
+function riskLimits() {
+  const out = {};
+  LIMIT_FIELDS.forEach(([k, , def, lo, hi]) => {
+    const el = document.getElementById('lim_' + k); let v = parseFloat(el ? el.value : def);
+    if (!(v >= lo && v <= hi)) v = def;
+    out[k] = k === 'risk_pct' ? v / 100 : Math.round(v);
+  });
+  return out;
+}
+function buildRiskLimits(box, running) {
+  const g = document.createElement('div'); g.className = 'grp-title';
+  g.textContent = running ? '— 资金与风控（引擎运行中：以下为当前实际值，修改立即生效于新开仓）—' : '— 资金与风控（启动时使用）—'; box.appendChild(g);
+  const saved = (typeof readStore === 'function' ? readStore(':risk-limits', {}) : {}) || {};
+  LIMIT_FIELDS.forEach(([k, lab, def, lo, hi, step]) => {
+    const el = document.createElement('label'); el.textContent = lab;
+    const input = document.createElement('input'); input.type = 'number'; input.min = lo; input.max = hi; input.step = step; input.id = 'lim_' + k;
+    let v = running && running[k] != null ? running[k] : (saved[k] != null ? saved[k] : null);
+    if (v == null) v = k === 'risk_pct' ? def / 100 : def;
+    input.value = k === 'risk_pct' ? +(v * 100).toFixed(2) : v;
+    input.onchange = async () => {
+      const lim = riskLimits(); if (typeof writeStore === 'function') writeStore(':risk-limits', lim);
+      try { const r = await api('/tv/api/limits', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(lim) }); flash(r.message); }
+      catch (e) { flash('修改失败: ' + e.message, true); }
+    };
+    box.appendChild(el); box.appendChild(input);
+  });
+}
 function buildScanTop(box, serverTop) {
   const g = document.createElement('div'); g.className = 'grp-title'; g.textContent = '— 扫描范围 —'; box.appendChild(g);
   const el = document.createElement('label'); el.textContent = '扫描币数（24h涨幅榜前N，1~100；保存参数或启动后生效）';
@@ -666,7 +696,7 @@ function confirmLive() {
 async function doStart(live) {
   try {
     const r = await api('/tv/api/start', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ live, leverage:3, max_positions:5, risk_pct:0.02, top:scanTop(),
+      body: JSON.stringify({ live, ...riskLimits(), top:scanTop(),
                              confirm: live?'V7-LIVE':null, params: collectParams() }) });
     flash(r.message);
     // 启动成功后，图表与全部图层切到本次生效的交易主级别
