@@ -257,7 +257,7 @@ def analyze(f,hist=None,max_level=3,signal_level=0,divergence_ratio=.9):
  n=len(f.get('close',[]))
  if n<5:return dict(fractals=[],strokes=[],segments=[],zones=[],signals=[],levels=[],observations=[],rule=RULESET)
  raw_ts=np.asarray(f['ts']);hist=np.asarray(hist if hist is not None else np.zeros(n),float)
- base=pens(f);units=base['units'];levels=[];all_signals=[];observations=[];all_zones=[]
+ base=pens(f);units=base['units'];levels=[];all_signals=[];observations=[];all_zones=[];by_level={}
  for level in range(max_level+1):
   zs,events,expanded=centers(units,level)
   sig,obs=trade_signals(units,zs,hist,raw_ts,level,divergence_ratio)
@@ -266,14 +266,17 @@ def analyze(f,hist=None,max_level=3,signal_level=0,divergence_ratio=.9):
   if len(zs)>=2:
    previous,current=zs[-2:];trend='上涨' if current['dd']>previous['gg'] else '下跌' if current['gg']<previous['dd'] else '盘整/中枢扩展'
   levels.append(dict(level=level,trend=trend,units=units,centers=zs,events=events,expansions=expanded,forming_next=forming,audit=audit))
+  by_level[level]=sig
   if level==signal_level:all_signals=sig;observations=obs
   all_zones.extend(zs);units=next_units
   if not units:break
  strokes=[dict(a=x['a'],b=x['b'],confirmed=True,known_at=x['known_at'],state=x['state']) for x in base['units']]
  if base['provisional']:
   x=base['provisional'];strokes.append(dict(a=x['a'],b=x['b'],confirmed=False,known_at=x['known_at'],state='形成中'))
- status=signal_status(all_signals,raw_ts,f['close'])
+ # 非交易级别的买卖点只用于画图（笔级1/2买等在线段级几乎不会出现），不参与 select_signal。
+ display_signals=[x for lv,sig in by_level.items() if lv!=signal_level for x in sig]
+ status=signal_status(all_signals+display_signals,raw_ts,f['close'])
  segment_list=levels[1]['units'] if len(levels)>1 else []
  return dict(fractals=base['fractals'],strokes=strokes,segments=segment_list,zones=all_zones,signals=all_signals,levels=levels,
-             observations=observations,signal_status=status,rule=RULESET,signal_level=signal_level,
+             observations=observations,display_signals=display_signals,signal_status=status,rule=RULESET,signal_level=signal_level,
              states={'确认':'事件确认后冻结','形成中':'可以延伸，不能下单','失效':'由实际价格穿越信号失效位决定，不擦除历史确认事件'})

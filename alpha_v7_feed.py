@@ -96,8 +96,14 @@ def anchored_frame(exchange,symbol,tf='5m',count=1500,now_ms=None):
     if len(common) and not np.allclose(old[field][oi],fresh[field][fi],rtol=1e-10,atol=1e-10):raise ValueError('交易所已收盘历史发生修订；缠论暂停，需检查历史锚点，禁止静默重画')
    new=fresh['ts']>old['ts'][-1]
    if not np.any(new):_ANCHORS[key]=old;return {k:v.copy() for k,v in old.items()}
-   if fresh['ts'][new][0]-old['ts'][-1]!=TF[tf][1]:raise ValueError('断线超过历史覆盖范围，缠论缺口需补齐，暂停交易')
-   combined={k:np.concatenate((old[k],fresh[k][new])) for k in old}
+   if fresh['ts'][new][0]-old['ts'][-1]!=TF[tf][1]:
+    # 旧锚点与最新行情之间有补不上的缺口（停机/该币离开涨幅榜多日后再回来）。
+    # 旧版在此抛错且锚点文件不变，导致该币永久无法扫描；改为用最新连续历史重新定锚。
+    # 新锚点上的结构从头计算，属于一次性重扎根（与 REBUILD_TRIGGER 相同性质）。
+    from loguru import logger
+    logger.warning(f'[V7 feed] {symbol} {tf} 历史锚点与最新行情有缺口，丢弃旧锚点并用最新 {len(fresh["ts"])} 根重新定锚')
+    combined=fresh
+   else:combined={k:np.concatenate((old[k],fresh[k][new])) for k in old}
   else:combined=fresh
   if len(combined['ts'])>50000:raise ValueError('缠论固定锚点达到50000根容量；请停止策略并归档历史后重新预热')
   if len(combined['ts'])>REBUILD_TRIGGER:

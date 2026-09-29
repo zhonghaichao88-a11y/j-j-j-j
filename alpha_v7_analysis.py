@@ -179,6 +179,9 @@ def analyze(f,context=None):
   s=ch['levels'][0]['forming_next'];overlays.append(dict(type='line',label='形成中线段',group='缠论',ts=s['a']['t'],price=s['a']['price'],to=s['b']['t'],end_price=s['b']['price'],known_at=s['known_at'],state='形成中'))
  for z in ch['zones'][-15:]:overlays.append(dict(type='zone',label=f"L{z.get('level',0)}中枢"+('延伸' if z['extended'] else ''),group='缠论',**z))
  for s in ch['signals'][-20:]:overlays.append(dict(type='point',group='缠论',**{**s,**ch.get('signal_status',{}).get(s['id'],{})}))
+ names={0:'笔级',1:'线段级',2:'L2级',3:'L3级'}
+ for s in sorted(ch.get('display_signals',[]),key=lambda x:x['ts'])[-30:]:
+  overlays.append(dict(type='point',group='缠论',**{**s,**ch.get('signal_status',{}).get(s['id'],{}),'label':names.get(s['level'],'L%d级'%s['level'])+s['label'],'trade':False}))
  for s in ch['observations'][-20:]:overlays.append(dict(type='point',**s,group='缠论',state='观察（不下单）'))
  for lev in ch.get('levels',[]):
   for z in lev['expansions'][-3:]:overlays.append(dict(type='zone',group='缠论',label='中枢扩展→L'+str(z['level']),**{k:v for k,v in z.items() if k!='type'}))

@@ -2086,8 +2086,10 @@ def _v7_entry_guard(symbol, pred, price, now):
     if not key or (STATE.get("v7_attempted") or {}).get(symbol)==key:
         _activity(f"V7 {symbol}：本根触发已尝试下单，等待新K线机会")
         return False
-    end=float(fs.get("bar_ts") or 0)+300000
-    if not end<=now*1000<=end+315000:
+    # 触发K的收盘时间按开仓主级别计算；硬编码5m会让15m/1h信号永远被判为“过期/未收盘”。
+    bar_ms=fast_v7.tf_ms(fs.get("v7_base_tf") or "5m")
+    end=float(fs.get("bar_ts") or 0)+bar_ms
+    if not end<=now*1000<=end+bar_ms+15000:
         _activity(f"V7 {symbol}：触发已过期或尚未收盘，本轮不下单")
         return False
     d=1 if pred.get("signal")=="LONG" else -1
