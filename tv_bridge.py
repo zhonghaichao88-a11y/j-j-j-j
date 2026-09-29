@@ -379,7 +379,7 @@ def tv_set_params(req: TVParamsRequest):
 
 @router.get("/api/params")
 def tv_get_params():
-    return {"success": True, "params": alpha_fast_v7.get_runtime_params()}
+    return {"success": True, "params": alpha_fast_v7.get_runtime_params(), "top": int(tv_universe.S["cfg"].get("top", 20))}
 
 
 # ---------------------------------------------------------------- 页面

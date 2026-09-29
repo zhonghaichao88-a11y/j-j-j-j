@@ -112,7 +112,7 @@ async function v73RunPine(save){const status=document.getElementById('v73-pine-s
  v74PineInputs=inputs;writeStore(':pine-inputs',inputs);v74RenderInputs(result.input_specs||[]);
  v73PineSource=source;writeStore(':pine-source',source);v73PineResult=result;v73DrawPine(result,rows);v73PineKey=curSym+curTf+rows.at(-1)?.timestamp;
  if(save){if(result.live_capability&&!result.live_capability.supported)throw Error('已保存供预览；不能启用自动交易：'+result.live_capability.reasons.join('；'));if(result.kind!=='strategy')throw Error('指标已保存，只能画图；自动交易需要strategy声明');
- const p=await api('/tv/api/params');await api('/tv/api/params',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({params:{...p.params,strategy:'pine_import',pine_id:result.script_id},top:20})});await buildForm();}
+ const p=await api('/tv/api/params');await api('/tv/api/params',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({params:{...p.params,strategy:'pine_import',pine_id:result.script_id},top:(window.scanTop?window.scanTop():20)})});await buildForm();}
  if(status)status.textContent=`检查通过：${result.bars}根，${result.plots.length}条绘图，${result.events.length}个历史事件。${save?'已保存并选入策略，请检查风险参数后使用原有启动按钮。':''}\n${result.execution}\n${result.live_capability?.description||''}${result.live_capability&&!result.live_capability.supported?'\n仅预览：'+result.live_capability.reasons.join('；'):''}`;
  }catch(e){if(status)status.textContent='未通过：'+e.message;else v72Note.textContent='Pine：'+e.message}
 }

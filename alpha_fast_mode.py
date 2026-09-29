@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 import os
 import time
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Tuple
 import numpy as np
@@ -2081,6 +2082,47 @@ def position_reversal_check(symbol: str, side: str) -> Dict[str, Any]:
     except Exception as exc:
         return {"action":"HOLD","score":0.0,"reason":f"持仓反转监控异常，保持原TP/SL不主动平仓：{exc}","reversal":False,"wash":False,"error":str(exc)}
 
+# ---------------------------------------------------------------- V7 多币扫描加速
+# 1) 全市场报价一次请求（3 秒内所有币共用），取不到时退回单币请求；
+# 2) 每轮开始并行预取各币K线（全局限速），之后逐币决策时直接命中缓存。
+_TICKER_BATCH={'at':0.0,'data':{}};_TICKER_LOCK=threading.Lock()
+
+
+def batch_ticker(symbol: str, max_age: float = 3.0) -> Dict[str,Any]:
+    with _TICKER_LOCK:
+        if time.time()-_TICKER_BATCH['at']>max_age:
+            fetch_all=getattr(okx_client,'fetch_swap_tickers',None)
+            try:rows=fetch_all() if fetch_all else []
+            except Exception:rows=[]
+            _TICKER_BATCH['at']=time.time()
+            _TICKER_BATCH['data']={r['symbol']:r for r in rows} if rows else {}
+        t=_TICKER_BATCH['data'].get(symbol)
+    if t and _finite(t.get('last'),0.0)>0:
+        return {'last':t.get('last'),'bid':t.get('bid'),'ask':t.get('ask')}
+    return okx_client.get_ticker(symbol) or {}
+
+
+def prefetch_v7(symbols: List[str]) -> Dict[str,Any]:
+    """并行预取 V7 需要的全部K线（本币主级别及高周期、方案一的 BTC），失败的币留给逐币扫描按原逻辑处理。"""
+    from alpha_fast_v7 import get_runtime_params
+    from alpha_v7_feed import bundle, frame as v7_frame
+    v7p=get_runtime_params();bt=v7p.get('base_tf','5m')
+    need_mtf=(v7p.get('strategy')=='chan_quant' and bool(v7p.get('chan_mtf')))
+    now_ms=time.time()*1000.0;errors={}
+    def one(s):
+        try:bundle(okx_client._exchange,config.trading.get_ccxt_symbol(s),base_tf=bt,multi=need_mtf,now_ms=now_ms)
+        except Exception as exc:errors[s]=str(exc)
+    with ThreadPoolExecutor(max_workers=8) as pool:list(pool.map(one,list(symbols)))
+    if v7p.get('chan_scheme1'):
+        try:v7_frame(okx_client._exchange,config.trading.get_ccxt_symbol('BTC-USDT-SWAP'),'15m',count=1500,now_ms=now_ms)
+        except Exception as exc:errors['BTC']=str(exc)
+    # 报价放在K线全部读完之后刷新，逐币决策时用的是读完历史之后的新报价
+    with _TICKER_LOCK:_TICKER_BATCH['at']=0.0
+    try:batch_ticker(symbols[0] if symbols else 'BTC-USDT-SWAP')
+    except Exception as exc:errors['tickers']=str(exc)
+    return errors
+
+
 def predict(symbol: str) -> Dict[str,Any]:
     version=FAST_ACTIVE_VERSION
     bt='5m'
@@ -2102,7 +2144,7 @@ def predict(symbol: str) -> Dict[str,Any]:
             frames=bundle(okx_client._exchange,cs,base_tf=bt,multi=need_mtf,now_ms=now_ms)
             # bundle 只返回已收盘、固定锚点 K 线；历史引导后必须重新取报价，
             # 避免用引导前旧价成交（点差也按最新 bid/ask 重算，沿用 _fetch_symbol 算法）。
-            fresh_ticker=okx_client.get_ticker(symbol) or {}
+            fresh_ticker=batch_ticker(symbol)
             px=_finite(fresh_ticker.get('last'),0.0)
             bid=_finite(fresh_ticker.get('bid'),0.0); ask=_finite(fresh_ticker.get('ask'),0.0)
             spread_bps=float(abs(ask-bid)/max((ask+bid)*0.5,1e-12)*1e4) if bid>0 and ask>0 and ask>=bid else -1.0

@@ -581,10 +581,27 @@ async function buildForm() {
     input.id = 'fp_' + key;
     box.appendChild(el); box.appendChild(input);
   });
+  buildScanTop(box, d.top);
   await buildExitSwitches(box);
   // 主级别下拉切换：先保存全部参数，再按新级别整体重画（图表周期+自动结构+Pine+持仓线）
   const btEl = document.getElementById('fp_base_tf');
   if (btEl) btEl.onchange = () => onBaseTfChange(btEl.value);
+}
+// 扫描币数：24h 涨幅榜前 N（1~100）。保存参数、启动时带给后端；本机记住上次的值。
+function scanTop() {
+  const el = document.getElementById('scan_top');
+  let v = parseInt(el ? el.value : (typeof readStore === 'function' ? readStore(':scan-top', 20) : 20), 10);
+  return (v >= 1 && v <= 100) ? v : 20;
+}
+window.scanTop = scanTop;
+function buildScanTop(box, serverTop) {
+  const g = document.createElement('div'); g.className = 'grp-title'; g.textContent = '— 扫描范围 —'; box.appendChild(g);
+  const el = document.createElement('label'); el.textContent = '扫描币数（24h涨幅榜前N，1~100；保存参数或启动后生效）';
+  const input = document.createElement('input'); input.type = 'number'; input.min = 1; input.max = 100; input.step = 1; input.id = 'scan_top';
+  const saved = typeof readStore === 'function' ? readStore(':scan-top', null) : null;
+  input.value = saved || serverTop || 20;
+  input.onchange = () => { const v = scanTop(); input.value = v; if (typeof writeStore === 'function') writeStore(':scan-top', v); };
+  box.appendChild(el); box.appendChild(input);
 }
 // 全局出场开关：与旧面板“移动止损/分批止盈”是同一组后端开关，改动立即生效，影响所有策略。
 async function buildExitSwitches(box) {
@@ -612,7 +629,7 @@ async function onBaseTfChange(tf) {
   if (!['5m','15m','1h'].includes(tf)) { flash('主级别仅支持5分钟/15分钟/1小时', true); return; }
   try {
     await api('/tv/api/params', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ params: collectParams(), top: 20 }) });
+      body: JSON.stringify({ params: collectParams(), top: scanTop() }) });
   } catch (e) { flash('保存主级别失败: ' + e.message, true); return; }
   await switchTf(tf);
   flash('主级别已切换，全部图层按该级别重算');
@@ -630,7 +647,7 @@ function collectParams() {
 async function saveParams() {
   try {
     await api('/tv/api/params', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ params: collectParams(), top: 20 }) });
+      body: JSON.stringify({ params: collectParams(), top: scanTop() }) });
     flash('策略参数已保存');
   } catch (e) { flash('保存失败: ' + e.message, true); }
 }
@@ -649,7 +666,7 @@ function confirmLive() {
 async function doStart(live) {
   try {
     const r = await api('/tv/api/start', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ live, leverage:3, max_positions:5, risk_pct:0.02, top:20,
+      body: JSON.stringify({ live, leverage:3, max_positions:5, risk_pct:0.02, top:scanTop(),
                              confirm: live?'V7-LIVE':null, params: collectParams() }) });
     flash(r.message);
     // 启动成功后，图表与全部图层切到本次生效的交易主级别

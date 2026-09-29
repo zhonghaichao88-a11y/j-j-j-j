@@ -4099,6 +4099,12 @@ def _loop(cfg):
             else:
                 symbols=(STATE.get("symbols") if str(STATE.get("strategy_mode") or "").upper()=="FAST" else (STATE.get("symbols") or config.trading.get_active_symbols()))
             _note_fast_phase("scanning", pool=len(symbols))
+            if str(STATE.get("strategy_mode") or "").upper()=="FAST" and _fast_mode.get_active_version()=="v7":
+                # 并行预取全部币的K线与全市场报价；之后逐币决策直接用缓存，币多时一轮扫描快很多
+                try:
+                    _pre_err=_fast_mode.prefetch_v7(list(symbols))
+                    if _pre_err:logger.debug(f"[V7 预取] {len(_pre_err)} 项失败，逐币扫描时按原逻辑处理")
+                except Exception as exc:logger.warning(f"[V7 预取] 失败，改为逐币读取：{exc}")
             preds={}
             alloc={}
             _activity(f"{STATE['mode']}：开始新一轮行情扫描，共 {len(symbols)} 个币种（自动选币）" if STATE.get("auto_select") else f"{STATE['mode']}：开始新一轮行情扫描，共 {len(symbols)} 个币种")

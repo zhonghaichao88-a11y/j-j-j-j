@@ -104,7 +104,23 @@ def chan_options(context):
  context=context or {}
  return dict(signal_level=int(context.get('chan_level',1)),pen_mode=int(context.get('chan_pen',0)),macd_mode='abs' if int(context.get('chan_macd',1))==0 else 'same')
 
+_ANALYZE_CACHE=OrderedDict();ANALYZE_CACHE_SIZE=256
 def analyze(f,context=None):
+ """同一组已收盘K线 + 同一组参数，结果完全相同；K线没更新时直接复用（多币扫描时省掉重复计算）。
+ 返回值供只读使用。"""
+ digest=hashlib.sha256()
+ for key in ('ts','open','high','low','close','volume'):digest.update(np.asarray(f[key],dtype=np.float64).tobytes())
+ cache_key=(digest.digest(),repr(sorted((context or {}).items())))
+ with _CHAN_LOCK:
+  if cache_key in _ANALYZE_CACHE:
+   _ANALYZE_CACHE.move_to_end(cache_key);return _ANALYZE_CACHE[cache_key]
+ result=_analyze(f,context)
+ with _CHAN_LOCK:
+  _ANALYZE_CACHE[cache_key]=result
+  while len(_ANALYZE_CACHE)>ANALYZE_CACHE_SIZE:_ANALYZE_CACHE.popitem(last=False)
+ return result
+
+def _analyze(f,context=None):
  full_chan=None
  if len(f['close'])>=1500:
   full_chan=chan(f,**chan_options(context))

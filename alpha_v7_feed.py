@@ -24,11 +24,22 @@ def bundle_tfs(base_tf,multi=True):
     if base_tf not in SUPPORTED_BASE_TFS:raise ValueError('主级别仅支持5m/15m/1h')
     return (base_tf,)+HIGHER_TFS[base_tf] if multi else (base_tf,)
 
+# 公开K线请求全局限速（OKX 公共K线接口约 20 次/秒/IP，这里留足余量）；并行预取时各线程共用。
+_RATE_LOCK=threading.Lock();_RATE_LAST=[0.0];RATE_GAP=1/12
+def _throttle():
+ with _RATE_LOCK:
+  wait=_RATE_LAST[0]+RATE_GAP-time.monotonic()
+  if wait>0:time.sleep(wait)
+  _RATE_LAST[0]=time.monotonic()
+
 def frame(exchange,symbol,tf='5m',count=1500,now_ms=None):
  if tf not in TF:raise ValueError('不支持的K线周期：'+str(tf))
  now_ms=int(now_ms or time.time()*1000);bar,ms=TF[tf];key=(getattr(exchange,'id','okx'),symbol,tf)
  with _LOCK:old=_CACHE.get(key)
  if old and now_ms-old['at']<3000:return {k:v.copy() for k,v in old['frame'].items()}
+ # 最后一根已收盘K线之后的那根还没收盘，就不可能有新数据：直接用缓存，不发请求。
+ if old and old.get('count',0)>=count and len(old['frame']['ts']) and now_ms<int(old['frame']['ts'][-1])+2*ms:
+  return {k:v.copy() for k,v in old['frame'].items()}
  market=exchange.market(symbol);inst=market['id'];rows={}
  if old:
   f=old['frame'];rows={int(t):[float(f[k][i]) for k in ('open','high','low','close','volume')] for i,t in enumerate(f['ts'])}
@@ -37,7 +48,7 @@ def frame(exchange,symbol,tf='5m',count=1500,now_ms=None):
  while pages<max(2,int(np.ceil(count/300))+1):
   args={'instId':inst,'bar':bar,'limit':'300'}
   if before is not None:args['after']=str(before)
-  raw=exchange.request('market/history-candles' if before is not None else 'market/candles','public','GET',args)
+  _throttle();raw=exchange.request('market/history-candles' if before is not None else 'market/candles','public','GET',args)
   if str((raw or {}).get('code'))!='0':raise RuntimeError('公开K线响应失败：'+str((raw or {}).get('msg','')))
   page=raw.get('data') or [];valid=[]
   for r in page:
@@ -59,7 +70,7 @@ def frame(exchange,symbol,tf='5m',count=1500,now_ms=None):
  if now_ms-(ordered[-1]+ms)>ms+15000:raise ValueError(tf+'行情过期')
  f={'ts':np.asarray(ordered,dtype=np.int64)}
  for i,k in enumerate(('open','high','low','close','volume')):f[k]=np.asarray([rows[t][i] for t in ordered],float)
- with _LOCK:_CACHE[key]=dict(at=now_ms,frame=f)
+ with _LOCK:_CACHE[key]=dict(at=now_ms,frame=f,count=count)
  return {k:v.copy() for k,v in f.items()}
 
 def bundle(exchange,symbol,multi=True,count=1500,now_ms=None,base_tf='5m'):
