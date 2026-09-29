@@ -149,3 +149,20 @@ class FeatureSequenceTests(unittest.TestCase):
         out,_,_=segments(mk(prices))
         self.assertTrue(out)
         self.assertEqual(out[0]['a']['price'],97286);self.assertEqual(out[0]['b']['price'],109999)
+
+
+class SegmentModeTests(unittest.TestCase):
+    def test_loose_mode_only_relaxes_the_extreme_check(self):
+        from alpha_v7_chan import segments
+        f=walk(3000,11);u=pens(f)['units']
+        strict,_,_=segments(u,strict=True);loose,_,_=segments(u,strict=False)
+        self.assertGreaterEqual(len(loose),len(strict))
+        for s in loose:self.assertGreaterEqual(len(s['children']),3)
+        # 默认仍是严格模式，交易行为不变
+        self.assertEqual(analyze(f,None)['segments'],analyze(f,None,seg_mode=0)['segments'])
+
+    def test_loose_mode_never_redraws(self):
+        from alpha_v7_chan import segments
+        f=walk(2500,5);u=pens(f)['units'];full,_,_=segments(u,strict=False)
+        for n in (300,600,900):
+            for s in segments(u[:n],strict=False)[0]:self.assertIn(s,full)

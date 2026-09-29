@@ -66,13 +66,14 @@ def pens(f,mode=0):
 
 def unit(a,b,known,index,kind,children=None,case=''):
  d=1 if b['price']>a['price'] else -1
- return dict(a=deepcopy(a),b=deepcopy(b),side=d,low=min(a['price'],b['price']),high=max(a['price'],b['price']),
+ return dict(a=dict(a),b=dict(b),side=d,low=min(a['price'],b['price']),high=max(a['price'],b['price']),
              ts=a['t'],to=b['t'],known_at=int(known),index=index,kind=kind,confirmed=True,state='已确认',children=children or [],case=case)
 
-def feature_events(units,start,direction):
- """Online inclusion processing. Record fractals when recognized, not from final redrawn sequence."""
+def feature_events(units,start,direction,limit=None):
+ """Online inclusion processing. Record fractals when recognized, not from final redrawn sequence.
+ limit：只处理到第 limit 笔（在线处理，前面的事件与不限制时完全相同）。"""
  seq=[];events=[];movement=direction
- for j in range(start,len(units)):
+ for j in range(start,len(units) if limit is None else min(len(units),limit+1)):
   u=units[j]
   if u['side']!=-direction:continue
   e=dict(high=u['high'],low=u['low'],start=j,end=j,peak=j,known_at=u['known_at'])
@@ -93,42 +94,58 @@ def feature_events(units,start,direction):
   bottom=b['low']<min(a['low'],c['low']) and b['high']<min(a['high'],c['high'])
   if (direction>0 and top) or (direction<0 and bottom):
    gap=a['high']<b['low'] if direction>0 else a['low']>b['high']
-   ev=dict(left=deepcopy(a),middle=deepcopy(b),right=deepcopy(c),gap=gap,end=b['peak'],confirm_index=j,known_at=u['known_at'])
+   ev=dict(left=dict(a),middle=dict(b),right=dict(c),gap=gap,end=b['peak'],confirm_index=j,known_at=u['known_at'])
    if not events or (events[-1]['end'],events[-1]['confirm_index'])!=(ev['end'],j):events.append(ev)
  return events
 
-def segments(units,level=1):
- """Characteristic-sequence segmentation, recursively reusable on confirmed lower units."""
- out=[];audit=[];start=0
+def segments(units,level=1,strict=True):
+ """Characteristic-sequence segmentation, recursively reusable on confirmed lower units.
+ strict=True：线段端点必须是段内极值（段内任何一笔都不能越过端点）。
+ strict=False：只看特征序列分型，不要求端点是段内极值（与 chan.py 的做法一致，线段更短）。
+ """
+ out=[];audit=[];start=0;inverse_cache={}
+ ends_px=np.array([u['b']['price'] for u in units],float)
+ def beyond(lo,hi,d,pivot):
+  # units[lo:hi] 里是否有笔的终点越过 pivot（d 方向）
+  return hi>lo and max(d*units[k]['b']['price'] for k in range(lo,hi))>d*pivot
  while start+3<=len(units):
   d=units[start]['side'];candidates=[]
-  # Case 67: standardized opposite-direction feature sequence.
-  for ev in feature_events(units,start,d):
-   end=ev['end'];confirm=ev['confirm_index']
-   if end-start<3 or (end-start)%2!=1:continue
-   if not (max(u['low'] for u in units[start:start+3])<=min(u['high'] for u in units[start:start+3])):continue
-   pivot=units[end]['a']['price']
-   if any(d*(u['b']['price']-pivot)>0 for u in units[start:confirm+1]):continue
-   case='特征序列无缺口'
-   if ev['gap']:
-    inverse=next((x for x in feature_events(units,end,-d) if x['confirm_index']>=confirm),None)
-    if inverse is None:audit.append(dict(state='等待缺口第二序列确认',start=start,end=end,known_at=ev['known_at']));continue
-    confirm=inverse['confirm_index'];case='缺口+反向特征分型'
-    if any(d*(u['b']['price']-pivot)>0 for u in units[end:confirm+1]):continue
-   candidates.append((confirm,end,case))
+  run=np.maximum.accumulate(d*ends_px[start:])   # 从 start 起的累计极值
+  def beyond_from_start(hi,pivot):return hi>start and run[hi-1-start]>d*pivot
+  l71=[]
   # Lesson 71: first reversing pen destroys previous feature; later same-direction
   # reversal pen must break its endpoint before the original extreme is renewed.
   for end in range(start+3,len(units)-2,2):
+   if l71 and end>min(l71)[0]:break          # 后面的确认只会更晚，不可能更早
    if units[end]['side']!=-d:continue
    left=units[end-2];first=units[end];pivot=first['a']['price']
    destroyed=first['low']<left['low'] if d>0 else first['high']>left['high']
    if not destroyed:continue
-   if any(d*(u['b']['price']-pivot)>0 for u in units[start:end]):continue
+   if strict and beyond_from_start(end,pivot):continue
+   m=d*units[end]['b']['price']
    for j in range(end+2,len(units),2):
-    if any(d*(u['b']['price']-pivot)>0 for u in units[end:j+1]):break
+    if l71 and j>min(l71)[0]:break
+    m=max(m,d*units[j-1]['b']['price'],d*units[j]['b']['price'])
+    if strict and m>d*pivot:break
     if -d*(units[j]['b']['price']-first['b']['price'])>0:
-     if max(u['low'] for u in units[end:end+3])<=min(u['high'] for u in units[end:end+3]):candidates.append((j,end,'首笔破坏后反向三笔确认'))
+     if max(u['low'] for u in units[end:end+3])<=min(u['high'] for u in units[end:end+3]):l71.append((j,end,'首笔破坏后反向三笔确认'))
      break
+  # Case 67: standardized opposite-direction feature sequence.
+  for ev in feature_events(units,start,d,limit=min(l71)[0] if l71 else None):
+   end=ev['end'];confirm=ev['confirm_index']
+   if end-start<3 or (end-start)%2!=1:continue
+   if not (max(u['low'] for u in units[start:start+3])<=min(u['high'] for u in units[start:start+3])):continue
+   pivot=units[end]['a']['price']
+   if strict and beyond_from_start(confirm+1,pivot):continue
+   case='特征序列无缺口'
+   if ev['gap']:
+    if (end,-d) not in inverse_cache:inverse_cache[(end,-d)]=feature_events(units,end,-d)
+    inverse=next((x for x in inverse_cache[(end,-d)] if x['confirm_index']>=confirm),None)
+    if inverse is None:audit.append(dict(state='等待缺口第二序列确认',start=start,end=end,known_at=ev['known_at']));continue
+    confirm=inverse['confirm_index'];case='缺口+反向特征分型'
+    if strict and beyond(end,confirm+1,d,pivot):continue
+   candidates.append((confirm,end,case))
+  candidates+=l71   # 原顺序：特征序列候选在前，同一时刻同一端点时沿用特征序列的标签
   if not candidates:break
   confirm,end,case=min(candidates,key=lambda x:(x[0],x[1]))
   known=max(units[confirm]['known_at'],out[-1]['known_at'] if out else 0)
@@ -207,6 +224,18 @@ def zone_snapshot(z,known):
  result['extended']=len(result['snapshots'])>1
  return result
 
+class LazySnapshots:
+ """只在真正用到时才计算中枢在某时刻的快照（结果与逐个计算完全相同）。"""
+ def __init__(self,raw,known):self.raw=raw;self.known=known;self.cache={}
+ def __len__(self):return len(self.raw)
+ def __bool__(self):return bool(self.raw)
+ def __getitem__(self,i):
+  i=i if i>=0 else len(self.raw)+i
+  if i not in self.cache:self.cache[i]=zone_snapshot(self.raw[i],self.known)
+  return self.cache[i]
+ def __reversed__(self):
+  for i in range(len(self.raw)-1,-1,-1):yield self[i]
+
 def trade_signals(units,zones,hist,raw_ts,level=0,divergence_ratio=.9,macd_mode='same',class2_follow=2):
  """Six buy/sell point classes on confirmed units only.
  1买/1卖  (T1)  趋势背驰：两个 GG/DD 不重叠的同向中枢（第20课），离开段创新低且力度弱于进入段。
@@ -228,8 +257,8 @@ def trade_signals(units,zones,hist,raw_ts,level=0,divergence_ratio=.9,macd_mode=
             invalidation=u['b']['price'],zone_id=zone['id'] if zone else None,evidence=extra or {},rule=RULESET)
   signals.append(item);return item
  for j,u in enumerate(units):
-  known=u['known_at'];side=-u['side'];available=[zone_snapshot(z,known) for z in zones if z['known_at']<=known]
-  available=[z for z in available if z and z['start']<j]
+  known=u['known_at'];side=-u['side']
+  available=LazySnapshots([z for z in zones if z['known_at']<=known and z['start']<j],known)
   buy=side==1
   # A new extreme beyond the class-1 point ends its 2/类2 chain.
   a=first.get(side)
@@ -313,13 +342,13 @@ def select_signal(result,known,config,bar_ms=None):
  if len({e['side'] for e in eligible})>1:return None
  return max(eligible,key=lambda e:(e['known_at'],signal_class(e),e['ts'])) if eligible else None
 
-def analyze(f,hist=None,max_level=3,signal_level=0,divergence_ratio=.9,pen_mode=0,macd_mode='same'):
+def analyze(f,hist=None,max_level=3,signal_level=0,divergence_ratio=.9,pen_mode=0,macd_mode='same',seg_mode=0):
  n=len(f.get('close',[]))
  if n<5:return dict(fractals=[],strokes=[],segments=[],zones=[],signals=[],levels=[],observations=[],rule=RULESET)
  raw_ts=np.asarray(f['ts']);hist=np.asarray(hist if hist is not None else np.zeros(n),float)
  base=pens(f,pen_mode);units=base['units'];levels=[];all_signals=[];observations=[];all_zones=[];by_level={}
  for level in range(max_level+1):
-  next_units,forming,audit=segments(units,level+1) if len(units)>=3 else ([],None,[])
+  next_units,forming,audit=segments(units,level+1,strict=seg_mode==0) if len(units)>=3 else ([],None,[])
   zs,events,expanded=centers(units,level,next_units)
   sig,obs=trade_signals(units,zs,hist,raw_ts,level,divergence_ratio,macd_mode)
   trend='结构不足' if not zs else '盘整'
@@ -338,5 +367,5 @@ def analyze(f,hist=None,max_level=3,signal_level=0,divergence_ratio=.9,pen_mode=
  status=signal_status(all_signals+display_signals,raw_ts,f['close'])
  segment_list=levels[1]['units'] if len(levels)>1 else []
  return dict(fractals=base['fractals'],strokes=strokes,segments=segment_list,zones=all_zones,signals=all_signals,levels=levels,
-             observations=observations,display_signals=display_signals,signal_status=status,rule=RULESET,signal_level=signal_level,pen_mode=pen_mode,macd_mode=macd_mode,
+             observations=observations,display_signals=display_signals,signal_status=status,rule=RULESET,signal_level=signal_level,pen_mode=pen_mode,macd_mode=macd_mode,seg_mode=seg_mode,
              states={'确认':'事件确认后冻结','形成中':'可以延伸，不能下单','失效':'由实际价格穿越信号失效位决定，不擦除历史确认事件'})
