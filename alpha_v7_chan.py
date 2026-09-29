@@ -11,7 +11,7 @@ from __future__ import annotations
 from copy import deepcopy
 import numpy as np
 
-RULESET='CX-75-bsp-complete'
+RULESET='CX-76-feature-first-element'
 
 def included(a,b):
  return (a['high']>=b['high'] and a['low']<=b['low']) or (b['high']>=a['high'] and b['low']<=a['low'])
@@ -76,7 +76,10 @@ def feature_events(units,start,direction):
   u=units[j]
   if u['side']!=-direction:continue
   e=dict(high=u['high'],low=u['low'],start=j,end=j,peak=j,known_at=u['known_at'])
-  if seq and included(seq[-1],e):
+  # 分型的第一、第二元素之间不做包含处理：新元素创出线段方向的新极值时单独成为一个元素，
+  # 否则真正的顶/底元素会把它左边的元素吞掉，分型永远凑不齐，线段被拖得过长。
+  new_extreme=seq and (e['high']>seq[-1]['high'] if direction>0 else e['low']<seq[-1]['low'])
+  if seq and included(seq[-1],e) and not new_extreme:
    old=seq[-1];fn=max if movement>0 else min
    high=fn(old['high'],e['high']);low=fn(old['low'],e['low'])
    peak=old['peak'] if (old['high']>=e['high'] if direction>0 else old['low']<=e['low']) else j

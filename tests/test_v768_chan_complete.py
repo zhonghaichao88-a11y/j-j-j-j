@@ -136,3 +136,16 @@ class ParamTests(unittest.TestCase):
 
 if __name__=='__main__':
     unittest.main()
+
+
+class FeatureSequenceTests(unittest.TestCase):
+    def test_new_extreme_element_is_not_merged_into_left_neighbour(self):
+        # BTC 30m 真实片段：9.7万涨到 109999 见顶，之后跌到 97738。
+        # 旧算法把创新高的特征元素和左边元素合并，顶分型凑不齐，这段上涨被拖了 300 多笔。
+        from alpha_v7_chan import segments
+        from test_v73_chan import units as mk
+        prices=[97286,105841,102286,105641,103400,106488,99500,109999,100113,107333,103262,104828,101222,
+                106870,102203,107164,104368,105294,104102,105323,104508,105547,104424,105281,97738,102322,98838]
+        out,_,_=segments(mk(prices))
+        self.assertTrue(out)
+        self.assertEqual(out[0]['a']['price'],97286);self.assertEqual(out[0]['b']['price'],109999)
