@@ -24,8 +24,8 @@ def bundle_tfs(base_tf,multi=True):
     if base_tf not in SUPPORTED_BASE_TFS:raise ValueError('主级别仅支持5m/15m/1h')
     return (base_tf,)+HIGHER_TFS[base_tf] if multi else (base_tf,)
 
-# 公开K线请求全局限速（OKX 公共K线接口约 20 次/秒/IP，这里留足余量）；并行预取时各线程共用。
-_RATE_LOCK=threading.Lock();_RATE_LAST=[0.0];RATE_GAP=1/12
+# 公开K线请求全局限速（OKX 历史K线接口 20 次/2 秒/IP，即每秒 10 次；这里每秒 9 次）；并行预取时各线程共用。
+_RATE_LOCK=threading.Lock();_RATE_LAST=[0.0];RATE_GAP=1/9
 def _throttle():
  with _RATE_LOCK:
   wait=_RATE_LAST[0]+RATE_GAP-time.monotonic()
@@ -48,7 +48,15 @@ def frame(exchange,symbol,tf='5m',count=1500,now_ms=None):
  while pages<max(2,int(np.ceil(count/300))+1):
   args={'instId':inst,'bar':bar,'limit':'300'}
   if before is not None:args['after']=str(before)
-  _throttle();raw=exchange.request('market/history-candles' if before is not None else 'market/candles','public','GET',args)
+  for attempt in range(4):
+   _throttle()
+   try:raw=exchange.request('market/history-candles' if before is not None else 'market/candles','public','GET',args)
+   except Exception as exc:
+    # 限速（50011 / 429）时等一下再试；其他错误照常抛出
+    if attempt<3 and ('50011' in str(exc) or '429' in str(exc) or 'Too Many' in str(exc)):time.sleep(1.0+attempt);continue
+    raise
+   if str((raw or {}).get('code'))=='50011' and attempt<3:time.sleep(1.0+attempt);continue
+   break
   if str((raw or {}).get('code'))!='0':raise RuntimeError('公开K线响应失败：'+str((raw or {}).get('msg','')))
   page=raw.get('data') or [];valid=[]
   for r in page:

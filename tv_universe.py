@@ -78,6 +78,8 @@ def _refresh() -> None:
         # 涨幅榜：只要上涨的；并要求最低成交额，剔除妖币/死水（方案二按成交额选主流币，不看涨跌）
         if pct <= 0 and not by_volume:
             continue
+        if by_volume and not _is_crypto(sym):
+            continue          # 方案二的回测只用了加密币；股票/商品合约没测过，不选
         if qv < float(cfg["min_turnover_usdt"]):
             continue
         pool.append({"symbol": sym, "last": last, "pct": pct, "quote_volume": qv})
@@ -91,6 +93,18 @@ def _refresh() -> None:
                      (f"{BASIS_LABEL.get(cfg.get('basis'), '24h')}涨幅榜："
                       f"扫描 {len(tickers)} 个 USDT 永续，前 {len(pool)} 名"))
     logger.info(f"[V7 选币] {S['last_msg']}")
+
+
+def _is_crypto(sym: str) -> bool:
+    """OKX 合约类别：instCategory=1 为加密币（3 股票、4 商品等）。取不到类别时按加密币处理。"""
+    try:
+        ex = okx_client._exchange
+        cs = sym.replace("-USDT-SWAP", "/USDT:USDT")
+        info = ((ex.markets or {}).get(cs) or {}).get("info") or {} if ex is not None else {}
+        cat = str(info.get("instCategory") or "1")
+        return cat == "1"
+    except Exception:
+        return True
 
 
 def _scheme2_on() -> bool:

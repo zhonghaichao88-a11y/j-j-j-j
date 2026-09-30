@@ -4338,7 +4338,9 @@ def _loop(cfg):
                 # 并行预取全部币的K线与全市场报价；之后逐币决策直接用缓存，币多时一轮扫描快很多
                 try:
                     _pre_err=_fast_mode.prefetch_v7(list(symbols))
-                    if _pre_err:logger.debug(f"[V7 预取] {len(_pre_err)} 项失败，逐币扫描时按原逻辑处理")
+                    if _pre_err:
+                        _sample='；'.join(f"{k}:{str(v)[:60]}" for k,v in list(_pre_err.items())[:3])
+                        logger.info(f"[V7 预取] {len(_pre_err)} 个币预取失败（逐币扫描时会再取一次），例如：{_sample}")
                 except Exception as exc:logger.warning(f"[V7 预取] 失败，改为逐币读取：{exc}")
             preds={}
             alloc={}

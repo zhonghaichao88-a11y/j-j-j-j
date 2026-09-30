@@ -210,3 +210,31 @@ class UniverseTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class FeedRetryTests(unittest.TestCase):
+    def test_rate_limited_page_is_retried(self):
+        import alpha_v7_feed as feed
+        now = 1_790_000_000_000; ms = 1800000; last = now // ms * ms - ms
+        rows = [[str(last - k * ms), '1', '2', '0.5', '1.5', '10', '0', '0', '1'] for k in range(5)]
+        class Ex:
+            id = 'okx-retry-test'; calls = 0
+            def market(self, s): return {'id': 'X-USDT-SWAP'}
+            def request(self, path, api, method, args):
+                Ex.calls += 1
+                if Ex.calls == 1: return {'code': '50011', 'msg': 'Too Many Requests'}
+                return {'code': '0', 'data': rows if 'after' not in args else []}
+        with patch.object(feed.time, 'sleep', lambda s: None):
+            f = feed.frame(Ex(), 'X/USDT:USDT', '30m', count=5, now_ms=now)
+        self.assertEqual(len(f['ts']), 5); self.assertGreaterEqual(Ex.calls, 2)
+
+
+class CryptoOnlyTests(unittest.TestCase):
+    def test_scheme2_skips_stock_and_commodity_perps(self):
+        import tv_universe as tu
+        class E: markets = {'XAU/USDT:USDT': {'info': {'instCategory': '4'}}, 'B/USDT:USDT': {'info': {'instCategory': '1'}}}
+        rows = [dict(symbol='XAU-USDT-SWAP', pct=1.0, quote_volume=9e9, last=1), dict(symbol='B-USDT-SWAP', pct=1.0, quote_volume=1e8, last=1)]
+        with patch.dict(tu.S, {'cfg': dict(tu.DEFAULT_CFG)}), patch.object(tu.okx_client, '_exchange', E()), \
+                patch.object(tu.okx_client, 'fetch_swap_tickers', lambda: rows), patch.object(tu, '_scheme2_on', lambda: True):
+            tu._refresh()
+            self.assertEqual(tu.S['symbols'], ['B-USDT-SWAP'])
