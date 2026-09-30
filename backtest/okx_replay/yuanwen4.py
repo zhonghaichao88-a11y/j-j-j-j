@@ -23,7 +23,7 @@ from qjt import macd, resample
 from alpha_v7_chan import analyze
 from yuanwen3 import Lv, Pos, div_ok, by_T
 MODE = sys.argv[1] if len(sys.argv) > 1 else '5m'
-MSOF = {'1m': 60000, '5m': 300000, '30m': 1800000, '4h': 14400000, '1d': 86400000}
+MSOF = {'1m': 60000, '5m': 300000, '15m': 900000, '30m': 1800000, '4h': 14400000, '1d': 86400000}
 V5 = {'三层_日线_30m_5m': dict(big='1d', conf='5m', mid=None, loose=False),
       '三层_日线_30m_5m_做差价': dict(big='1d', conf='5m', mid=None, loose=False, tday=True),
       '三层_日线_30m_5m_只做多': dict(big='1d', conf='5m', mid=None, loose=False, long_only=True),
@@ -41,23 +41,30 @@ V1 = {'四层_日线_30m_5m_1m': dict(big='1d', conf='1m', mid='5m', loose=False
       '四层_4h_30m_5m_1m': dict(big='4h', conf='1m', mid='5m', loose=False),
       '三层_30m_5m_1m': dict(big=None, conf='1m', mid='5m', loose=False),
       '含盘背_四层_日线_30m_5m_1m': dict(big='1d', conf='1m', mid='5m', loose=True)}
-VARIANTS = dict(V5) if MODE == '5m' else {**V5, **V1}
+# 检验用：100 个币的 15 分钟数据（没有 5 分钟），次级别换成 15 分钟
+V15 = {'三层_日线_30m_15m': dict(big='1d', conf='15m', mid=None, loose=False),
+       '三层_日线_30m_15m_只做二买': dict(big='1d', conf='15m', mid=None, loose=False, only2=True),
+       '三层_日线_30m_15m_实战全部': dict(big='1d', conf='15m', mid=None, loose=False, gradual=True, only2=True, zpos=True),
+       '二层_30m_15m': dict(big=None, conf='15m', mid=None, loose=False)}
+FILE = {'5m': '5m2y', '1m': '1m2y', '15m': '15m', '15m_old': '15m_old'}[MODE]
+BASE_TF = '15m' if MODE.startswith('15m') else MODE
+VARIANTS = V15 if MODE.startswith('15m') else (dict(V5) if MODE == '5m' else {**V5, **V1})
 MAIN = '30m'
 
 
 def load(inst):
-    p = os.path.join(B.DATA, f'{inst}_{MODE}2y.npz')
+    p = os.path.join(B.DATA, f'{inst}_{FILE}.npz')
     if not os.path.exists(p): return None
-    base_ms = MSOF[MODE]
+    base_ms = MSOF[BASE_TF]
     z = np.load(p); f = {k: z[k] for k in ('ts', 'open', 'high', 'low', 'close', 'volume')}
     cuts = np.flatnonzero(np.diff(f['ts']) != base_ms) + 1
     a, b = max(zip(np.r_[0, cuts], np.r_[cuts, len(f['ts'])]), key=lambda x: x[1] - x[0])
     f = {k: v[a:b] for k, v in f.items()}
     k0 = int(np.flatnonzero(f['ts'] % 86400000 == 0)[0]) if np.any(f['ts'] % 86400000 == 0) else 0
     f = {k: v[k0:] for k, v in f.items()}
-    if len(f['ts']) * base_ms < 200 * 86400000: return None
-    frames = {MODE: f}
-    for tf in ('5m', '30m', '4h', '1d'):
+    if len(f['ts']) * base_ms < 120 * 86400000: return None
+    frames = {BASE_TF: f}
+    for tf in ('5m', '15m', '30m', '4h', '1d'):
         if MSOF[tf] > base_ms: frames[tf] = resample(f, MSOF[tf] // base_ms, base_ms)
     return frames
 
@@ -87,7 +94,7 @@ def one(inst):
     frames = load(inst)
     if frames is None: return None
     tfs = {k: TF(v, MSOF[k]) for k, v in frames.items()}
-    base = frames[MODE]; bms = MSOF[MODE]
+    base = frames[BASE_TF]; bms = MSOF[BASE_TF]
     ts = base['ts']; o, h, l, c = base['open'], base['high'], base['low'], base['close']
     out = {k: [] for k in list(VARIANTS) + ['同级别分解_30m']}
     main = tfs[MAIN]; seg = dict(P=None)
@@ -208,8 +215,11 @@ def one(inst):
 
 
 if __name__ == '__main__':
-    uni = json.load(open(os.path.join(B.DATA, 'universe_5m40.json')))
-    uni = [i for i in uni if os.path.exists(os.path.join(B.DATA, f'{i}_{MODE}2y.npz'))]
+    if MODE.startswith('15m'):
+        cats = json.load(open(os.path.join(B.DATA, 'categories.json'))); uni = [i for i, cc in cats.items() if cc == '1']
+    else:
+        uni = json.load(open(os.path.join(B.DATA, 'universe_5m40.json')))
+    uni = [i for i in uni if os.path.exists(os.path.join(B.DATA, f'{i}_{FILE}.npz'))]
     with Pool(int(os.environ.get('PROCS', 4))) as p:
         parts = [x for x in p.map(one, uni) if x]
     res = {k: [r for part in parts for r in part[k]] for k in parts[0]}
