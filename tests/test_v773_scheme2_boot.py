@@ -44,7 +44,7 @@ class BootTests(unittest.TestCase):
         seen = []
         def fake_eval(symbol, fr, position, breadth, now_ms=None):
             seen.append((len(fr['5m']['ts']), len(fr['30m']['ts'])))
-            with s2._LOCK: s2._load()[symbol] = dict(s2._new_state(), last_T=1)
+            with s2._LOCK: s2._load()[symbol] = dict(s2._new_state(), last_T=int(fr['5m']['ts'][-1]) + 300000)
             return dict(T=1, entry=None, action=None, notes=[])
         def fake_frame(ex, cs, tf, count=1500, now_ms=None):
             return long5 if tf == '5m' else long30
@@ -55,6 +55,36 @@ class BootTests(unittest.TestCase):
             fm._scheme2_eval('A-USDT-SWAP', 'A/USDT:USDT', {'5m': short5}, 1.8e12)
             fm._scheme2_eval('A-USDT-SWAP', 'A/USDT:USDT', {'5m': short5}, 1.8e12)
         self.assertEqual(seen, [(s2.BOOT_5M, s2.BOOT_30M), (1500, 1500)])
+
+    def test_state_rebuilt_after_missing_bars_when_flat(self):
+        fr = {'5m': frame(600, 300000), '30m': frame(300, 1800000), '1d': frame(120, 86400000)}
+        gap_T = int(fr['5m']['ts'][0])                                   # 上次处理到的K线早于本次历史开头
+        with s2._LOCK:
+            s2._load()['A'] = dict(s2._new_state(), last_T=gap_T - 300000 * 10)
+            s2._load()['B'] = dict(s2._new_state(), last_T=gap_T - 300000 * 10)
+        self.assertTrue(s2.needs_boot('A', None, fr['5m']['ts']))
+        self.assertFalse(s2.needs_boot('A', {'side': 'long'}, fr['5m']['ts']))
+        r = s2.evaluate('A', fr, None, 0.6)
+        self.assertTrue(any('首次处理' in n for n in r['notes']))
+        r = s2.evaluate('B', fr, {'side': 'long', 's2_stages': '2'}, 0.6)
+        self.assertFalse(any('首次处理' in n for n in r['notes']))
+
+
+class UniverseStickyTests(unittest.TestCase):
+    def test_scheme2_pool_keeps_coins_within_1_5x_rank(self):
+        import tv_universe as tu
+        def rows(order):
+            return [dict(symbol=f'{c}-USDT-SWAP', pct=1.0, quote_volume=1e9 - i * 1e7, last=1) for i, c in enumerate(order)]
+        cfg = dict(tu.DEFAULT_CFG, top=4)
+        with patch.dict(tu.S, {'cfg': cfg, 'symbols': [], 'by_volume': False}), patch.object(tu, '_scheme2_on', lambda: True), \
+                patch.object(tu, '_is_crypto', lambda s: True):
+            with patch.object(tu.okx_client, 'fetch_swap_tickers', lambda: rows('ABCDEFGH')):
+                tu._refresh()
+            self.assertEqual(tu.S['symbols'], ['A-USDT-SWAP', 'B-USDT-SWAP', 'C-USDT-SWAP', 'D-USDT-SWAP'])
+            # D 掉到第 6 名（仍在前 1.5×4=6 名内）→ 保留；C 掉到第 8 名 → 换成 E
+            with patch.object(tu.okx_client, 'fetch_swap_tickers', lambda: rows('ABEFGDHC')):
+                tu._refresh()
+            self.assertEqual(tu.S['symbols'], ['A-USDT-SWAP', 'B-USDT-SWAP', 'E-USDT-SWAP', 'D-USDT-SWAP'])
 
 
 if __name__ == '__main__':

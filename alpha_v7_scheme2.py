@@ -157,11 +157,16 @@ def _stale(X, position):
     return bool(X) and int(X.get('ver') or 1) < STATE_VER and not position
 
 
-def needs_boot(symbol, position=None):
-    """该币是否需要用长历史回放（首次处理，或旧版状态且当前无持仓）。"""
+def _gap(X, ts5, position):
+    """上次处理到的K线已不在本次 5 分钟历史里（该币离开扫描池一段时间）：中间的K线没看到，无持仓时重建。"""
+    return bool(X) and int(X.get('last_T') or 0) > 0 and len(ts5) > 0 and int(ts5[0]) + M5 > int(X['last_T']) + M5 and not position
+
+
+def needs_boot(symbol, position=None, ts5=()):
+    """该币是否需要用长历史回放（首次处理、旧版状态、或中间有没看到的K线，且当前无持仓）。"""
     with _LOCK:
         X = _load().get(symbol)
-    return not X or not int(X.get('last_T') or 0) or _stale(X, position)
+    return not X or not int(X.get('last_T') or 0) or _stale(X, position) or _gap(X, ts5, position)
 
 
 def reset_state(symbol=None):
@@ -232,7 +237,7 @@ def evaluate(symbol, frames, position=None, breadth=None, now_ms=None):
     ts5 = lv['5m'].ts
     with _LOCK:
         states = _load(); X = states.get(symbol) or _new_state()
-        if _stale(X, position): X = _new_state()
+        if _stale(X, position) or _gap(X, ts5, position): X = _new_state()
         start_T = int(X.get('last_T') or 0)
         first = start_T == 0
         idxs = [i for i in range(len(ts5)) if int(ts5[i]) + M5 > start_T]

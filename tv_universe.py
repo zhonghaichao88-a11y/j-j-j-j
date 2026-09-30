@@ -84,7 +84,16 @@ def _refresh() -> None:
             continue
         pool.append({"symbol": sym, "last": last, "pct": pct, "quote_volume": qv})
     pool.sort(key=lambda x: x["quote_volume" if by_volume else "pct"], reverse=True)
-    pool = pool[: int(cfg.get("top", 20) or 20)]
+    n = int(cfg.get("top", 20) or 20)
+    if by_volume and S.get("by_volume"):
+        # 方案二要连续跟踪每个币的一买状态：已在池里的币只要还在前 1.5N 名就保留，避免榜单边缘的币进进出出
+        zone = {x["symbol"]: x for x in pool[: int(n * 1.5)]}
+        keep = [zone[s] for s in S.get("symbols") or [] if s in zone][:n]
+        kept = {x["symbol"] for x in keep}
+        pool = sorted(keep + [x for x in pool if x["symbol"] not in kept][: n - len(keep)],
+                      key=lambda x: x["quote_volume"], reverse=True)
+    else:
+        pool = pool[:n]
     S["pool"] = pool
     S["symbols"] = [x["symbol"] for x in pool]
     S["last"] = time.time()

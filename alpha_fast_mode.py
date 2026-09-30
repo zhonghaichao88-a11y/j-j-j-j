@@ -2161,7 +2161,7 @@ def _scheme2_eval(symbol,cs,frames,now_ms):
             '1d':anchored_frame(okx_client._exchange,cs,'1d',1500,now_ms)}
     except Exception as exc:
         return {'error':'30分钟/日线K线读取失败：'+str(exc)[:120],'entry':None,'action':None,'notes':[]}
-    if s2.needs_boot(symbol,position):
+    if s2.needs_boot(symbol,position,frames['5m']['ts']):
         # V7.7.3：首次处理该币，用 60 天 5 分钟 + 约 62 天 30 分钟回放建立一买状态（只回放，不下单）
         try:
             b5=v7_frame(okx_client._exchange,cs,'5m',s2.BOOT_5M,now_ms)
