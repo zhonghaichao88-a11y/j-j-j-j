@@ -232,6 +232,7 @@
     <div class="righttabs">
       <div id="rtab0" class="on" onclick="switchRight(0)">信号日志</div>
       <div id="rtab1" onclick="switchRight(1)">持仓明细</div>
+      <div id="rtab2" onclick="switchRight(2)">数据记录</div>
     </div>
     <div class="rightbody" id="rightbody"></div>
   </div>
@@ -269,7 +270,7 @@
  * ============================================================ */
 const TF = ['1m','5m','15m','1h','4h','1d'];
 let curSym = 'BTC-USDT-SWAP', curTf = '5m';
-let leftTab = 0, rightTab = 0;
+let leftTab = 0, rightTab = 0, recFetchedAt = 0;
 let lastState = null, lastParams = null, activeIndicators = new Set();
 let lastOpenKey = '';
 
@@ -487,10 +488,13 @@ function switchRight(t) {
   rightTab = t;
   document.getElementById('rtab0').classList.toggle('on', t===0);
   document.getElementById('rtab1').classList.toggle('on', t===1);
+  document.getElementById('rtab2').classList.toggle('on', t===2);
   renderRight();
 }
 function renderRight() {
-  const box = document.getElementById('rightbody'); box.innerHTML = '';
+  const box = document.getElementById('rightbody');
+  if (rightTab === 2) { renderRecorder(box); return; }
+  box.innerHTML = '';
   if (rightTab === 0) {
     const hist = (lastState?.history || []).slice().reverse().slice(0, 40);
     hist.forEach(r => {
@@ -514,6 +518,62 @@ function renderRight() {
     });
     if (!(lastState?.positions || []).length) box.innerHTML = '<div style="padding:20px;color:#6b7280;text-align:center;">无持仓</div>';
   }
+}
+
+/* ---------------- 数据记录（只读公开数据，和交易互不影响） ---------------- */
+async function renderRecorder(box) {
+  if (!document.getElementById('recPanel')) {
+    box.innerHTML = `<div id="recPanel" style="padding:8px 10px;font-size:12px;">
+      <div style="color:#9ca3af;margin-bottom:6px;">录制 OKX 公开数据：逐笔成交、5档盘口、资金费率、持仓量、爆仓。每币每分钟一行，存到 recorder_data 文件夹，以后用来研究。单独的公开连接，不需要密钥，不影响下单。</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
+        <label>记录</label><select id="rec_enabled"><option value="1">开启</option><option value="0">关闭</option></select>
+        <label title="24h成交额前N个USDT永续；扫描中的币会自动加入">成交额前</label><input id="rec_top" type="number" min="0" max="150" style="width:56px">
+        <label title="额外要录的币，逗号分隔，如 BTC,ETH">额外</label><input id="rec_extra" style="width:110px" placeholder="BTC,ETH">
+        <button class="tfbtn" onclick="saveRecorder()">保存</button>
+      </div>
+      <div id="recStatus" style="color:#9ca3af;margin-bottom:6px;">读取中…</div>
+      <div id="recTable" style="overflow:auto;"></div></div>`;
+    recFetchedAt = 0;
+    try {
+      const st = (await api('/tv/api/recorder')).status;
+      document.getElementById('rec_enabled').value = st.config.enabled ? '1' : '0';
+      document.getElementById('rec_top').value = st.config.top_n;
+      document.getElementById('rec_extra').value = (st.config.extra || []).map(baseOf).join(',');
+    } catch (e) { flash('读取记录器设置失败: ' + e.message, true); }
+  }
+  if (Date.now() - recFetchedAt < 10000) return;
+  recFetchedAt = Date.now();
+  let r;
+  try { r = await api('/tv/api/recorder/overview'); } catch (e) { document.getElementById('recStatus').textContent = '读取失败：' + e.message; return; }
+  const st = r.status;
+  document.getElementById('recStatus').innerHTML =
+    `${st.running ? (st.connected ? '<span class="up">● 正在记录</span>' : '<span class="dn">● 连接中/重连中</span>') : (st.config.enabled ? '<span class="dn">● 已开启但未运行（看下方错误或重启程序）</span>' : '<span style="color:#6b7280">● 未开启</span>')}
+     ｜ ${st.symbols} 个币 ｜ 已写 ${st.rows_written} 行 ｜ 共 ${st.files} 天 ${st.disk_mb} MB${st.first_day ? '（从 ' + st.first_day + ' 起）' : ''}
+     ${st.last_message_age != null ? '｜ 最新数据 ' + st.last_message_age + ' 秒前' : ''}${st.last_error ? '<br><span class="dn">' + st.last_error + '</span>' : ''}`;
+  const pct = (x, d=3) => x == null ? '--' : (x * 100).toFixed(d) + '%';
+  const wan = x => x == null ? '--' : (Math.abs(x) >= 1e8 ? (x / 1e8).toFixed(2) + '亿' : (x / 1e4).toFixed(1) + '万');
+  const cls = x => x == null ? '' : (x > 0 ? 'up' : x < 0 ? 'dn' : '');
+  const rows = (r.rows || []).slice().sort((a, b) => Math.abs(b.delta_1h) - Math.abs(a.delta_1h));
+  if (!rows.length) { document.getElementById('recTable').innerHTML = '<div style="padding:12px;color:#6b7280;">还没有数据（开启后每分钟出一行）</div>'; return; }
+  document.getElementById('recTable').innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px;">
+    <tr style="color:#9ca3af;text-align:right;"><th style="text-align:left">币</th><th title="最近1小时主动买入减主动卖出（USDT）">1h买卖差</th><th title="盘口5档买挂单减卖挂单占比，最近1小时平均">盘口多空</th><th>资金费率</th><th title="持仓量1小时变化">持仓1h</th><th title="最近1小时爆仓：空头被爆/多头被爆（USDT）">爆仓 空/多</th></tr>
+    ${rows.map(x => `<tr style="text-align:right;cursor:pointer;" onclick="switchSymbol('${x.inst}')">
+      <td style="text-align:left">${baseOf(x.inst)}</td>
+      <td class="${cls(x.delta_1h)}">${wan(x.delta_1h)}</td>
+      <td class="${cls(x.imbalance_1h)}">${pct(x.imbalance_1h, 1)}</td>
+      <td class="${cls(x.funding_rate)}">${pct(x.funding_rate, 4)}</td>
+      <td class="${cls(x.oi_change_1h)}">${pct(x.oi_change_1h, 2)}</td>
+      <td>${wan(x.liq_buy_1h)}/${wan(x.liq_sell_1h)}</td></tr>`).join('')}
+  </table>`;
+}
+async function saveRecorder() {
+  try {
+    const body = { enabled: document.getElementById('rec_enabled').value === '1',
+                   top_n: parseInt(document.getElementById('rec_top').value || '50'),
+                   extra: document.getElementById('rec_extra').value };
+    const r = await api('/tv/api/recorder', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    flash(r.message); recFetchedAt = 0; setTimeout(() => { if (rightTab === 2) renderRight(); }, 1500);
+  } catch (e) { flash('保存失败: ' + e.message, true); }
 }
 
 /* ---------------- 策略参数表单 ---------------- */

@@ -611,6 +611,17 @@ async def alpha_fast_set_entry(req: AlphaFastEntryRequest, _: bool = Depends(ver
     return {"success": True, "message": f"FAST 进场方式已切换为：{mode_cn}", "entry": cfg}
 
 @app.on_event("startup")
+def _recorder_startup():
+    """行情记录器：独立的公开数据连接，只录数据、不下单；页面“数据记录”里可开关。"""
+    try:
+        import alpha_v7_recorder
+        if alpha_v7_recorder.start_if_enabled():
+            logger.info("[ALPHA-X 记录器] 已启动：录制盘口/逐笔/资金费率/持仓量/爆仓（只读公开数据）")
+    except Exception as e:
+        logger.warning(f"[ALPHA-X 记录器] 启动失败（不影响交易）: {e}")
+
+
+@app.on_event("startup")
 def _xs_startup_scheduler():
     """服务启动即拉起 XS 定时调仓守护线程（幂等；是否真的自动下单由 schedule_enabled 决定，默认关）。"""
     try:

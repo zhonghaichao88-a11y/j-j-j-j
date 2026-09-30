@@ -5,3 +5,5 @@ __pycache__/
 v7_chan_history/
 data_v62/
 v7_params.json
+recorder_data/
+recorder_config.json

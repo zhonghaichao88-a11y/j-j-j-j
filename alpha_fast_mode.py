@@ -2107,6 +2107,9 @@ def prefetch_v7(symbols: List[str]) -> Dict[str,Any]:
     from alpha_fast_v7 import get_runtime_params
     from alpha_v7_feed import bundle, frame as v7_frame
     v7p=get_runtime_params();bt=v7p.get('base_tf','5m')
+    try:
+        import alpha_v7_recorder;alpha_v7_recorder.watch(symbols)     # 扫描中的币一并录制（只读公开数据）
+    except Exception:pass
     need_mtf=(v7p.get('strategy')=='chan_quant' and bool(v7p.get('chan_mtf')))
     now_ms=time.time()*1000.0;errors={}
     def one(s):

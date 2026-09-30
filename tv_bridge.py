@@ -358,6 +358,43 @@ def tv_set_exit_switches(req: TVExitSwitchRequest):
             "message": "全局出场开关已生效；实盘已有持仓同步挂/撤交易所原生单"}
 
 
+class TVRecorderRequest(BaseModel):
+    enabled: Optional[bool] = None
+    top_n: Optional[int] = None
+    extra: Optional[Any] = None
+
+
+@router.get("/api/recorder")
+def tv_recorder_status():
+    """行情记录器状态：是否在录、录多少个币、已写多少行、占多少硬盘。"""
+    import alpha_v7_recorder as rec
+    return {"success": True, "status": rec.RECORDER.status()}
+
+
+@router.post("/api/recorder")
+def tv_recorder_config(req: TVRecorderRequest):
+    import alpha_v7_recorder as rec
+    try:
+        cfg = rec.set_config({"enabled": req.enabled, "top_n": req.top_n, "extra": req.extra})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"success": True, "config": cfg,
+            "message": "数据记录已开启（只读公开数据，不影响交易）" if cfg["enabled"] else "数据记录已关闭"}
+
+
+@router.get("/api/recorder/overview")
+def tv_recorder_overview():
+    """每个币最近一分钟与最近一小时的汇总：主动买卖差、盘口多空比、点差、资金费率、持仓量变化、爆仓。"""
+    import alpha_v7_recorder as rec
+    return {"success": True, "rows": rec.RECORDER.overview(), "status": rec.RECORDER.status()}
+
+
+@router.get("/api/recorder/series")
+def tv_recorder_series(symbol: str, minutes: int = 120):
+    import alpha_v7_recorder as rec
+    return {"success": True, "rows": rec.RECORDER.series(symbol.upper(), max(1, min(int(minutes), 240)))}
+
+
 class TVParamsRequest(BaseModel):
     params: Optional[Dict[str, Any]] = None
     top: Optional[int] = None
