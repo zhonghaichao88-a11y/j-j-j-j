@@ -81,7 +81,7 @@ def _refresh() -> None:
             continue
         if by_volume and not _is_crypto(sym):
             continue          # 方案二/三的回测只用了加密币；股票/商品合约没测过，不选
-        if qv < float(cfg["min_turnover_usdt"]):
+        if qv < float(cfg["min_turnover_usdt"]) and mode != "s3":      # 方案三按回测口径：成交额前 100 名，不另设下限
             continue
         pool.append({"symbol": sym, "last": last, "pct": pct, "quote_volume": qv})
     pool.sort(key=lambda x: x["quote_volume" if by_volume else "pct"], reverse=True)

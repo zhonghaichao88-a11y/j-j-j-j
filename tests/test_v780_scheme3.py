@@ -106,7 +106,7 @@ class Scheme3Tests(unittest.TestCase):
             self.assertFalse(ae._v7_entry_guard('X', p3, 50.0, (bar + 2 * H + 60000) / 1000))           # 下一根已收盘 → 过期
 
     def test_universe_top100_crypto_by_volume(self):
-        rows = [dict(symbol=f'C{i}-USDT-SWAP', pct=-1 if i % 2 else 1, quote_volume=1e9 - i, last=1) for i in range(150)]
+        rows = [dict(symbol=f'C{i}-USDT-SWAP', pct=-1 if i % 2 else 1, quote_volume=(1e9 if i < 60 else 5e6) - i, last=1) for i in range(150)]   # 后面的成交额低于 1000 万也要选进前 100
         rows.append(dict(symbol='QQQ-USDT-SWAP', pct=1, quote_volume=2e9, last=1))
         with patch.dict(tu.S, {'cfg': dict(tu.DEFAULT_CFG), 'symbols': [], 'by_volume': ''}), \
              patch.object(tu.okx_client, 'fetch_swap_tickers', return_value=rows), \
