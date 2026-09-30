@@ -2125,6 +2125,9 @@ def prefetch_v7(symbols: List[str]) -> Dict[str,Any]:
     if v7p.get('chan_scheme1'):
         try:v7_frame(okx_client._exchange,config.trading.get_ccxt_symbol('BTC-USDT-SWAP'),'15m',count=1500,now_ms=now_ms)
         except Exception as exc:errors['BTC']=str(exc)
+    if v7p.get('chan_scheme3'):
+        try:v7_frame(okx_client._exchange,config.trading.get_ccxt_symbol('BTC-USDT-SWAP'),'1d',count=400,now_ms=now_ms)
+        except Exception as exc:errors['BTC']=str(exc)
     # 报价放在K线全部读完之后刷新，逐币决策时用的是读完历史之后的新报价
     with _TICKER_LOCK:_TICKER_BATCH['at']=0.0
     try:batch_ticker(symbols[0] if symbols else 'BTC-USDT-SWAP')
@@ -2219,6 +2222,11 @@ def predict(symbol: str) -> Dict[str,Any]:
                 from alpha_v7_feed import frame as v7_frame
                 try:data['btc_frame']=v7_frame(okx_client._exchange,config.trading.get_ccxt_symbol('BTC-USDT-SWAP'),'15m',count=1500,now_ms=now_ms)
                 except Exception as exc:data['btc_frame']=None;logger.warning(f'[V7 方案一] BTC 行情读取失败：{exc}')
+            if v7p.get('chan_scheme3'):
+                # 方案三需要 BTC 日线（EMA50 大盘过滤）；只读公开K线，失败则本轮不开仓
+                from alpha_v7_feed import frame as v7_frame
+                try:data['btc_1d']=v7_frame(okx_client._exchange,config.trading.get_ccxt_symbol('BTC-USDT-SWAP'),'1d',count=400,now_ms=now_ms)
+                except Exception as exc:data['btc_1d']=None;logger.warning(f'[V7 方案三] BTC 日线读取失败：{exc}')
             if v7p.get('chan_scheme2'):
                 data['scheme2']=_scheme2_eval(symbol,cs,frames,now_ms)
             if v7p.get('orderflow_mode'):

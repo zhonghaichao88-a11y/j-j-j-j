@@ -63,7 +63,8 @@ def _refresh() -> None:
     if not tickers:
         raise RuntimeError("全市场快照为空")
     pct_key = BASIS_FIELD.get(cfg.get("basis", "24h"), "pct")
-    by_volume = _scheme2_on()
+    mode = _vol_mode()
+    by_volume = bool(mode)
     pool: List[Dict[str, Any]] = []
     for t in tickers:
         sym = str(t.get("symbol") or "")
@@ -79,13 +80,13 @@ def _refresh() -> None:
         if pct <= 0 and not by_volume:
             continue
         if by_volume and not _is_crypto(sym):
-            continue          # 方案二的回测只用了加密币；股票/商品合约没测过，不选
+            continue          # 方案二/三的回测只用了加密币；股票/商品合约没测过，不选
         if qv < float(cfg["min_turnover_usdt"]):
             continue
         pool.append({"symbol": sym, "last": last, "pct": pct, "quote_volume": qv})
     pool.sort(key=lambda x: x["quote_volume" if by_volume else "pct"], reverse=True)
-    n = int(cfg.get("top", 20) or 20)
-    if by_volume and S.get("by_volume"):
+    n = 100 if mode == "s3" else int(cfg.get("top", 20) or 20)
+    if mode == "s2" and S.get("by_volume") == "s2":
         # 方案二要连续跟踪每个币的一买状态：已在池里的币只要还在前 1.5N 名就保留，避免榜单边缘的币进进出出
         zone = {x["symbol"]: x for x in pool[: int(n * 1.5)]}
         keep = [zone[s] for s in S.get("symbols") or [] if s in zone][:n]
@@ -97,8 +98,8 @@ def _refresh() -> None:
     S["pool"] = pool
     S["symbols"] = [x["symbol"] for x in pool]
     S["last"] = time.time()
-    S["by_volume"] = by_volume
-    S["last_msg"] = ((f"方案二：24h成交额榜，扫描 {len(tickers)} 个 USDT 永续，前 {len(pool)} 名") if by_volume else
+    S["by_volume"] = mode
+    S["last_msg"] = ((f"{'方案三' if mode == 's3' else '方案二'}：24h成交额榜，扫描 {len(tickers)} 个 USDT 永续，前 {len(pool)} 名") if by_volume else
                      (f"{BASIS_LABEL.get(cfg.get('basis'), '24h')}涨幅榜："
                       f"扫描 {len(tickers)} 个 USDT 永续，前 {len(pool)} 名"))
     logger.info(f"[V7 选币] {S['last_msg']}")
@@ -125,6 +126,19 @@ def _scheme2_on() -> bool:
         return False
 
 
+def _scheme3_on() -> bool:
+    """方案三：按 24h 成交额选前 100 个加密币（与回测一致），不看涨跌。"""
+    try:
+        import alpha_fast_v7
+        return bool(alpha_fast_v7.get_runtime_params().get("chan_scheme3"))
+    except Exception:
+        return False
+
+
+def _vol_mode() -> str:
+    return "s3" if _scheme3_on() else ("s2" if _scheme2_on() else "")
+
+
 def top_gainers(held_symbols: Optional[List[str]] = None, force: bool = False) -> List[str]:
     """返回本轮应扫描的内部符号：已持仓币（强制在前）＋ 涨幅榜前 N。"""
     cfg = S["cfg"]
@@ -140,7 +154,7 @@ def top_gainers(held_symbols: Optional[List[str]] = None, force: bool = False) -
     for h in (held_symbols or []):
         add(h)
     try:
-        stale = (time.time() - S["last"]) >= float(cfg.get("interval", 600) or 600) or bool(S.get("by_volume")) != _scheme2_on()
+        stale = (time.time() - S["last"]) >= float(cfg.get("interval", 600) or 600) or (S.get("by_volume") or "") != _vol_mode()
         if force or stale:
             _refresh()
     except Exception as exc:
@@ -154,7 +168,7 @@ def snapshot() -> Dict[str, Any]:
     """给前端：榜单明细 + 刷新时间。"""
     with LOCK:
         return {
-            "label": (f"24h成交额榜前 {S['cfg']['top']}（方案二）" if S.get("by_volume") else f"{BASIS_LABEL.get(S['cfg'].get('basis'), '24h')} 涨幅榜前 {S['cfg']['top']}"),
+            "label": (f"24h成交额榜前 {len(S['symbols'])}（{'方案三' if S.get('by_volume') == 's3' else '方案二'}）" if S.get("by_volume") else f"{BASIS_LABEL.get(S['cfg'].get('basis'), '24h')} 涨幅榜前 {S['cfg']['top']}"),
             "basis": S["cfg"].get("basis", "24h"),
             "pool": [dict(x) for x in S["pool"]],
             "symbols": list(S["symbols"]),

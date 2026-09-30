@@ -581,6 +581,7 @@ const FIELD_META = [
   ['strategy','策略','select', {ema_cross:'均线交叉', boll_break:'布林突破', boll_revert:'布林极值收回', macd:'MACD交叉', rsi:'RSI极值', donchian:'唐奇安突破',sweep_reversal:'流动性清扫收回',structure_retest:'结构突破回踩',fvg_continuation:'缺口顺势延续',donchian_retest:'唐奇安突破回踩',squeeze_breakout:'压缩释放突破',ema_pullback:'均线趋势回踩',vwap_reclaim:'VWAP 收复',vwap_revert:'VWAP 均值回归',supertrend_structure:'超级趋势与结构',ssl_channel:'SSL 通道交叉',chan_quant:'缠论严格规则买卖点',pine_import:'Pine导入策略',liquidity_fvg_ob:'清扫缺口订单块共振',auto_regime:'行情自适应选策略'}],
   ['chan_scheme1','方案一（开启后自动套用：缠论、15分钟笔级、只做3买/3卖、4h+BTC顺势、止损≥1.72%、回撤2ATR移动止损、最长48小时；需开全局移动止损）','select',{'0':'关闭','1':'开启'}],
   ['chan_scheme2','方案二（开启后自动套用：缠论按周期分级别 日线/30分钟/5分钟区间套；只做二买、类二买分批加仓各1/3风险；大盘宽度≥50%才开新仓；一卖减半，二卖/三卖/日线卖点清仓；一买低点整仓止损；不设到期；按成交额选币；与方案一互斥）','select',{'0':'关闭','1':'开启'}],
+  ['chan_scheme3','方案三（开启后自动套用：ADX动量多空 + BTC日线EMA50大盘过滤，1小时；BTC在EMA50上方只做多、下方只做空；止盈=净赚1%、止损25%、反向信号平仓、不设到期；每笔=账户权益10%、最多10仓；按24h成交额选前100个加密币；页面其他策略参数与方案一/二不起作用）','select',{'0':'关闭','1':'开启'}],
   ['base_tf','主级别(交易周期)','select',{'5m':'5分钟','15m':'15分钟','1h':'1小时'}],
   ['grp','— 均线参数 —','grp'],
   ['ema_fast','快线周期','int'], ['ema_slow','慢线周期','int'], ['ema_trend','趋势过滤(0关)','int'],

@@ -2125,6 +2125,16 @@ def _v7_entry_guard(symbol, pred, price, now):
         _activity(f"V7 {symbol}：触发已过期或尚未收盘，本轮不下单")
         return False
     d=1 if pred.get("signal")=="LONG" else -1
+    if fs.get("v7_scheme3"):
+        # 方案三：信号K收盘后 15 分钟内按市价进场（回测=下一根开盘）；止盈/止损按下单前最新价重算，比例固定。
+        if now*1000>end+900000+15000 or price<=0:
+            _activity(f"V7 {symbol}：方案三信号已超过15分钟或报价无效，本根不再进场")
+            return False
+        import alpha_v7_scheme3 as S3
+        tp_px,sl_px=S3.targets(price,d); tp=d*(tp_px-price)/price; sl=d*(price-sl_px)/price
+        fs.update(tp_price=float(tp_px),sl_price=float(sl_px),reference_price=float(price))
+        pred.update(sl=sl,tp=tp,base_sl=sl,base_tp=tp,dynamic_tp_sl={"tp":tp,"sl":sl,"reason":"V7 方案三：净1%止盈、25%止损"})
+        return True
     ref=float(fs.get("reference_price") or 0); stop=float(fs.get("sl_price") or 0); target=float(fs.get("tp_price") or 0)
     risk=d*(ref-stop)
     if price<=0 or risk<=0 or abs(price-ref)>float(fs.get('max_chase_r',fast_v7.PARAMS['max_chase_r']))*risk:
@@ -2365,6 +2375,37 @@ def _paper_manage_scheme2(symbol,p,pred,cfg,px,now):
     _persist()
 
 
+def _paper_manage_scheme3(symbol,p,pred,cfg,px,now):
+    """方案三本地模拟：止盈/止损按价格触发，反向信号按收盘平仓。"""
+    d=1 if p["side"]=="long" else -1; reason=""
+    if d*(px-float(p["sl"]))<=0: reason="方案三止损25%"
+    elif d*(px-float(p["tp"]))>=0: reason="方案三止盈（净1%）"
+    else:
+        try:
+            from alpha_v7_feed import frame as _v7frame
+            reason=_scheme3_exit_reason(p,{"1h":_v7frame(okx_client._exchange,config.trading.get_ccxt_symbol(symbol),"1h",count=1000)}) or ""
+        except Exception: reason=""
+    if reason:
+        pnl=float(p["notional"])*(d*(px/float(p["entry"])-1)-2*float(cfg["fee_pct"])-2*float(cfg["slippage_pct"]))
+        with LOCK:
+            STATE["balance"]+=pnl
+            STATE["paper_trades"].append(dict(symbol=symbol,side=p["side"],action="CLOSE",entry=p["entry"],exit=px,average=px,pnl=pnl,reason=reason,time=now))
+            STATE["history"]=STATE["paper_trades"][-300:]
+            STATE["positions"].pop(symbol,None)
+            STATE["consecutive_losses"]=0 if pnl>0 else STATE["consecutive_losses"]+1
+        _activity(f"本地模拟 V7 {symbol}：{reason}，本次净盈亏={pnl:+.2f} USDT")
+    _persist()
+
+
+def _scheme3_exit_reason(p,frames):
+    import alpha_v7_scheme3 as S3
+    f=(frames or {}).get("1h") or {}
+    if not len(f.get("ts",[])): return None
+    side=1 if p.get("side")=="long" else -1
+    entry_bar=int(p.get("s3_bar_ts") or p.get("v7_bar_ts") or 0)+S3.H   # 进场那根 = 信号K的下一根
+    return "方案三反向信号平仓" if S3.exit_due(f,side,entry_bar,int(time.time()*1000)) else None
+
+
 def _live_manage_v7(symbol,p,pred,cfg):
     """V7实盘持仓管理：口径与_live_manage_v6一致；止损改单/平仓都以交易所确认推进。"""
     pending=bool(p.get("v6_recovery_pending")) or p.get("exit_mode")=="RECOVERY"
@@ -2374,7 +2415,13 @@ def _live_manage_v7(symbol,p,pred,cfg):
         tk=okx_client.get_ticker(symbol) or {}; px=float(tk.get("last") or 0)
         if px<=0: return
         frames={}
-        if p.get("v7_engine") in ("donchian","pine_import","chan_quant") or (p.get("v7_exit_config") or {}).get("close_confirm"):
+        if p.get("v7_scheme3"):
+            try:
+                from alpha_v7_feed import frame as _v7frame
+                frames={"1h":_v7frame(okx_client._exchange,config.trading.get_ccxt_symbol(symbol),"1h",count=1000)}
+            except Exception as exc:
+                with LOCK:STATE['live_error']='方案三1小时K线暂不可用，保留交易所止盈止损：'+str(exc)
+        elif p.get("v7_engine") in ("donchian","pine_import","chan_quant") or (p.get("v7_exit_config") or {}).get("close_confirm"):
             try:
                 from alpha_v7_feed import bundle
                 bt=p.get('v7_base_tf','5m')
@@ -2382,7 +2429,10 @@ def _live_manage_v7(symbol,p,pred,cfg):
             except Exception as exc:
                 with LOCK:STATE['live_error']='V7收盘退出数据暂不可用，保留交易所保护：'+str(exc)
         _v7_reconcile_partial(symbol,p)
-        if p.get("v7_scheme2"):
+        if p.get("v7_scheme3"):
+            # 方案三：止盈/止损由交易所保护单执行；本地只看反向信号（下一根开盘市价平），不到期、不移动止损。
+            plan={"stop":None}; reason=_scheme3_exit_reason(p,frames)
+        elif p.get("v7_scheme2"):
             # 方案二：不走通用退出计划（不到期、不移动止损），只按缠论卖点/加仓动作处理。
             plan={"stop":None}; reason=_live_manage_scheme2(symbol,p,pred,cfg)
         else:
@@ -2482,6 +2532,8 @@ def _paper_manage_v7(symbol,p,pred,cfg,px,now):
     """V7本地报价模拟，口径同_paper_manage_v6；部分退出按剩余名义记账。"""
     if p.get('v7_scheme2'):
         _paper_manage_scheme2(symbol,p,pred,cfg,px,now); return
+    if p.get('v7_scheme3'):
+        _paper_manage_scheme3(symbol,p,pred,cfg,px,now); return
     d=1 if p['side']=='long' else -1; entry=float(p['entry']); reason=''
     frames={}
     if p.get('v7_engine') in ('donchian','pine_import','chan_quant') or (p.get('v7_exit_config') or {}).get('close_confirm'):
@@ -2551,6 +2603,7 @@ def _paper_manage_v7(symbol,p,pred,cfg,px,now):
 
 
 def _paper_step(symbol,pred,cfg):
+    cfg=_scheme3_cfg(cfg)
     if not pred.get("model_ready") and (STATE["positions"].get(symbol) or {}).get("fast_version") not in ("v6","v7"): return
     ticker=okx_client.get_ticker(symbol) or {}
     px=float(ticker.get("last") or 0)
@@ -2604,6 +2657,8 @@ def _paper_step(symbol,pred,cfg):
                     risk_notional*=fast_entry_mult
                     if (pred.get("fast_strategy") or {}).get("v7_scheme2"):   # 方案二每批：单笔风险×1/3÷止损距离
                         risk_notional=_scheme2_leg_notional(STATE["balance"],STATE["balance"],float(dyn["sl"]),cfg)
+                    if (pred.get("fast_strategy") or {}).get("v7_scheme3"):
+                        risk_notional=_scheme3_notional(STATE["balance"],STATE["balance"],cfg)
                     if _is_fast(pred) and fast_entry_mult < 0.999:
                         _activity(f"模拟盘 {symbol}：FAST入场强度={pred.get('signal_tier','一般')}；该级别降仓系数={fast_entry_mult:.2f}，只降低仓位")
                     notional=max(10,min(STATE["balance"]*cfg["max_notional_pct"],risk_notional))
@@ -2691,6 +2746,21 @@ def _is_fast(pred):
 
 def _is_v7(pred):
     return ((pred or {}).get("fast_strategy") or {}).get("engine_version") == "v7"
+
+def _scheme3_on():
+    try: return bool(fast_v7.get_runtime_params().get("chan_scheme3"))
+    except Exception: return False
+
+def _scheme3_cfg(cfg):
+    """方案三打开时：最多 10 仓、同方向不限、平仓后不冷却（与回测一致）；其余设置不变。"""
+    if not _scheme3_on(): return cfg
+    import alpha_v7_scheme3 as S3
+    return {**cfg,"max_positions":S3.MAX_POSITIONS,"max_same_side":0,"cooldown_minutes":0}
+
+def _scheme3_notional(equity,free,cfg):
+    """方案三每笔名义金额 = 账户权益 × 10%（不超过 可用 × 杠杆 × 80%）。"""
+    import alpha_v7_scheme3 as S3
+    return max(0.0,min(float(equity)*S3.EQUITY_FRAC,float(free)*float(cfg.get("leverage",1))*0.80))
 
 def _v7_priority(pred):
     """空位不够时的开仓顺序：往返成本占止损距离的比例越小越优先（止损越宽、手续费占比越低）。"""
@@ -2905,6 +2975,9 @@ def _arm_native_exits_after_open(symbol: str, cfg: dict):
     if p.get("v7_scheme2"):
         _activity(f"实盘 {symbol}：方案二持仓不挂移动止损/分批止盈（按缠论卖点离场，一买低点止损）")
         return
+    if p.get("v7_scheme3"):
+        _activity(f"实盘 {symbol}：方案三持仓不挂移动止损/分批止盈（净1%止盈、25%止损、反向信号平仓）")
+        return
     errors=[]
     if gate_enabled("trend_trail"):
         try: _arm_native_trail(symbol,p,cfg)
@@ -2922,6 +2995,7 @@ def _arm_native_exits_after_open(symbol: str, cfg: dict):
 
 def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
     """Integrated production path: signal -> portfolio/risk -> capacity/impact -> route -> OKX."""
+    cfg=_scheme3_cfg(cfg)
     if (pred.get("fast_strategy") or {}).get("v62") and not gate_enabled("v63_live"):
         _activity(f"V6.3 {symbol}：研究引擎默认仅支持本地模拟；如需真实开仓，请在风控开关中显式打开“V6.3真实开仓许可”（未通过压力盈利验证，风险自担）", "warning")
         _activity(f"实盘 {symbol}：FINAL       → NO ORDER")
@@ -3101,6 +3175,9 @@ def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
         _fs2=pred.get("fast_strategy") or {}
         if _fs2.get("v7_scheme2"):
             requested=_scheme2_leg_notional(equity,free,float(pred["sl"]),cfg)
+        elif _fs2.get("v7_scheme3"):
+            # 方案三：每笔固定 = 权益 10%，不受风险预算/信心/复盘系数影响（与回测一致）。
+            requested=_scheme3_notional(equity,free,cfg)
         else:
             requested*=float(_fs2.get("v7_risk_scale") or 1.0)
         if requested<=0:
@@ -3188,7 +3265,9 @@ def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
         use_maker=_fast_maker_enabled(pred)
         _v6_protection={}
         _fs=pred.get('fast_strategy') or {}
-        if _fs.get('engine_version')=='v7':
+        if _fs.get('v7_scheme3'):
+            _v6_protection={}   # 方案三：止盈/止损按下单瞬间报价的固定比例（净1%/25%）挂单，不做盈亏比检查
+        elif _fs.get('engine_version')=='v7':
             _v6_protection={'protection':dict(tp=_fs['tp_price'],sl=_fs['sl_price'],reference=_fs['reference_price'],cost=_fs['estimated_round_cost'],min_net_rr=_fs.get('min_net_rr',1.1),max_chase_r=_fs.get('max_chase_r',.5),min_target_cost=_fs.get('min_target_cost',2.5))}
         elif _fs.get('engine_version')=='v6':
             _v6_protection={'protection':dict(tp=_fs['tp_price'],sl=_fs['sl_price'],reference=_fs['reference_price'],cost=_fs['estimated_round_cost'],min_net_rr=_fs.get('min_net_rr',1.1),max_chase_r=_fs.get('max_chase_r',.25),min_target_cost=_fs.get('min_target_cost',2.5))}
@@ -4398,7 +4477,7 @@ def _loop(cfg):
             # V7：每笔都按设定的单笔风险下单，不按“同一轮碰巧出了几个信号”平分；总风险由最大持仓数控制。
             # 空位不够时，按成本占止损的比例从低到高优先开仓，而不是按涨幅榜顺序先到先得。
             with LOCK: _held=set((STATE.get("positions") or {}).keys())
-            _order,_full,_msg=_v7_entry_plan(preds,_held,int(cfg.get("max_positions",4)))
+            _order,_full,_msg=_v7_entry_plan(preds,_held,int(_scheme3_cfg(cfg).get("max_positions",4)))
             for s in _full: alloc[s]=1.0
             if _msg: _activity(_msg)
             for s in _order:

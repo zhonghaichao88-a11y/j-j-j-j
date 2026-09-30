@@ -21,7 +21,7 @@ import numpy as np
 from alpha_v7_analysis import STRATEGIES, analyze
 from alpha_v7_feed import tf_ms, higher_tfs
 
-VERSION = '7.7.3-SCHEME2'
+VERSION = '7.8.0-SCHEME3'
 
 PARAMS = dict(
     strategy='ema_cross',
@@ -50,6 +50,7 @@ PARAMS = dict(
     chan_pen=0, chan_macd=1, chan_grace_bars=1,
     chan_scheme1=0,                # 方案一：打开后自动套用下方 SCHEME1 的全部设置（见 apply_scheme1）
     chan_scheme2=0,                # 方案二：按周期分级别的缠论区间套（日线/30分钟/5分钟），见 alpha_v7_scheme2
+    chan_scheme3=0,                # 方案三：ADX 动量多空 + BTC 大盘过滤（1小时），见 alpha_v7_scheme3
     # 成本与门槛（口径同 V6）
     fee_side=0.0006, slip_side=0.0003,
     min_stop=0.002, max_stop=0.035,
@@ -96,6 +97,9 @@ SCHEME1_TP_R = 20.0            # 不设固定止盈：交易所保护止盈挂�
 SCHEME2 = dict(strategy='chan_quant', base_tf='5m', chan_mtf=0, chan_exit_opposite=0, chan_scheme1=0,
                close_confirm=0, runner=0, dynamic_tp=0, sl_mode='structure')
 SCHEME2_HOLD_SECONDS = 10 * 365 * 86400     # 原文：没有卖点就持有，不设到期
+# 方案三（研究：ADXMomentum 多空 + BTC 日线 EMA50 大盘过滤，1小时）：打开后自动套用，页面其他策略参数不起作用；与方案一/二互斥（方案三优先）。
+SCHEME3 = dict(base_tf='1h', chan_scheme1=0, chan_scheme2=0, chan_mtf=0, runner=0, close_confirm=0, dynamic_tp=0, orderflow_mode=0)
+SCHEME3_HOLD_SECONDS = 10 * 365 * 86400     # 不设最长持仓（回测里没有）
 
 
 def ema_last(x, n):
@@ -163,7 +167,7 @@ def validate_params(opts=None):
             'bb_n': (2, 100), 'macd_fast': (1, 100), 'macd_slow': (2, 100),
             'macd_signal': (1, 100), 'rsi_n': (2, 100), 'don_n': (2, 100),
             'max_hold_bars': (1, 2016), 'structure_bars': (5, 100), 'chan_level': (0, 3), 'orderflow_mode': (0, 2), 'chan_grace_bars': (0, 3)}
-    for key in ('dynamic_tp','close_confirm','runner','chan_buy1','chan_buy2','chan_buy3','chan_sell1','chan_sell2','chan_sell3','chan_mtf','chan_exit_opposite','chan_buy1p','chan_sell1p','chan_buy2s','chan_sell2s','chan_pen','chan_macd','chan_scheme1','chan_scheme2'):
+    for key in ('dynamic_tp','close_confirm','runner','chan_buy1','chan_buy2','chan_buy3','chan_sell1','chan_sell2','chan_sell3','chan_mtf','chan_exit_opposite','chan_buy1p','chan_sell1p','chan_buy2s','chan_sell2s','chan_pen','chan_macd','chan_scheme1','chan_scheme2','chan_scheme3'):
         ints[key]=(0,1)
     for k, (lo, hi) in ints.items():
         try: v = float(p[k])
@@ -197,6 +201,8 @@ def validate_params(opts=None):
             from pine_v5.live_contract import require_live
             require_live(program, p['base_tf'])
     elif p['strategy']=='pine_import':raise ValueError('请先导入并保存Pine策略')
+    if p['chan_scheme3']:
+        p.update(SCHEME3)          # 方案三优先：自动关掉方案一/二
     if p['chan_scheme1'] and p['chan_scheme2']:
         raise ValueError('方案一和方案二只能开一个')
     if p['chan_scheme1']:
@@ -406,6 +412,8 @@ def decide(symbol, data, params=None):
         out['market_context']['no_trade'] = True
         return wait(err or '核心数据缺失或报价无效')
 
+    if p['chan_scheme3']:
+        return _decide_scheme3(symbol, data, p, out, wait, px)
     if p['chan_scheme2']:
         return _decide_scheme2(symbol, data, p, out, wait, px)
 
@@ -740,6 +748,52 @@ def _decide_scheme2(symbol, data, p, out, wait, px):
     return out
 
 
+def _decide_scheme3(symbol, data, p, out, wait, px):
+    """方案三下单信号：最后一根已收盘 1 小时K线的 ADX 动量信号 + BTC 日线大盘过滤（alpha_v7_scheme3）。"""
+    import alpha_v7_scheme3 as S3
+    f = (data.get('frames') or {}).get('1h') or {}
+    btc = data.get('btc_1d') or {}
+    now_ms = int(num(data.get('as_of_ms')) or 0)
+    ev = S3.evaluate(f, btc, now_ms)
+    out['adaptive_context']['scheme3'] = {k: ev.get(k) for k in ('side', 'reason', 'btc', 'bar_ts')}
+    if not ev['side']:
+        return wait('方案三：' + ev['reason'])
+    d = int(ev['side']); tp_px, sl_px = S3.targets(px, d)
+    tp = d * (tp_px - px) / px; sl = d * (px - sl_px) / px
+    spread = num(data.get('spread_bps'), -1)
+    cost = 2 * (float(p['fee_side']) + float(p['slip_side'])) + (spread / 10000 if spread >= 0 else 0.0004)
+    side = 'LONG' if d == 1 else 'SHORT'; bar_ts = int(ev['bar_ts'])
+    evidence = ['方案三 ADX 动量' + ('做多' if d == 1 else '做空'), ev['reason'], '止盈=净赚1%（交易所止盈单）', '止损25%',
+                '反向信号下一根开盘平仓', f'每笔=权益{int(S3.EQUITY_FRAC * 100)}%']
+    fs = out['fast_strategy']; score = 0.55
+    fs.update(v7_engine='adx_momentum', path='方案三 ADX动量多空', tier='指标信号', evidence=evidence, trigger_evidence=evidence,
+              structure_score=score, trigger_score=score, tp_price=float(tp_px), sl_price=float(sl_px),
+              adaptive_tp_pct=float(tp), adaptive_sl_pct=float(sl), rr=float(tp / sl), net_rr=float((tp - cost) / (sl + cost)),
+              estimated_round_cost=float(cost), maker_preferred=False, entry_size_multiplier=1.0, reference_price=float(px),
+              v7_chan_config={k: p[k] for k in CHAN_KEYS}, v7_don_n=int(p['don_n']), v7_chan_signal=None,
+              v7_pine_id='', v7_pine_entry_id='', v7_base_tf='1h',
+              signal_id=f'{symbol}|v7|s3|{bar_ts}|{side}', max_seconds=SCHEME3_HOLD_SECONDS,
+              invalidation_level=float(sl_px), bar_ts=bar_ts, score_is_probability=False,
+              target_reason='方案三：净赚1%止盈、25%止损、反向信号平仓', exit_policy='scheme3',
+              v7_strategy_stop=float(sl_px), v7_atr=0.0,
+              v7_exit_config={**{k: p[k] for k in ('close_confirm', 'trail_activate_r', 'trail_atr_k', 'runner', 'runner_rr', 'sl_mode')},
+                              'close_confirm': 0, 'runner': 0, 'scheme1': 0, 'scheme2': 0, 'scheme3': 1},
+              v7_scheme3=dict(bar_ts=bar_ts, btc=int(ev['btc'])), v7_equity_frac=S3.EQUITY_FRAC,
+              protect_at_r=float(p['trail_activate_r']), min_net_rr=float(p['min_net_rr']),
+              max_chase_r=float(p['max_chase_r']), min_target_cost=float(p['min_target_cost']))
+    out.update(signal=side, confidence=score, raw_confidence=score, directional_margin=score, signal_tier='指标信号',
+               tp=float(tp), sl=float(sl), base_tp=float(tp), base_sl=float(sl), fast_entry_size_multiplier=1.0)
+    out['dynamic_tp_sl'] = {'tp': float(tp), 'sl': float(sl), 'reason': 'V7 方案三：净1%止盈、25%止损'}
+    out['strategy_committee'].update(signal=side, committee_score=score)
+    out['entry_price_confirmation'].update(decision='ENTER', score=score, entry_size_multiplier=1.0, entry_quality='指标信号',
+                                           factors={'策略': '方案三 ADX动量多空', 'BTC大盘': '上方' if ev['btc'] == 1 else '下方'})
+    out['market_context']['reasons'] = evidence
+    out['fast_data']['v7_engine'] = 'adx_momentum'
+    out['reason'] = 'V7 方案三；' + '、'.join(evidence)
+    out['entry_price_confirmation']['reason'] = out['reason']
+    return out
+
+
 # ---------------------------------------------------------------- 持仓元数据
 
 def position_meta(pred):
@@ -763,7 +817,8 @@ def position_meta(pred):
                 v7_target_reason=fs.get('target_reason', ''),
                 v7_scheme2=bool(fs.get('v7_scheme2')),
                 s2_stages=str((fs.get('v7_scheme2') or {}).get('stage') or ''), s2_sold1=None,
-                s2_stop=(fs.get('v7_scheme2') or {}).get('stop'), s2_last_T=(fs.get('v7_scheme2') or {}).get('T'))
+                s2_stop=(fs.get('v7_scheme2') or {}).get('stop'), s2_last_T=(fs.get('v7_scheme2') or {}).get('T'),
+                v7_scheme3=bool(fs.get('v7_scheme3')), s3_bar_ts=(fs.get('v7_scheme3') or {}).get('bar_ts'))
 
 
 def partial_target_pct(position, progress):
