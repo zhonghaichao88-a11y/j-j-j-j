@@ -2112,8 +2112,14 @@ def prefetch_v7(symbols: List[str]) -> Dict[str,Any]:
     except Exception:pass
     need_mtf=(v7p.get('strategy')=='chan_quant' and bool(v7p.get('chan_mtf')))
     now_ms=time.time()*1000.0;errors={}
+    s2=bool(v7p.get('chan_scheme2'))
     def one(s):
-        try:bundle(okx_client._exchange,config.trading.get_ccxt_symbol(s),base_tf=bt,multi=need_mtf,now_ms=now_ms)
+        try:
+            cs=config.trading.get_ccxt_symbol(s)
+            bundle(okx_client._exchange,cs,base_tf=bt,multi=need_mtf,now_ms=now_ms)
+            if s2:                     # 方案二还要 30 分钟与日线
+                from alpha_v7_feed import anchored_frame
+                for tf in ('30m','1d'):anchored_frame(okx_client._exchange,cs,tf,1500,now_ms)
         except Exception as exc:errors[s]=str(exc)
     with ThreadPoolExecutor(max_workers=8) as pool:list(pool.map(one,list(symbols)))
     if v7p.get('chan_scheme1'):
@@ -2124,6 +2130,47 @@ def prefetch_v7(symbols: List[str]) -> Dict[str,Any]:
     try:batch_ticker(symbols[0] if symbols else 'BTC-USDT-SWAP')
     except Exception as exc:errors['tickers']=str(exc)
     return errors
+
+
+def _scheme2_breadth(now_ms):
+    """方案二的大盘宽度：24h 成交额前 100 个 USDT 永续，日线收在 EMA50 上方的占比（每个 UTC 日算一次）。"""
+    import alpha_v7_scheme2 as s2
+    st=s2.breadth_status()
+    if st.get('day')==int(now_ms)//86400000 and st.get('value') is not None:return st['value']
+    rows=sorted(okx_client.fetch_swap_tickers() or [],key=lambda t:-float(t.get('quote_volume') or 0))[:100]
+    value,_=s2.market_breadth(okx_client._exchange,[r['ccxt'] for r in rows if r.get('ccxt')],now_ms)
+    return value
+
+
+def _scheme2_eval(symbol,cs,frames,now_ms):
+    """方案二：取 30 分钟/日线（固定锚点、只读公开K线）、大盘宽度、本系统持仓，逐根处理新收盘的 5 分钟K线。"""
+    import alpha_v7_scheme2 as s2
+    from alpha_v7_feed import anchored_frame
+    try:
+        fr={'5m':frames['5m'],
+            '30m':anchored_frame(okx_client._exchange,cs,'30m',1500,now_ms),
+            '1d':anchored_frame(okx_client._exchange,cs,'1d',1500,now_ms)}
+    except Exception as exc:
+        return {'error':'30分钟/日线K线读取失败：'+str(exc)[:120],'entry':None,'action':None,'notes':[]}
+    try:breadth=_scheme2_breadth(now_ms)
+    except Exception as exc:
+        breadth=None;logger.warning(f'[V7 方案二] 大盘宽度计算失败：{exc}')
+    position=None
+    try:
+        import sys as _sys
+        _ae=_sys.modules.get('alpha_engine')          # 只读已加载的引擎状态；不在扫描里导入引擎（避免副作用）
+        p=((_ae.STATE.get('positions') or {}).get(symbol)) if _ae else None
+        if p and p.get('v7_scheme2'):position=dict(p)
+        elif p:return {'error':'该币已有其他策略的持仓，方案二不处理','entry':None,'action':None,'notes':[]}
+    except Exception:
+        pass
+    try:
+        res=s2.evaluate(symbol,fr,position,breadth,now_ms)
+    except Exception as exc:
+        logger.exception(f'[V7 方案二] {symbol} 结构计算失败：{exc}')
+        return {'error':'结构计算失败：'+str(exc)[:120],'entry':None,'action':None,'notes':[]}
+    res['breadth']=breadth
+    return res
 
 
 def predict(symbol: str) -> Dict[str,Any]:
@@ -2163,12 +2210,15 @@ def predict(symbol: str) -> Dict[str,Any]:
                 from alpha_v7_feed import frame as v7_frame
                 try:data['btc_frame']=v7_frame(okx_client._exchange,config.trading.get_ccxt_symbol('BTC-USDT-SWAP'),'15m',count=1500,now_ms=now_ms)
                 except Exception as exc:data['btc_frame']=None;logger.warning(f'[V7 方案一] BTC 行情读取失败：{exc}')
+            if v7p.get('chan_scheme2'):
+                data['scheme2']=_scheme2_eval(symbol,cs,frames,now_ms)
             if v7p.get('orderflow_mode'):
                 from alpha_v7_orderflow import streaming_snapshot as flow_snapshot
                 try:data['orderflow']=flow_snapshot(okx_client._exchange,cs)
                 except Exception as exc:data['orderflow']={'fresh':False,'missing':[str(exc)]}
             data['as_of_ms']=time.time()*1000.0
             result=decide(symbol,data)
+            if data.get('scheme2') is not None:result['scheme2']=data['scheme2']      # 持仓管理（加仓/减仓/清仓）用
         elif version in ("v6","v62"):
             # V6 严格使用已收盘数据；旧版的1秒容差不带入V6。
             from alpha_fast_v6_data import snapshot

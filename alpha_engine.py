@@ -2215,6 +2215,151 @@ def _live_manage_v6(symbol,p,pred,cfg):
             _persist()
         else: _activity(f"V6 {symbol}：止损更新未确认，保留已有保护", "warning")
 
+# ---------------------------------------------------------------- V7 方案二：加仓 / 一卖减半 / 卖点清仓
+def _scheme2_action(pred, p):
+    """取本根 5 分钟K线的方案二持仓动作；同一根K线的动作只执行一次（执行前先记下，失败不重发）。"""
+    s2=pred.get("scheme2") or {}
+    act=s2.get("action"); T=int(s2.get("T") or 0)
+    if not act or not T or int(p.get("s2_done_T") or 0)>=T: return None,T
+    return dict(act),T
+
+
+def _scheme2_protect(symbol,p,stop):
+    """把保护换成交易所整仓止损单（closeFraction=1，加仓/减仓后不用改数量）；已是整仓单则只在止损价变化时改价。"""
+    side=p["side"]
+    if p.get("s2_pos_algo"):
+        if abs(float(stop)-float(p.get("sl") or 0))>abs(float(stop))*1e-9:
+            r=alpha_live.amend_sl_only(symbol,side,float(stop),p["s2_pos_algo"],wait_timeout=4.0)
+            if not r.get("verified"): raise RuntimeError("整仓止损改价未确认："+str(r.get("error") or ""))
+            with LOCK: p["sl"]=float(stop); p["s2_stop"]=float(stop)
+        return
+    r=alpha_live.place_position_protection(symbol,side,float(stop),float(p.get("tp") or 0))
+    old=[p.get("tp_attach_clordid"),p.get("sl_attach_clordid")]
+    with LOCK:
+        p["s2_pos_algo"]=r["client_id"]; p["sl"]=float(r["sl"]); p["tp"]=float(r["tp"]); p["s2_stop"]=float(r["sl"])
+        p["s2_old_attach"]=[x for x in old if x]
+    _persist()
+    # 整仓单已验证生效后才撤原来按首批数量挂的 TP/SL；撤不掉也无害（同价位、只减仓）。
+    for cid in [x for x in old if x]:
+        try: alpha_live.cancel_algo(symbol,algo_cl_ord_id=cid)
+        except Exception as exc: _activity(f"实盘 {symbol}：方案二原首批保护单撤销未确认（整仓保护已生效）：{exc}","warning")
+    _activity(f"实盘 {symbol}：方案二已换成整仓保护单：止损={r['sl']:.8g}（一买低点），兜底止盈={r['tp']:.8g}")
+
+
+def _live_manage_scheme2(symbol,p,pred,cfg):
+    """返回需要清仓的原因（交给通用平仓流程），或 None。"""
+    act,T=_scheme2_action(pred,p)
+    if not act: return None
+    with LOCK: p["s2_done_T"]=T
+    _persist()
+    typ=act.get("type"); side=p["side"]; d=1 if side=="long" else -1
+    if typ=="close":
+        return act.get("reason") or "方案二卖点清仓"
+    if typ=="mark_sold1":
+        with LOCK: p["s2_sold1"]=float(act["price"])
+        _activity(f"实盘 {symbol}：{act.get('reason')}（不减仓，之后不再加仓）"); _persist(); return None
+    if typ=="reduce_half":
+        try:
+            _scheme2_protect(symbol,p,float(p.get("s2_stop") or p.get("sl")))
+            real=alpha_live.positions(); cs=config.trading.get_ccxt_symbol(symbol)
+            try: mode=alpha_live.pos_mode()
+            except Exception: mode="long_short_mode"
+            rows=[x for x in real if x.get("symbol")==cs and float(x.get("contracts") or 0)>0 and (mode!="long_short_mode" or x.get("side")==side)]
+            contracts=sum(float(x.get("contracts") or 0) for x in rows)
+            if contracts<=0: return None
+            r=alpha_live.reduce_only_close_qty(symbol,side,contracts*0.5)
+        except Exception as exc:
+            _activity(f"实盘 {symbol}：方案二一卖减半未执行：{exc}；保留原仓位和保护","warning"); return None
+        filled=float(r.get("filled") or 0); avg=float(r.get("average") or 0)
+        if filled<=0 or avg<=0:
+            _activity(f"实盘 {symbol}：方案二一卖减半未确认成交，保留原仓位","warning"); return None
+        try: attr=trade_attribution(symbol,float(p["entry"]),avg,side,filled,exit_fee=float(r.get("fee") or 0),reason="方案二一卖减半")
+        except Exception: attr={}
+        with LOCK:
+            before=float(p.get("filled") or contracts) or contracts
+            p["filled"]=max(0.0,before-filled); p["notional"]=float(p.get("notional") or 0)*(p["filled"]/before if before else 0)
+            p["s2_sold1"]=float(act.get("sold1") or avg)
+            STATE.setdefault("attribution",[]).append({**attr,"symbol":symbol,"side":side,"reason":"方案二一卖减半","time":time.time(),"partial":True})
+            STATE["attribution"]=STATE["attribution"][-500:]
+            STATE["live_trades"].append({"time":time.time(),"symbol":symbol,"side":side,"action":"PARTIAL_CLOSE","reason":act.get("reason"),"filled":filled,"average":avg})
+            STATE["history"]=STATE["live_trades"][-300:]
+        ledger_record("LIVE_PARTIAL_CLOSE",symbol,{"reason":act.get("reason"),"filled":filled,"average":avg})
+        _activity(f"实盘 {symbol}：{act.get('reason')}；成交 {filled:.8g} 张 @ {avg:.8g}"); _persist(); return None
+    if typ=="add":
+        stage=str(act.get("stage")); stop=float(act["stop"]); ref=float(act.get("ref") or 0)
+        why=""
+        if ops_breaker_status().get("open"): why="熔断器已开启"
+        elif _risk_block(cfg): why="风控保护中："+_risk_block(cfg)
+        elif p.get("s2_sold1") is not None: why="已卖过一卖，不再加仓"
+        if why:
+            _activity(f"实盘 {symbol}：方案二{('二买' if stage=='2' else '类二买')}加仓跳过：{why}","warning"); return None
+        try:
+            px=float((okx_client.get_ticker(symbol) or {}).get("last") or 0)
+            risk=d*(ref-stop); sl_pct=d*(px-stop)/px if px>0 else 0
+            if px<=0 or sl_pct<=0 or risk<=0: raise RuntimeError("当前价已越过一买低点")
+            if abs(px-ref)>float(fast_v7.PARAMS["max_chase_r"])*risk: raise RuntimeError("当前价偏离收盘触发位，放弃追价")
+            equity,free=_live_account_snapshot(max_age=0)
+            if equity<=0 or free<=0: raise RuntimeError("权益/可用余额不足")
+            from alpha_v7_scheme2 import LEG_RISK
+            notional=min(equity*float(cfg["risk_pct"])*LEG_RISK/max(sl_pct,0.002),equity*float(cfg.get("max_notional_pct",1.0)))
+            _scheme2_protect(symbol,p,stop)             # 先挂好整仓保护，再加仓
+            r=alpha_live.add_to_position(symbol,side,notional,int(cfg["leverage"]))
+        except Exception as exc:
+            _activity(f"实盘 {symbol}：方案二加仓未执行：{exc}","warning"); return None
+        filled=float(r.get("filled") or 0); avg=float(r.get("average") or 0)
+        if filled<=0 or avg<=0:
+            _activity(f"实盘 {symbol}：方案二加仓未成交（{r.get('status')}），保持原仓位","warning"); return None
+        with LOCK:
+            old=float(p.get("filled") or 0)
+            p["entry"]=(float(p["entry"])*old+avg*filled)/(old+filled) if old>0 else avg
+            p["filled"]=old+filled; p["notional"]=float(p.get("notional") or 0)+float(r.get("notional_usdt") or 0)
+            p["s2_stages"]=str(p.get("s2_stages") or "")+stage
+            STATE["live_trades"].append({"time":time.time(),"symbol":symbol,"side":side,"action":"ADD","reason":act.get("reason"),"order_id":r.get("order_id"),"filled":filled,"average":avg,"sl":stop})
+            STATE["history"]=STATE["live_trades"][-300:]
+        ledger_record("LIVE_ADD",symbol,r)
+        _activity(f"实盘 {symbol}：{act.get('reason')}；成交 {filled:.8g} 张 @ {avg:.8g}；持仓均价 {p['entry']:.8g}"); _persist()
+    return None
+
+
+def _paper_manage_scheme2(symbol,p,pred,cfg,px,now):
+    """方案二本地模拟：一买低点止损、卖点清仓、一卖减半、类二买加仓。"""
+    d=1 if p["side"]=="long" else -1; reason=""
+    if d*(px-float(p["sl"]))<=0: reason="方案二止损（一买低点）"
+    act,T=_scheme2_action(pred,p)
+    if not reason and act:
+        p["s2_done_T"]=T; typ=act.get("type")
+        if typ=="close": reason=act.get("reason") or "方案二卖点清仓"
+        elif typ=="mark_sold1": p["s2_sold1"]=float(act["price"])
+        elif typ=="reduce_half":
+            closed=float(p["notional"])*0.5
+            pnl=closed*(d*(px/float(p["entry"])-1)-2*float(cfg["fee_pct"])-2*float(cfg["slippage_pct"]))
+            with LOCK:
+                STATE["balance"]+=pnl; p["notional"]-=closed; p["s2_sold1"]=float(act.get("sold1") or px)
+                STATE["paper_trades"].append(dict(symbol=symbol,side=p["side"],action="CLOSE",entry=p["entry"],exit=px,average=px,pnl=pnl,reason=act.get("reason"),time=now,partial=True))
+                STATE["history"]=STATE["paper_trades"][-300:]
+            _activity(f"本地模拟 {symbol}：{act.get('reason')}，本次净盈亏={pnl:+.2f} USDT")
+        elif typ=="add" and p.get("s2_sold1") is None:
+            stop=float(act["stop"]); sl_pct=d*(px-stop)/px
+            if sl_pct>0:
+                from alpha_v7_scheme2 import LEG_RISK
+                add=float(STATE["balance"])*float(cfg["risk_pct"])*LEG_RISK/max(sl_pct,0.002)
+                with LOCK:
+                    p["entry"]=(float(p["entry"])*float(p["notional"])+px*add)/(float(p["notional"])+add)
+                    p["notional"]=float(p["notional"])+add; p["sl"]=stop
+                    p["s2_stages"]=str(p.get("s2_stages") or "")+str(act.get("stage"))
+                _activity(f"本地模拟 {symbol}：{act.get('reason')}，加仓名义 {add:.2f} USDT")
+    if reason:
+        pnl=float(p["notional"])*(d*(px/float(p["entry"])-1)-2*float(cfg["fee_pct"])-2*float(cfg["slippage_pct"]))
+        with LOCK:
+            STATE["balance"]+=pnl
+            STATE["paper_trades"].append(dict(symbol=symbol,side=p["side"],action="CLOSE",entry=p["entry"],exit=px,average=px,pnl=pnl,reason=reason,time=now))
+            STATE["history"]=STATE["paper_trades"][-300:]
+            STATE["positions"].pop(symbol,None)
+            STATE["consecutive_losses"]=0 if pnl>0 else STATE["consecutive_losses"]+1
+        _activity(f"本地模拟 V7 {symbol}：{reason}，本次净盈亏={pnl:+.2f} USDT")
+    _persist()
+
+
 def _live_manage_v7(symbol,p,pred,cfg):
     """V7实盘持仓管理：口径与_live_manage_v6一致；止损改单/平仓都以交易所确认推进。"""
     pending=bool(p.get("v6_recovery_pending")) or p.get("exit_mode")=="RECOVERY"
@@ -2232,8 +2377,12 @@ def _live_manage_v7(symbol,p,pred,cfg):
             except Exception as exc:
                 with LOCK:STATE['live_error']='V7收盘退出数据暂不可用，保留交易所保护：'+str(exc)
         _v7_reconcile_partial(symbol,p)
-        plan=fast_v7.exit_plan(p,px,time.time(),frames,trailing=False)
-        reason=plan.get("close")
+        if p.get("v7_scheme2"):
+            # 方案二：不走通用退出计划（不到期、不移动止损），只按缠论卖点/加仓动作处理。
+            plan={"stop":None}; reason=_live_manage_scheme2(symbol,p,pred,cfg)
+        else:
+            plan=fast_v7.exit_plan(p,px,time.time(),frames,trailing=False)
+            reason=plan.get("close")
         if p.get('v7_pine_error') and time.time()-float(p.get('v7_pine_error_logged_at') or 0)>60:
             _activity(f"V7 {symbol} Pine退出指令未执行：{p['v7_pine_error']}；保留交易所保护", "warning")
             p['v7_pine_error_logged_at']=time.time()
@@ -2326,6 +2475,8 @@ def _paper_manage_v6(symbol,p,pred,cfg,px,now):
 
 def _paper_manage_v7(symbol,p,pred,cfg,px,now):
     """V7本地报价模拟，口径同_paper_manage_v6；部分退出按剩余名义记账。"""
+    if p.get('v7_scheme2'):
+        _paper_manage_scheme2(symbol,p,pred,cfg,px,now); return
     d=1 if p['side']=='long' else -1; entry=float(p['entry']); reason=''
     frames={}
     if p.get('v7_engine') in ('donchian','pine_import','chan_quant') or (p.get('v7_exit_config') or {}).get('close_confirm'):
@@ -2446,6 +2597,7 @@ def _paper_step(symbol,pred,cfg):
                     fast_entry_mult=float(pred.get("fast_entry_size_multiplier",1.0) or 1.0) if _is_fast(pred) else 1.0
                     fast_entry_mult=max(0.25,min(1.0,fast_entry_mult))
                     risk_notional*=fast_entry_mult
+                    risk_notional*=float((pred.get("fast_strategy") or {}).get("v7_risk_scale") or 1.0)   # 方案二每批 1/3
                     if _is_fast(pred) and fast_entry_mult < 0.999:
                         _activity(f"模拟盘 {symbol}：FAST入场强度={pred.get('signal_tier','一般')}；该级别降仓系数={fast_entry_mult:.2f}，只降低仓位")
                     notional=max(10,min(STATE["balance"]*cfg["max_notional_pct"],risk_notional))
@@ -2744,6 +2896,9 @@ def _arm_native_exits_after_open(symbol: str, cfg: dict):
     with LOCK:
         p=dict(STATE.get("positions",{}).get(symbol) or {})
     if not p.get("live"): return
+    if p.get("v7_scheme2"):
+        _activity(f"实盘 {symbol}：方案二持仓不挂移动止损/分批止盈（按缠论卖点离场，一买低点止损）")
+        return
     errors=[]
     if gate_enabled("trend_trail"):
         try: _arm_native_trail(symbol,p,cfg)
@@ -2936,6 +3091,8 @@ def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
         if pred.get("signal_tier")=="TRIAL": requested*=0.35
         # 交易复盘只影响本次风险预算的软系数；硬风控、方向和执行规则保持原样。
         requested*=review_mult
+        # 方案二分批建仓：每一批只用单笔风险的 1/3（二买、类二买各一批）。
+        requested*=float((pred.get("fast_strategy") or {}).get("v7_risk_scale") or 1.0)
         if requested<=0:
             _activity(f"实盘 {symbol}：风险预算计算后下单金额为0，跳过")
             _activity(f"实盘 {symbol}：FINAL       → NO ORDER")
@@ -3313,7 +3470,11 @@ def _reconcile_live(cfg):
                 else:
                     # NORMAL / TREND_TRAIL 同构对账：
                     # (1) TP：分批armed则恢复分批(内部已含SL验证)，否则验证单一TP+固定SL这一对。
-                    if p.get("native_partial_armed"):
+                    if p.get("s2_pos_algo"):
+                        # 方案二整仓保护单：一张单同时含止损和兜底止盈
+                        if not alpha_live.protection_status_set(s,side_r,[p["s2_pos_algo"]],wait_timeout=5.0).get("verified"):
+                            raise RuntimeError("方案二整仓保护单未验证")
+                    elif p.get("native_partial_armed"):
                         _reconcile_native_partial(s,p,float(rp.get("contracts") or 0))
                     else:
                         prot=alpha_live.protection_status(s,side_r,expected_ids=[p.get("tp_attach_clordid"),p.get("sl_attach_clordid")],wait_timeout=5.0)

@@ -4,7 +4,7 @@ Bootstraps once, updates a bounded ring; uses the same explicit cutoff for all T
 from __future__ import annotations
 import time,threading
 import numpy as np
-TF={'5m':('5m',300000),'15m':('15m',900000),'1h':('1H',3600000),'4h':('4H',14400000),'1d':('1Dutc',86400000)}
+TF={'5m':('5m',300000),'15m':('15m',900000),'30m':('30m',1800000),'1h':('1H',3600000),'4h':('4H',14400000),'1d':('1Dutc',86400000)}
 # 交易主级别仅开放 5m/15m/1h；4h/1d 只作为主级别嵌套出的高周期。
 SUPPORTED_BASE_TFS=('5m','15m','1h')
 # 主级别 -> 两个更高周期（顺序：就近高周期 -> 更远高周期）。

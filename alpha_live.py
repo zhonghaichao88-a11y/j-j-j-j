@@ -334,6 +334,52 @@ class AlphaLiveExecutor:
         status=self._require_expected(symbol,side,[cid],timeout=5.0)
         return {"id":order.get("id"),"client_id":cid,"order":order,"status":status}
 
+    def place_position_protection(self, symbol, side, sl_price, tp_price, client_id=None):
+        """整仓保护单（closeFraction=1）：触发时平掉该方向全部仓位，不随加仓/减仓改数量。
+        同一仓位交易所只允许一张；挂上后按 algoClOrdId 精确验证，验证失败会撤掉并报错。"""
+        ex=self._ensure(); cs=symbol_to_ccxt(symbol,"swap"); inst=self._inst_id(cs); self.market(cs)
+        cid=client_id or self.PREFIX+uuid.uuid4().hex[:24]
+        mode=self.pos_mode(); d=1 if side=="long" else -1
+        sl=float(ex.price_to_precision(cs,float(sl_price))); tp=float(ex.price_to_precision(cs,float(tp_price)))
+        if sl<=0 or tp<=0 or d*(tp-sl)<=0: raise ValueError("整仓保护价格无效")
+        body={"instId":inst,"tdMode":config.trading.margin_mode,"side":self._close_side(side),
+              "posSide":side if mode=="long_short_mode" else "net","ordType":"conditional","closeFraction":"1",
+              "algoClOrdId":cid,"tag":self.TAG,
+              "slTriggerPx":str(sl),"slOrdPx":"-1","slTriggerPxType":"last",
+              "tpTriggerPx":str(tp),"tpOrdPx":"-1","tpTriggerPxType":"last"}
+        if mode!="long_short_mode": body["reduceOnly"]=True
+        raw=ex.request("trade/order-algo","private","POST",body)
+        data=(raw or {}).get("data") or []; item=data[0] if data else {}
+        if str((raw or {}).get("code"))!="0" or str(item.get("sCode","0"))!="0":
+            raise RuntimeError("整仓保护单下单失败："+str(item.get("sMsg") or raw))
+        status=self._require_expected(symbol,side,[cid],timeout=5.0)
+        return {"client_id":cid,"algo_id":item.get("algoId"),"sl":sl,"tp":tp,"status":status}
+
+    def add_to_position(self, symbol, side, notional_usdt, leverage, client_order_id=None):
+        """同方向市价加仓（不附带 TP/SL；调用方必须先挂好整仓保护单）。只按交易所确认的成交记账。"""
+        if side not in ("long","short"): raise ValueError("side 必须是 long/short")
+        ex=self._ensure(); cs=symbol_to_ccxt(symbol,"swap"); self.market(cs); self._ensure_leverage(cs,leverage)
+        bal=self.account(); free=float(bal["free"])
+        if free<=0: raise RuntimeError("OKX 可用余额不足，不能加仓")
+        tick=ex.fetch_ticker(cs); px=float((tick.get("ask") if side=="long" else tick.get("bid")) or tick.get("last") or 0)
+        if px<=0: raise RuntimeError("无法取得有效价格")
+        notional_usdt=min(float(notional_usdt),free*int(leverage)*.85); amount=self._contracts(cs,notional_usdt,px); mode=self.pos_mode()
+        clid=client_order_id or self.PREFIX+uuid.uuid4().hex[:28]
+        params={"tdMode":config.trading.margin_mode,"posSide":side if mode=="long_short_mode" else "net","clOrdId":clid,"tag":self.TAG}
+        logger.warning(f"[ALPHA-X LIVE] {symbol} 加仓 {side} {amount}张 ≈ {notional_usdt:.2f}U clOrdId={clid}")
+        order=ex.create_order(cs,"market","buy" if side=="long" else "sell",amount,None,params); oid=order.get("id")
+        if not oid: raise RuntimeError(f"OKX 加仓返回无 ordId: {order}")
+        detail=self.wait_order_terminal(symbol,oid,timeout=8); state=str(detail.get("status") or order.get("status") or "").lower()
+        if state not in ("closed","canceled","rejected"):
+            try: ex.cancel_order(str(oid),cs)
+            except Exception: pass
+            detail=self.wait_order_terminal(symbol,oid,timeout=5.0); state=str(detail.get("status") or "").lower()
+        filled=float(detail.get("filled") or order.get("filled") or 0); avg=float(detail.get("average") or order.get("average") or 0)
+        fee=self._fee_cost(detail) if detail.get("fee") is not None else self._fee_cost(order)
+        ct=float(self.market(cs).get("contractSize") or 0)
+        return {"order_id":oid,"client_order_id":clid,"filled":filled,"average":avg,"fee":fee,"status":state,
+                "notional_usdt":filled*avg*ct if ct>0 else 0.0}
+
     def cancel(self,symbol,order_id):
         ex=self._ensure(); cs=symbol_to_ccxt(symbol,"swap")
         return ex.cancel_order(str(order_id),cs)

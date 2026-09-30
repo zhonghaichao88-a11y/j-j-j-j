@@ -63,6 +63,7 @@ def _refresh() -> None:
     if not tickers:
         raise RuntimeError("全市场快照为空")
     pct_key = BASIS_FIELD.get(cfg.get("basis", "24h"), "pct")
+    by_volume = _scheme2_on()
     pool: List[Dict[str, Any]] = []
     for t in tickers:
         sym = str(t.get("symbol") or "")
@@ -74,20 +75,31 @@ def _refresh() -> None:
         pct = float(raw_pct or 0)
         qv = float(t.get("quote_volume") or 0)
         last = float(t.get("last") or 0)
-        # 涨幅榜：只要上涨的；并要求最低成交额，剔除妖币/死水
-        if pct <= 0:
+        # 涨幅榜：只要上涨的；并要求最低成交额，剔除妖币/死水（方案二按成交额选主流币，不看涨跌）
+        if pct <= 0 and not by_volume:
             continue
         if qv < float(cfg["min_turnover_usdt"]):
             continue
         pool.append({"symbol": sym, "last": last, "pct": pct, "quote_volume": qv})
-    pool.sort(key=lambda x: x["pct"], reverse=True)
+    pool.sort(key=lambda x: x["quote_volume" if by_volume else "pct"], reverse=True)
     pool = pool[: int(cfg.get("top", 20) or 20)]
     S["pool"] = pool
     S["symbols"] = [x["symbol"] for x in pool]
     S["last"] = time.time()
-    S["last_msg"] = (f"{BASIS_LABEL.get(cfg.get('basis'), '24h')}涨幅榜："
-                     f"扫描 {len(tickers)} 个 USDT 永续，前 {len(pool)} 名")
+    S["by_volume"] = by_volume
+    S["last_msg"] = ((f"方案二：24h成交额榜，扫描 {len(tickers)} 个 USDT 永续，前 {len(pool)} 名") if by_volume else
+                     (f"{BASIS_LABEL.get(cfg.get('basis'), '24h')}涨幅榜："
+                      f"扫描 {len(tickers)} 个 USDT 永续，前 {len(pool)} 名"))
     logger.info(f"[V7 选币] {S['last_msg']}")
+
+
+def _scheme2_on() -> bool:
+    """方案二回测用的是主流币：开启时按 24h 成交额选币。"""
+    try:
+        import alpha_fast_v7
+        return bool(alpha_fast_v7.get_runtime_params().get("chan_scheme2"))
+    except Exception:
+        return False
 
 
 def top_gainers(held_symbols: Optional[List[str]] = None, force: bool = False) -> List[str]:
@@ -105,7 +117,7 @@ def top_gainers(held_symbols: Optional[List[str]] = None, force: bool = False) -
     for h in (held_symbols or []):
         add(h)
     try:
-        stale = (time.time() - S["last"]) >= float(cfg.get("interval", 600) or 600)
+        stale = (time.time() - S["last"]) >= float(cfg.get("interval", 600) or 600) or bool(S.get("by_volume")) != _scheme2_on()
         if force or stale:
             _refresh()
     except Exception as exc:
@@ -119,7 +131,7 @@ def snapshot() -> Dict[str, Any]:
     """给前端：榜单明细 + 刷新时间。"""
     with LOCK:
         return {
-            "label": f"{BASIS_LABEL.get(S['cfg'].get('basis'), '24h')} 涨幅榜前 {S['cfg']['top']}",
+            "label": (f"24h成交额榜前 {S['cfg']['top']}（方案二）" if S.get("by_volume") else f"{BASIS_LABEL.get(S['cfg'].get('basis'), '24h')} 涨幅榜前 {S['cfg']['top']}"),
             "basis": S["cfg"].get("basis", "24h"),
             "pool": [dict(x) for x in S["pool"]],
             "symbols": list(S["symbols"]),

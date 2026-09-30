@@ -21,7 +21,7 @@ import numpy as np
 from alpha_v7_analysis import STRATEGIES, analyze
 from alpha_v7_feed import tf_ms, higher_tfs
 
-VERSION = '7.6.17-RECORDER'
+VERSION = '7.7.0-SCHEME2'
 
 PARAMS = dict(
     strategy='ema_cross',
@@ -49,6 +49,7 @@ PARAMS = dict(
     # 缠论：笔模式(0老笔/1新笔)、背驰面积(0绝对值/1同向)、信号宽限根数
     chan_pen=0, chan_macd=1, chan_grace_bars=1,
     chan_scheme1=0,                # 方案一：打开后自动套用下方 SCHEME1 的全部设置（见 apply_scheme1）
+    chan_scheme2=0,                # 方案二：按周期分级别的缠论区间套（日线/30分钟/5分钟），见 alpha_v7_scheme2
     # 成本与门槛（口径同 V6）
     fee_side=0.0006, slip_side=0.0003,
     min_stop=0.002, max_stop=0.035,
@@ -91,6 +92,10 @@ SCHEME1 = dict(strategy='chan_quant', base_tf='15m', chan_level=0, chan_mtf=0, c
                max_hold_bars=192)
 SCHEME1_MIN_RISK = 0.0172      # 止损距离下限（研究里前半段止损距离的 40% 分位）
 SCHEME1_TP_R = 20.0            # 不设固定止盈：交易所保护止盈挂在 20R 之外，只作兜底
+# 方案二（研究：三层_日线_30m_5m_实战只做二买 + 大盘宽度）：只做二买/类二买，分批加仓，缠论卖点离场，没有卖点就持有。
+SCHEME2 = dict(strategy='chan_quant', base_tf='5m', chan_mtf=0, chan_exit_opposite=0, chan_scheme1=0,
+               close_confirm=0, runner=0, dynamic_tp=0, sl_mode='structure')
+SCHEME2_HOLD_SECONDS = 10 * 365 * 86400     # 原文：没有卖点就持有，不设到期
 
 
 def ema_last(x, n):
@@ -158,7 +163,7 @@ def validate_params(opts=None):
             'bb_n': (2, 100), 'macd_fast': (1, 100), 'macd_slow': (2, 100),
             'macd_signal': (1, 100), 'rsi_n': (2, 100), 'don_n': (2, 100),
             'max_hold_bars': (1, 2016), 'structure_bars': (5, 100), 'chan_level': (0, 3), 'orderflow_mode': (0, 2), 'chan_grace_bars': (0, 3)}
-    for key in ('dynamic_tp','close_confirm','runner','chan_buy1','chan_buy2','chan_buy3','chan_sell1','chan_sell2','chan_sell3','chan_mtf','chan_exit_opposite','chan_buy1p','chan_sell1p','chan_buy2s','chan_sell2s','chan_pen','chan_macd','chan_scheme1'):
+    for key in ('dynamic_tp','close_confirm','runner','chan_buy1','chan_buy2','chan_buy3','chan_sell1','chan_sell2','chan_sell3','chan_mtf','chan_exit_opposite','chan_buy1p','chan_sell1p','chan_buy2s','chan_sell2s','chan_pen','chan_macd','chan_scheme1','chan_scheme2'):
         ints[key]=(0,1)
     for k, (lo, hi) in ints.items():
         try: v = float(p[k])
@@ -192,8 +197,12 @@ def validate_params(opts=None):
             from pine_v5.live_contract import require_live
             require_live(program, p['base_tf'])
     elif p['strategy']=='pine_import':raise ValueError('请先导入并保存Pine策略')
+    if p['chan_scheme1'] and p['chan_scheme2']:
+        raise ValueError('方案一和方案二只能开一个')
     if p['chan_scheme1']:
         p.update(SCHEME1)
+    if p['chan_scheme2']:
+        p.update(SCHEME2)
     return p
 
 
@@ -396,6 +405,9 @@ def decide(symbol, data, params=None):
     if err or px <= 0 or data.get('missing'):
         out['market_context']['no_trade'] = True
         return wait(err or '核心数据缺失或报价无效')
+
+    if p['chan_scheme2']:
+        return _decide_scheme2(symbol, data, p, out, wait, px)
 
     lookback = len(frames[bt]['close']) if p['strategy']=='chan_quant' else 288
     f = {k:np.asarray(v)[-lookback:] for k,v in frames[bt].items()}
@@ -672,6 +684,62 @@ def decide(symbol, data, params=None):
     return out
 
 
+def _decide_scheme2(symbol, data, p, out, wait, px):
+    """方案二下单信号：由 alpha_v7_scheme2.evaluate 在扫描时算好（data['scheme2']），这里只组装订单参数。"""
+    from alpha_v7_scheme2 import TP_R, LEG_RISK, M5
+    s2 = data.get('scheme2') or {}
+    out['adaptive_context']['scheme2'] = {k: s2.get(k) for k in ('T', 'notes', 'breadth', 'error')}
+    if s2.get('error'):
+        return wait('方案二：' + str(s2['error']))
+    ent = s2.get('entry')
+    if not ent:
+        notes = '；'.join(s2.get('notes') or [])
+        return wait('方案二：本根5分钟没有可开仓的二买/类二买' + ('；' + notes if notes else ''))
+    d = int(ent['side']); stop = float(ent['stop']); ref = float(ent['ref'])
+    risk = d * (ref - stop)
+    if risk <= 0:
+        return wait('方案二：止损方向无效')
+    if abs(px - ref) > float(p['max_chase_r']) * risk:
+        return wait('方案二：当前价偏离收盘触发位，放弃追价')
+    sl = d * (px - stop) / px
+    if not 0 < sl < 0.45:
+        return wait('方案二：止损距离超出可下单范围')
+    tp = min(TP_R * risk / px, 0.45); target = px * (1 + d * tp)
+    spread = num(data.get('spread_bps'), -1)
+    cost = 2 * (float(p['fee_side']) + float(p['slip_side'])) + (spread / 10000 if spread >= 0 else 0.0004)
+    side = 'LONG' if d == 1 else 'SHORT'
+    stage_cn = '二买' if ent['stage'] == '2' else '类二买'
+    if d == -1: stage_cn = stage_cn.replace('买', '卖')
+    evidence = [f'方案二{stage_cn}（日线/30分钟/5分钟区间套）', f'止损=一买低点 {stop:.8g}',
+                f'大盘宽度 {float(ent.get("breadth") or 0) * 100:.0f}%', '首批 1/3 风险'] + (['小转大'] if ent.get('small2big') else [])
+    fs = out['fast_strategy']; score = 0.55
+    fs.update(v7_engine='chan_quant', path='缠论方案二', tier='指标信号', evidence=evidence, trigger_evidence=evidence,
+              structure_score=score, trigger_score=score, tp_price=float(target), sl_price=float(stop),
+              adaptive_tp_pct=float(tp), adaptive_sl_pct=float(sl), rr=float(tp / sl), net_rr=float((tp - cost) / (sl + cost)),
+              estimated_round_cost=float(cost), maker_preferred=False, entry_size_multiplier=1.0, reference_price=ref,
+              v7_chan_config={k: p[k] for k in CHAN_KEYS}, v7_don_n=int(p['don_n']), v7_chan_signal=None,
+              v7_pine_id='', v7_pine_entry_id='', v7_base_tf='5m',
+              signal_id=f'{symbol}|v7|s2|{int(s2.get("T") or 0)}|{side}', max_seconds=SCHEME2_HOLD_SECONDS,
+              invalidation_level=float(stop), bar_ts=int(s2.get('T') or 0) - M5, score_is_probability=False,
+              target_reason='方案二：不设固定止盈（20R 外保护单），按缠论卖点离场', exit_policy='scheme2',
+              v7_strategy_stop=float(stop), v7_atr=0.0,
+              v7_exit_config={**{k: p[k] for k in ('close_confirm', 'trail_activate_r', 'trail_atr_k', 'runner', 'runner_rr', 'sl_mode')}, 'scheme1': 0, 'scheme2': 1},
+              v7_scheme2=dict(stage=ent['stage'], stop=float(stop), breadth=ent.get('breadth'), small2big=bool(ent.get('small2big')), T=int(s2.get('T') or 0)),
+              v7_risk_scale=LEG_RISK, protect_at_r=float(p['trail_activate_r']), min_net_rr=float(p['min_net_rr']),
+              max_chase_r=float(p['max_chase_r']), min_target_cost=float(p['min_target_cost']))
+    out.update(signal=side, confidence=score, raw_confidence=score, directional_margin=score, signal_tier='指标信号',
+               tp=float(tp), sl=float(sl), base_tp=float(tp), base_sl=float(sl), fast_entry_size_multiplier=1.0)
+    out['dynamic_tp_sl'] = {'tp': float(tp), 'sl': float(sl), 'reason': 'V7 方案二：一买低点止损，缠论卖点离场'}
+    out['strategy_committee'].update(signal=side, committee_score=score)
+    out['entry_price_confirmation'].update(decision='ENTER', score=score, entry_size_multiplier=1.0, entry_quality='指标信号',
+                                           factors={'策略': '缠论方案二', '批次': stage_cn})
+    out['market_context']['reasons'] = evidence
+    out['fast_data']['v7_engine'] = 'chan_quant'
+    out['reason'] = 'V7 方案二；' + '、'.join(evidence) + '；盈利尚未验证'
+    out['entry_price_confirmation']['reason'] = out['reason']
+    return out
+
+
 # ---------------------------------------------------------------- 持仓元数据
 
 def position_meta(pred):
@@ -692,7 +760,10 @@ def position_meta(pred):
                 v7_exit_policy=fs.get('exit_policy', 'adaptive'),
                 v7_round_cost=fs.get('estimated_round_cost', 0.0022),
                 v7_protect_at_r=fs.get('protect_at_r', 1.0),
-                v7_target_reason=fs.get('target_reason', ''))
+                v7_target_reason=fs.get('target_reason', ''),
+                v7_scheme2=bool(fs.get('v7_scheme2')),
+                s2_stages=str((fs.get('v7_scheme2') or {}).get('stage') or ''), s2_sold1=None,
+                s2_stop=(fs.get('v7_scheme2') or {}).get('stop'), s2_last_T=(fs.get('v7_scheme2') or {}).get('T'))
 
 
 def partial_target_pct(position, progress):
