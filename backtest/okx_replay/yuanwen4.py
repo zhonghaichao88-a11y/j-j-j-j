@@ -38,6 +38,8 @@ V1 = {'四层_日线_30m_5m_1m': dict(big='1d', conf='1m', mid='5m', loose=False
       '四层_日线_30m_5m_1m_做差价': dict(big='1d', conf='1m', mid='5m', loose=False, tday=True),
       '四层_日线_30m_5m_1m_只做多': dict(big='1d', conf='1m', mid='5m', loose=False, long_only=True),
       '四层_日线_30m_5m_1m_实战全部': dict(big='1d', conf='1m', mid='5m', loose=False, gradual=True, only2=True, zpos=True),
+      '四层_日线_30m_5m_1m_只做二买': dict(big='1d', conf='1m', mid='5m', loose=False, only2=True),
+      '四层_4h_30m_5m_1m_只做二买': dict(big='4h', conf='1m', mid='5m', loose=False, only2=True),
       '四层_4h_30m_5m_1m': dict(big='4h', conf='1m', mid='5m', loose=False),
       '三层_30m_5m_1m': dict(big=None, conf='1m', mid='5m', loose=False),
       '含盘背_四层_日线_30m_5m_1m': dict(big='1d', conf='1m', mid='5m', loose=True)}
@@ -46,9 +48,11 @@ V15 = {'三层_日线_30m_15m': dict(big='1d', conf='15m', mid=None, loose=False
        '三层_日线_30m_15m_只做二买': dict(big='1d', conf='15m', mid=None, loose=False, only2=True),
        '三层_日线_30m_15m_实战全部': dict(big='1d', conf='15m', mid=None, loose=False, gradual=True, only2=True, zpos=True),
        '二层_30m_15m': dict(big=None, conf='15m', mid=None, loose=False)}
-FILE = {'5m': '5m2y', '1m': '1m2y', '15m': '15m', '15m_old': '15m_old'}[MODE]
-BASE_TF = '15m' if MODE.startswith('15m') else MODE
-VARIANTS = V15 if MODE.startswith('15m') else (dict(V5) if MODE == '5m' else {**V5, **V1})
+FILE = {'5m': '5m2y', '1m': '1m2y', '15m': '15m', '15m_old': '15m_old', '5mnew': '5mnew'}[MODE]
+BASE_TF = '15m' if MODE.startswith('15m') else ('5m' if MODE == '5mnew' else MODE)
+VARIANTS = V15 if MODE.startswith('15m') else (dict(V5) if MODE in ('5m', '5mnew') else {**V5, **V1})
+if os.environ.get('VARS'):                      # 只跑指定的几组（1 分钟数据很大）
+    VARIANTS = {k: v for k, v in VARIANTS.items() if k in os.environ['VARS'].split(',')}
 MAIN = '30m'
 
 
@@ -217,11 +221,13 @@ def one(inst):
 if __name__ == '__main__':
     if MODE.startswith('15m'):
         cats = json.load(open(os.path.join(B.DATA, 'categories.json'))); uni = [i for i, cc in cats.items() if cc == '1']
+    elif MODE == '5mnew':
+        uni = json.load(open(os.path.join(B.DATA, 'universe_new30.json')))
     else:
         uni = json.load(open(os.path.join(B.DATA, 'universe_5m40.json')))
     uni = [i for i in uni if os.path.exists(os.path.join(B.DATA, f'{i}_{FILE}.npz'))]
     with Pool(int(os.environ.get('PROCS', 4))) as p:
         parts = [x for x in p.map(one, uni) if x]
     res = {k: [r for part in parts for r in part[k]] for k in parts[0]}
-    json.dump(res, open(os.path.join(B.DATA, f'yuanwen4_{MODE}.json'), 'w'), ensure_ascii=False)
+    json.dump(res, open(os.path.join(B.DATA, f'yuanwen4_{MODE}{os.environ.get("OUTTAG", "")}.json'), 'w'), ensure_ascii=False)
     print(len(parts), {k: len(v) for k, v in res.items()})
