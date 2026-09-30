@@ -35,6 +35,14 @@ def chunks(f, ms):
 
 def load(inst):
     grp = DS.split('_')[0]
+    if grp == 'bnx':
+        p = os.path.join(B.DATA, f'{inst}_bn1h.npz')
+        if not os.path.exists(p): return []
+        z = np.load(p); return chunks({k: z[k] for k in ('ts', 'open', 'high', 'low', 'close', 'volume')}, 3600000)
+    if grp == 'more':
+        p = os.path.join(B.DATA, f'{inst}_1h.npz')
+        if not os.path.exists(p): return []
+        z = np.load(p); return chunks({k: z[k] for k in ('ts', 'open', 'high', 'low', 'close', 'volume')}, 3600000)
     if grp in ('old40', 'rest34') and TF == '1h':
         return sum((B.load(inst, '1h', suf) for suf in ('15m_old', '15m')), [])
     p = os.path.join(B.DATA, f"{inst}_{'5m2y' if grp == 'old40' else '5mnew'}.npz")
@@ -91,7 +99,7 @@ def run(inst):
 if __name__ == '__main__':
     S.check()
     grp = DS.split('_')[0]
-    insts = json.load(open(os.path.join(B.DATA, {'old40': 'universe_5m40.json', 'new30': 'universe_new30.json', 'rest34': 'universe_rest.json'}[grp])))
+    insts = json.load(open(os.path.join(B.DATA, {'old40': 'universe_5m40.json', 'new30': 'universe_new30.json', 'rest34': 'universe_rest.json', 'more': 'universe_more.json', 'bnx': 'universe_bnx.json'}[grp])))
     insts = [i if isinstance(i, str) else i['inst'] for i in insts]
     from concurrent.futures import ProcessPoolExecutor
     with ProcessPoolExecutor(PROCS) as ex: list(ex.map(run, insts))
