@@ -16,14 +16,14 @@ import glob, json, math, os, sys, time
 from multiprocessing import Pool
 import numpy as np
 
-REPO = os.environ.get('ALPHA_REPO', os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')))
+REPO = os.environ.get('ALPHA_REPO', '/home/user/j-j-j-j')
 sys.path.insert(0, REPO)
 os.environ.setdefault('ALPHA_V7_PARAMS_FILE', '/tmp/claude-0/bt_params_unused.json')
 import alpha_v7_analysis as A
 import alpha_fast_v7 as V
 from alpha_v7_chan import select_signal
 
-DATA = os.environ.get('ALPHA_OKX_DATA', os.path.dirname(os.path.abspath(__file__)))
+DATA = os.path.dirname(os.path.abspath(__file__))
 CONFIGS = {
     # 推荐设置：笔级、持仓48根、多周期关、就近结构目标开、趋势仓开、全局移动止损开、分批止盈关
     '15m_rec':      dict(tf='15m', params=dict(chan_level=0, max_hold_bars=48), trail=True),
@@ -36,6 +36,11 @@ CONFIGS = {
     # 系统内的方案一（V7.6.12）：A/B 段用 180 天数据，C 段用更早的全新数据
     'scheme1':      dict(tf='15m', params=dict(chan_scheme1=1), trail=True, btc=True),
     'scheme1_old':  dict(tf='15m', params=dict(chan_scheme1=1), trail=True, btc=True, suffix='15m_old'),
+    # 拆分测试：移动止损按固定价差（入场ATR×2）回撤，而不是按比例；只跑加密币（与研究同一批）
+    'scheme1_ib':      dict(tf='15m', params=dict(chan_scheme1=1), trail=True, btc=True, intrabar=True, crypto=True),
+    'scheme1_old_ib':  dict(tf='15m', params=dict(chan_scheme1=1), trail=True, btc=True, suffix='15m_old', intrabar=True, crypto=True),
+    'scheme1_abs':      dict(tf='15m', params=dict(chan_scheme1=1), trail=True, btc=True, trail_abs=True, crypto=True),
+    'scheme1_old_abs':  dict(tf='15m', params=dict(chan_scheme1=1), trail=True, btc=True, suffix='15m_old', trail_abs=True, crypto=True),
 }
 BASE = dict(strategy='chan_quant', chan_mtf=0)
 TF_MS = {'5m': 300000, '15m': 900000, '1h': 3600000}
@@ -144,6 +149,8 @@ def open_position(inst, out, F, j, ms, cfg):
         p['tp'] = V.runner_target(p); p['runner'] = True
     if cfg['trail']:
         p['trail_active_px'], p['trail_cb'] = V.native_trail_config(p)
+        if cfg.get('trail_abs'):
+            p['trail_abs'] = p['trail_cb'] * p['trail_active_px']
     return p
 
 
@@ -162,7 +169,7 @@ def manage(p, F, j, result, params, cfg, ms):
     if d * (adverse - p['sl']) <= 0:
         return close(p, o if d * (o - p['sl']) <= 0 else p['sl'], t, '止损')
     if p.get('trail_on'):
-        stop = p['anchor'] * (1 - d * p['trail_cb'])
+        stop = p['anchor'] - d * p['trail_abs'] if p.get('trail_abs') else p['anchor'] * (1 - d * p['trail_cb'])
         if d * (adverse - stop) <= 0:
             return close(p, o if d * (o - stop) <= 0 else stop, t, '移动止损')
     if d * (favorable - p['tp']) >= 0:
@@ -172,6 +179,12 @@ def manage(p, F, j, result, params, cfg, ms):
             p['trail_on'] = True; p['anchor'] = favorable
         elif p.get('trail_on'):
             p['anchor'] = max(p['anchor'], favorable) if d == 1 else min(p['anchor'], favorable)
+        if cfg.get('intrabar') and p.get('trail_on'):
+            # 交易所原生移动止损是盘中跟踪：本根创出新极值后，收盘已回撤到止损线外，
+            # 说明本根内已经触发（极值在前、收盘在后），按止损线价格成交，而不是等下一根开盘。
+            stop = p['anchor'] * (1 - d * p['trail_cb'])
+            if d * (c - stop) <= 0:
+                return close(p, stop, t, '移动止损')
     # 收盘后的规则：到期、结构失效、缠论反向点（与 exit_plan 相同条件）
     now_ms = t + ms
     if now_ms - p['opened_ms'] >= p['v7_max_seconds'] * 1000:
@@ -226,6 +239,8 @@ if __name__ == '__main__':
     universe = json.load(open(os.path.join(DATA, 'universe.json')))
     extra = os.path.join(DATA, 'universe_extra.json')
     if os.path.exists(extra): universe += [i for i in json.load(open(extra)) if i not in universe]
+    if CONFIGS[name].get('crypto'):
+        cats = json.load(open(os.path.join(DATA, 'categories.json'))); universe = [i for i in universe if cats.get(i) == '1']
     t0 = time.time()
     if CONFIGS[name].get('gainers'):
         GAINERS = build_gainers(universe)   # fork 后子进程继承
