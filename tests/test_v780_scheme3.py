@@ -100,7 +100,10 @@ class Scheme3Tests(unittest.TestCase):
         with patch.dict(ae.STATE, {'v7_attempted': {}}):
             self.assertTrue(ae._v7_entry_guard('X', pred, 50.0, (bar + H + 60000) / 1000))
             self.assertAlmostEqual(pred['sl'], .25); self.assertAlmostEqual(pred['fast_strategy']['sl_price'], 37.5)
-            self.assertFalse(ae._v7_entry_guard('X', dict(pred), 50.0, (bar + H + 20 * 60000) / 1000))   # 超过 15 分钟
+            p2 = dict(pred, fast_strategy=dict(pred['fast_strategy'], signal_id='Y'))
+            self.assertTrue(ae._v7_entry_guard('X', p2, 50.0, (bar + H + 50 * 60000) / 1000))           # 同一小时内都可进场
+            p3 = dict(pred, fast_strategy=dict(pred['fast_strategy'], signal_id='Z'))
+            self.assertFalse(ae._v7_entry_guard('X', p3, 50.0, (bar + 2 * H + 60000) / 1000))           # 下一根已收盘 → 过期
 
     def test_universe_top100_crypto_by_volume(self):
         rows = [dict(symbol=f'C{i}-USDT-SWAP', pct=-1 if i % 2 else 1, quote_volume=1e9 - i, last=1) for i in range(150)]

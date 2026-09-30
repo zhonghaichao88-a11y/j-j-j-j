@@ -2126,9 +2126,10 @@ def _v7_entry_guard(symbol, pred, price, now):
         return False
     d=1 if pred.get("signal")=="LONG" else -1
     if fs.get("v7_scheme3"):
-        # 方案三：信号K收盘后 15 分钟内按市价进场（回测=下一根开盘）；止盈/止损按下单前最新价重算，比例固定。
-        if now*1000>end+900000+15000 or price<=0:
-            _activity(f"V7 {symbol}：方案三信号已超过15分钟或报价无效，本根不再进场")
+        # 方案三：信号K收盘后、下一根收盘前按市价进场（上面已检查）；回测里晚一整根进场结果几乎不变。
+        # 止盈/止损按下单前最新价重算，比例固定。
+        if price<=0:
+            _activity(f"V7 {symbol}：方案三报价无效，本轮不进场")
             return False
         import alpha_v7_scheme3 as S3
         tp_px,sl_px=S3.targets(price,d); tp=d*(tp_px-price)/price; sl=d*(price-sl_px)/price
@@ -3022,7 +3023,7 @@ def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
         return
     if pred.get("signal")=="FLAT":
         if (pred.get('fast_strategy') or {}).get('engine_version')=='v7':
-            _activity(f"实盘 {symbol}：V7 5分钟收盘策略等待；{pred.get('reason','')}；本轮无订单")
+            _activity(f"实盘 {symbol}：V7 {(pred.get('fast_strategy') or {}).get('v7_base_tf') or str(pred.get('timeframe') or '5m').split(' ')[0]}收盘策略等待；{pred.get('reason','')}；本轮无订单")
             return
         if _is_fast(pred):
             fs=pred.get("fast_strategy") or {}; ctx=pred.get("adaptive_context",{}).get("multi_timeframe",{}) or {}
