@@ -34,12 +34,14 @@ def test(name, frames, btc, periods):
         for fee in (0.001, 0.0015, 0.002):
             T = A.run(frames, btc, fee=fee, t0=ms(a), t1=ms(b), wallet=990)
             out.append(dict(数据=name, 段=label, 手续费=fee, 参数='原版', **A.summary(T, wallet=990))); print(out[-1], flush=True)
+        if ONLY_ORIG: continue
         for kw, lbl in ((dict(roi=0.008), '止盈0.8%'), (dict(roi=0.015), '止盈1.5%'), (dict(roi=0.02), '止盈2%'), (dict(adx_th=20), 'ADX>20'), (dict(adx_th=30), 'ADX>30')):
             T = A.run(frames, btc, fee=0.0015, t0=ms(a), t1=ms(b), wallet=990, **kw)
             out.append(dict(数据=name, 段=label, 手续费=0.0015, 参数=lbl, **A.summary(T, wallet=990))); print(out[-1], flush=True)
 
 
 which = sys.argv[1] if len(sys.argv) > 1 else 'all'
+ONLY_ORIG = 'orig' in sys.argv
 if which in ('all', 'bnx'):
     syms = json.load(open(f'{D}/universe_bnx.json'))
     frames = {s: npz(f'{D}/{s}_bn1h.npz') for s in syms if os.path.exists(f'{D}/{s}_bn1h.npz')}
