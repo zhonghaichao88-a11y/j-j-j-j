@@ -1,0 +1,85 @@
+"""ADXMomentum + BTC 大盘过滤（只做多）的独立回测，规则照 freqtrade 原策略：
+指标（1小时）：ADX(14)、+DI(25)、−DI(25)、MOM(14)（TA-Lib，与原策略同）。
+进场：ADX>25 且 MOM>0 且 +DI>25 且 +DI>−DI，且 BTC 前一根已收盘日线 收盘>EMA50（至少有50根日线）；信号K收盘后下一根开盘价进场。
+出场（每根K线内按 freqtrade 顺序）：止损 −25%（最低价触及）→ 止盈 ROI 1%（按含手续费的净收益 1% 反推价格，最高价触及）→
+      出场信号（ADX>25 且 MOM<0 且 −DI>25 且 +DI<−DI）下一根开盘价出。
+资金：固定每笔 100U，最多同时 10 仓（同一时刻按币列表顺序先到先得），手续费单边 fee。
+用法：run(frames: {币: {ts,open,high,low,close}}, btc_daily: {ts, close}, fee, roi, adx_th, ...) → 交易列表"""
+import numpy as np, pandas as pd, talib
+
+H = 3600000; D = 86400000
+
+
+def btc_up(btc_daily, ts_h):
+    """每个1小时K线开盘时刻可用的 BTC 状态：前一根已收盘日线 close>EMA50。"""
+    c = pd.Series(btc_daily['close']); e = c.ewm(span=50, adjust=False).mean()
+    up = ((c > e) & (np.arange(len(c)) >= 50)).values; dts = np.asarray(btc_daily['ts'])
+    idx = np.searchsorted(dts + D, ts_h, side='right') - 1          # 日线收盘时刻 <= 该小时开盘
+    return np.where(idx >= 0, up[np.clip(idx, 0, None)], False)
+
+
+def signals(f, adx_th=25, di_th=25):
+    h, l, c = (np.asarray(f[k], float) for k in ('high', 'low', 'close'))
+    adx = talib.ADX(h, l, c, 14); pdi = talib.PLUS_DI(h, l, c, 25); mdi = talib.MINUS_DI(h, l, c, 25); mom = talib.MOM(c, 14)
+    ent = (adx > adx_th) & (mom > 0) & (pdi > di_th) & (pdi > mdi)
+    ex = (adx > adx_th) & (mom < 0) & (mdi > di_th) & (pdi < mdi)
+    return np.nan_to_num(ent).astype(bool), np.nan_to_num(ex).astype(bool)
+
+
+def run(frames, btc_daily, fee=0.001, roi=0.01, sl=0.25, adx_th=25, di_th=25, max_open=10, t0=None, t1=None, use_btc=True, stake=100, wallet=1000):
+    pairs = sorted(frames); prep = {}; bal = [float(wallet)]   # 可用余额：亏损后可能不够开满 10 仓（与 freqtrade 一致）
+    for p in pairs:
+        f = frames[p]; ts = np.asarray(f['ts'], np.int64)
+        ent, ex = signals(f, adx_th, di_th)
+        if use_btc: ent = ent & btc_up(btc_daily, ts + H)                # 信号K收盘时刻 = 下一根开盘
+        prep[p] = dict(ts=ts, o=np.asarray(f['open'], float), h=np.asarray(f['high'], float), l=np.asarray(f['low'], float),
+                       ent=ent, ex=ex, pos=None, i=0)
+    allts = np.unique(np.concatenate([prep[p]['ts'] for p in pairs]))
+    if t0: allts = allts[allts >= t0]
+    if t1: allts = allts[allts < t1]
+    index = {p: {int(t): i for i, t in enumerate(prep[p]['ts'])} for p in pairs}
+    open_n = 0; trades = []
+
+    def close(p, P, pos, t, px, why):
+        e = pos['entry']
+        r = (px * (1 - fee) - e * (1 + fee)) / (e * (1 + fee))
+        trades.append(dict(pair=p, t=pos['t'], exit_t=int(t), r=r, why=why))
+        P['pos'] = None; P['last_exit'] = int(t); bal[0] += stake * (1 + r)
+
+    def manage(p, P, i, t):
+        """本根K线内的持仓处理（与 freqtrade 回测顺序一致）；返回是否平仓。"""
+        pos = P['pos']; e = pos['entry']
+        if pos['pending_exit']: close(p, P, pos, t, P['o'][i], '信号'); return True
+        stop = e * (1 - sl)
+        if P['l'][i] <= stop: close(p, P, pos, t, min(stop, P['o'][i]), '止损'); return True
+        tp = e * (1 + fee) * (1 + roi) / (1 - fee)
+        if P['h'][i] >= tp: close(p, P, pos, t, (max(tp, P['o'][i]) if int(t) != pos['t'] else tp), '止盈'); return True
+        if P['ex'][i]: pos['pending_exit'] = True
+        return False
+
+    for t in allts:
+        live = [(p, index[p].get(int(t))) for p in pairs]
+        live = [(p, i) for p, i in live if i is not None]
+        # 1) 先处理已有持仓（腾出仓位）
+        for p, i in live:
+            P = prep[p]
+            if P['pos'] is not None and manage(p, P, i, t): open_n -= 1
+        # 2) 再按币列表顺序开新仓；新仓在本根K线内也要检查止损/止盈
+        for p, i in live:
+            P = prep[p]
+            if P['pos'] is None and i >= 1 and P['ent'][i - 1] and open_n < max_open and (t0 is None or P['ts'][i - 1] >= t0) \
+                    and P.get('last_exit') != int(t) and bal[0] >= stake:
+                P['pos'] = dict(entry=P['o'][i], t=int(t), pending_exit=False); open_n += 1; bal[0] -= stake
+                if manage(p, P, i, t): open_n -= 1
+    for p in pairs:
+        pos = prep[p]['pos']
+        if pos: trades.append(dict(pair=p, t=pos['t'], exit_t=int(prep[p]['ts'][-1]), r=0.0, why='结束'))
+    return pd.DataFrame(trades)
+
+
+def summary(T, stake=100, wallet=1000):
+    if T.empty: return dict(笔数=0)
+    r = T.r.values; pnl = (r * stake); eq = np.cumsum(pnl[np.argsort(T.exit_t.values)])
+    dd = (np.maximum.accumulate(np.r_[0, eq]) - np.r_[0, eq]).max()
+    return dict(笔数=len(r), 胜率=f'{(r > 0).mean() * 100:.0f}%', 每笔=f'{r.mean() * 100:+.3f}%', 收益=f'{pnl.sum() / wallet * 100:+.1f}%',
+                最大回撤=f'{dd / wallet * 100:.1f}%', 最大单亏=f'{r.min() * 100:.1f}%', 止损次数=int((T.why == '止损').sum()))
