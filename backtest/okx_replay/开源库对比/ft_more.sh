@@ -3,7 +3,7 @@
 cd /home/user/ext; export SSL_CERT_FILE=/root/.ccr/ca-bundle.crt
 PAIRS=$(python3 -c "import json;print(' '.join(json.load(open('pairs_more.json'))))")
 mkdir -p ft/bt_more
-for s in ADXMomentum AverageStrategy MultiMa; do
+for s in ADXMomentum AverageStrategy MultiMa FSupertrendStrategy; do
   for tr in "第一年 20240929-20250929" "第二年 20250929-20260930"; do
     set -- $tr; d=ft/bt_more/${s}__$1
     [ -d $d ] && continue
