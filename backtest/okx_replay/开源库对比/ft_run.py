@@ -11,17 +11,25 @@ insts = json.load(open('/home/user/okx_data/universe_5m40.json'))
 PER = {'第一年': '20240929-20250929', '第二年': '20250929-20260930'}
 done = set(os.listdir('ft/bt_results')) if os.path.isdir('ft/bt_results') else set()
 os.makedirs('ft/bt_results', exist_ok=True)
+jobs = []
 for mode, lst in (('spot', spot), ('futures', FUT)):
     pairs = [i.split('-')[0] + ('/USDT' if mode == 'spot' else '/USDT:USDT') for i in insts]
     cfg = 'ft/config.json' if mode == 'spot' else 'ft/config_futures.json'
     for s in lst:
         for pn, tr in PER.items():
-            tag = f'{s}__{pn}'
-            if tag in done: continue
-            d = f'ft/bt_results/{tag}'; os.makedirs(d + '.tmp', exist_ok=True)
-            r = subprocess.run(['nice', '-n', '5', 'ftvenv/bin/freqtrade', 'backtesting', '-c', cfg, '--userdir', 'ft', '--strategy', s,
-                                '--timerange', tr, '--export', 'trades', '--backtest-directory', d + '.tmp', '-p', *pairs],
-                               capture_output=True, text=True, env=env)
-            open(d + '.tmp/log.txt', 'w').write(r.stdout[-20000:] + r.stderr[-20000:])
-            os.rename(d + '.tmp', d); print(tag, r.returncode, flush=True)
+            if f'{s}__{pn}' not in done: jobs.append((s, pn, tr, cfg, pairs))
+
+
+def one(job):
+    s, pn, tr, cfg, pairs = job; tag = f'{s}__{pn}'
+    d = f'ft/bt_results/{tag}'; os.makedirs(d + '.tmp', exist_ok=True)
+    r = subprocess.run(['nice', '-n', '5', 'ftvenv/bin/freqtrade', 'backtesting', '-c', cfg, '--userdir', 'ft', '--strategy', s,
+                        '--timerange', tr, '--export', 'trades', '--backtest-directory', d + '.tmp', '-p', *pairs],
+                       capture_output=True, text=True, env=env)
+    open(d + '.tmp/log.txt', 'w').write(r.stdout[-20000:] + r.stderr[-20000:])
+    os.rename(d + '.tmp', d); print(tag, r.returncode, flush=True)
+
+
+from concurrent.futures import ThreadPoolExecutor
+with ThreadPoolExecutor(int(os.environ.get('FT_PROCS', 4))) as ex: list(ex.map(one, jobs))
 print('DONE', flush=True)
