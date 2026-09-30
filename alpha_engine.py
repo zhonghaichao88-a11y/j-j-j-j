@@ -2224,6 +2224,13 @@ def _scheme2_action(pred, p):
     return dict(act),T
 
 
+def _scheme2_leg_notional(equity,free,sl_pct,cfg):
+    """方案二每一批的名义金额：权益 × 单笔风险 × 1/3 ÷ 止损距离；不超过最大名义比例和可用保证金×杠杆×0.8。"""
+    from alpha_v7_scheme2 import LEG_RISK
+    notional=float(equity)*float(cfg["risk_pct"])*LEG_RISK/max(float(sl_pct),0.002)
+    return max(0.0,min(notional,float(equity)*float(cfg.get("max_notional_pct",1.0)),float(free)*max(float(cfg.get("leverage",1)),1)*0.8))
+
+
 def _scheme2_protect(symbol,p,stop):
     """把保护换成交易所整仓止损单（closeFraction=1，加仓/减仓后不用改数量）；已是整仓单则只在止损价变化时改价。"""
     side=p["side"]
@@ -2300,8 +2307,7 @@ def _live_manage_scheme2(symbol,p,pred,cfg):
             if abs(px-ref)>float(fast_v7.PARAMS["max_chase_r"])*risk: raise RuntimeError("当前价偏离收盘触发位，放弃追价")
             equity,free=_live_account_snapshot(max_age=0)
             if equity<=0 or free<=0: raise RuntimeError("权益/可用余额不足")
-            from alpha_v7_scheme2 import LEG_RISK
-            notional=min(equity*float(cfg["risk_pct"])*LEG_RISK/max(sl_pct,0.002),equity*float(cfg.get("max_notional_pct",1.0)))
+            notional=_scheme2_leg_notional(equity,free,sl_pct,cfg)
             _scheme2_protect(symbol,p,stop)             # 先挂好整仓保护，再加仓
             r=alpha_live.add_to_position(symbol,side,notional,int(cfg["leverage"]))
         except Exception as exc:
@@ -2341,8 +2347,7 @@ def _paper_manage_scheme2(symbol,p,pred,cfg,px,now):
         elif typ=="add" and p.get("s2_sold1") is None:
             stop=float(act["stop"]); sl_pct=d*(px-stop)/px
             if sl_pct>0:
-                from alpha_v7_scheme2 import LEG_RISK
-                add=float(STATE["balance"])*float(cfg["risk_pct"])*LEG_RISK/max(sl_pct,0.002)
+                add=_scheme2_leg_notional(STATE["balance"],STATE["balance"],sl_pct,cfg)
                 with LOCK:
                     p["entry"]=(float(p["entry"])*float(p["notional"])+px*add)/(float(p["notional"])+add)
                     p["notional"]=float(p["notional"])+add; p["sl"]=stop
@@ -2597,7 +2602,8 @@ def _paper_step(symbol,pred,cfg):
                     fast_entry_mult=float(pred.get("fast_entry_size_multiplier",1.0) or 1.0) if _is_fast(pred) else 1.0
                     fast_entry_mult=max(0.25,min(1.0,fast_entry_mult))
                     risk_notional*=fast_entry_mult
-                    risk_notional*=float((pred.get("fast_strategy") or {}).get("v7_risk_scale") or 1.0)   # 方案二每批 1/3
+                    if (pred.get("fast_strategy") or {}).get("v7_scheme2"):   # 方案二每批：单笔风险×1/3÷止损距离
+                        risk_notional=_scheme2_leg_notional(STATE["balance"],STATE["balance"],float(dyn["sl"]),cfg)
                     if _is_fast(pred) and fast_entry_mult < 0.999:
                         _activity(f"模拟盘 {symbol}：FAST入场强度={pred.get('signal_tier','一般')}；该级别降仓系数={fast_entry_mult:.2f}，只降低仓位")
                     notional=max(10,min(STATE["balance"]*cfg["max_notional_pct"],risk_notional))
@@ -3091,8 +3097,12 @@ def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
         if pred.get("signal_tier")=="TRIAL": requested*=0.35
         # 交易复盘只影响本次风险预算的软系数；硬风控、方向和执行规则保持原样。
         requested*=review_mult
-        # 方案二分批建仓：每一批只用单笔风险的 1/3（二买、类二买各一批）。
-        requested*=float((pred.get("fast_strategy") or {}).get("v7_risk_scale") or 1.0)
+        # 方案二分批建仓：每一批 = 单笔风险 × 1/3 ÷ 止损距离（与加仓同一算法），不受“风险预算”开关与信心系数影响。
+        _fs2=pred.get("fast_strategy") or {}
+        if _fs2.get("v7_scheme2"):
+            requested=_scheme2_leg_notional(equity,free,float(pred["sl"]),cfg)
+        else:
+            requested*=float(_fs2.get("v7_risk_scale") or 1.0)
         if requested<=0:
             _activity(f"实盘 {symbol}：风险预算计算后下单金额为0，跳过")
             _activity(f"实盘 {symbol}：FINAL       → NO ORDER")

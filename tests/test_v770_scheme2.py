@@ -238,3 +238,13 @@ class CryptoOnlyTests(unittest.TestCase):
                 patch.object(tu.okx_client, 'fetch_swap_tickers', lambda: rows), patch.object(tu, '_scheme2_on', lambda: True):
             tu._refresh()
             self.assertEqual(tu.S['symbols'], ['B-USDT-SWAP'])
+
+
+class LegSizingTests(unittest.TestCase):
+    def test_leg_notional_is_risk_based_and_capped(self):
+        cfg = dict(risk_pct=0.01, leverage=3, max_notional_pct=1.0)
+        # 权益 1000、单笔风险 1%、止损 2% → 每批 1000×1%×1/3÷2% ≈ 166.7
+        self.assertAlmostEqual(ae._scheme2_leg_notional(1000, 1000, 0.02, cfg), 1000 * 0.01 / 3 / 0.02)
+        # 止损很近时受最大名义比例和保证金限制
+        self.assertAlmostEqual(ae._scheme2_leg_notional(1000, 100, 0.0001, cfg), 100 * 3 * 0.8)
+        self.assertAlmostEqual(ae._scheme2_leg_notional(1000, 5000, 0.0001, cfg), 1000.0)
