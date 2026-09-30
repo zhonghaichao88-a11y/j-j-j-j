@@ -32,8 +32,8 @@ out = []
 def test(name, frames, btc, periods):
     for label, a, b in periods:
         for fee in (0.001, 0.0015, 0.002):
-            T = A.run(frames, btc, fee=fee, t0=ms(a), t1=ms(b), wallet=990)
-            out.append(dict(数据=name, 段=label, 手续费=fee, 参数='原版', **A.summary(T, wallet=990))); print(out[-1], flush=True)
+            T = A.run(frames, btc, fee=fee, t0=ms(a), t1=ms(b), wallet=990, short=LS)
+            out.append(dict(数据=name, 段=label, 手续费=fee, 参数='多空原版' if LS else '原版', **A.summary(T, wallet=990))); print(out[-1], flush=True)
         if ONLY_ORIG: continue
         for kw, lbl in ((dict(roi=0.008), '止盈0.8%'), (dict(roi=0.015), '止盈1.5%'), (dict(roi=0.02), '止盈2%'), (dict(adx_th=20), 'ADX>20'), (dict(adx_th=30), 'ADX>30')):
             T = A.run(frames, btc, fee=0.0015, t0=ms(a), t1=ms(b), wallet=990, **kw)
@@ -42,6 +42,7 @@ def test(name, frames, btc, periods):
 
 which = sys.argv[1] if len(sys.argv) > 1 else 'all'
 ONLY_ORIG = 'orig' in sys.argv
+LS = 'ls' in sys.argv
 if which in ('all', 'bnx'):
     syms = json.load(open(f'{D}/universe_bnx.json'))
     frames = {s: npz(f'{D}/{s}_bn1h.npz') for s in syms if os.path.exists(f'{D}/{s}_bn1h.npz')}
@@ -51,5 +52,5 @@ if which in ('all', 'old'):
     frames = {s: npz(f'{D}/{s}_bnold1h.npz') for s in syms if os.path.exists(f'{D}/{s}_bnold1h.npz')}
     btc = daily(frames['BTCUSDT'])
     test('更早年份(币安)', frames, btc, (('2022年', '2022-01-01', '2023-01-01'), ('2023年', '2023-01-01', '2024-01-01'), ('2024年前三季', '2024-01-01', '2024-10-01')))
-R = pd.DataFrame(out); R.to_csv(f'adx_more_{which}.csv', index=False)
+R = pd.DataFrame(out); R.to_csv(f'adx_more_{which}{"_ls" if LS else ""}.csv', index=False)
 pd.set_option('display.width', 250); print(R.to_string(index=False))
