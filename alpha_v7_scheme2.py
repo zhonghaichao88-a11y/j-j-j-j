@@ -27,6 +27,11 @@ STATE_FILE = Path(os.getenv('ALPHA_V7_SCHEME2_STATE', str(Path(__file__).with_na
 BREADTH_MIN = 0.5
 LEG_RISK = 1 / 3
 TP_R = 20.0              # 交易所保护止盈挂在 20R 外（原文无固定止盈，只作兜底）
+# V7.7.3：首次处理一个币时，用更长的历史回放建立一买状态。回测里一买到二买中位数约 3 周，
+# 只回放 1500 根 5 分钟（约 5 天）会漏掉大部分二买。
+BOOT_5M = 17280          # 60 天 5 分钟
+BOOT_30M = 3000          # 约 62 天 30 分钟
+STATE_VER = 2
 _LOCK = threading.RLock()
 
 
@@ -122,7 +127,7 @@ def div_ok(c):
 # ---------------------------------------------------------------- 状态
 
 def _new_state():
-    return dict(last_T=0, p1={'1': None, '-1': None}, p1T={'1': 0, '-1': 0}, n2={'1': 0, '-1': 0},
+    return dict(ver=STATE_VER, last_T=0, p1={'1': None, '-1': None}, p1T={'1': 0, '-1': 0}, n2={'1': 0, '-1': 0},
                 got3={'1': False, '-1': False}, turn={'1': [], '-1': []}, s2b={'1': False, '-1': False})
 
 
@@ -145,6 +150,18 @@ def _save():
         tmp.write_text(json.dumps(_STATES, ensure_ascii=False), encoding='utf-8'); os.replace(tmp, STATE_FILE)
     except OSError:
         pass
+
+
+def _stale(X, position):
+    """旧版（只回放约 5 天）建立的状态：无持仓时丢弃，用长历史重新回放。有持仓的等平仓后再重建。"""
+    return bool(X) and int(X.get('ver') or 1) < STATE_VER and not position
+
+
+def needs_boot(symbol, position=None):
+    """该币是否需要用长历史回放（首次处理，或旧版状态且当前无持仓）。"""
+    with _LOCK:
+        X = _load().get(symbol)
+    return not X or not int(X.get('last_T') or 0) or _stale(X, position)
 
 
 def reset_state(symbol=None):
@@ -209,12 +226,13 @@ def evaluate(symbol, frames, position=None, breadth=None, now_ms=None):
     with _LOCK:
         cached = _LAST.get(symbol)
         X0 = _load().get(symbol) or {}
-        if cached and cached['T'] == latest_T and int(X0.get('last_T') or 0) >= latest_T:
+        if cached and cached['T'] == latest_T and int(X0.get('last_T') or 0) >= latest_T and not _stale(X0, position):
             return dict(cached)                     # 同一根K线内重复扫描：直接用本根的结果，不重算
     lv = {tf: _level(symbol, tf, frames[tf]) for tf in TFS}
     ts5 = lv['5m'].ts
     with _LOCK:
         states = _load(); X = states.get(symbol) or _new_state()
+        if _stale(X, position): X = _new_state()
         start_T = int(X.get('last_T') or 0)
         first = start_T == 0
         idxs = [i for i in range(len(ts5)) if int(ts5[i]) + M5 > start_T]

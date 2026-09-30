@@ -2119,7 +2119,7 @@ def prefetch_v7(symbols: List[str]) -> Dict[str,Any]:
             bundle(okx_client._exchange,cs,base_tf=bt,multi=need_mtf,now_ms=now_ms)
             if s2:                     # 方案二还要 30 分钟与日线
                 from alpha_v7_feed import anchored_frame
-                for tf in ('30m','1d'):anchored_frame(okx_client._exchange,cs,tf,1500,now_ms)
+                for tf,n in (('30m',3000),('1d',1500)):anchored_frame(okx_client._exchange,cs,tf,n,now_ms)
         except Exception as exc:errors[s]=str(exc)
     with ThreadPoolExecutor(max_workers=8) as pool:list(pool.map(one,list(symbols)))
     if v7p.get('chan_scheme1'):
@@ -2145,16 +2145,7 @@ def _scheme2_breadth(now_ms):
 def _scheme2_eval(symbol,cs,frames,now_ms):
     """方案二：取 30 分钟/日线（固定锚点、只读公开K线）、大盘宽度、本系统持仓，逐根处理新收盘的 5 分钟K线。"""
     import alpha_v7_scheme2 as s2
-    from alpha_v7_feed import anchored_frame
-    try:
-        fr={'5m':frames['5m'],
-            '30m':anchored_frame(okx_client._exchange,cs,'30m',1500,now_ms),
-            '1d':anchored_frame(okx_client._exchange,cs,'1d',1500,now_ms)}
-    except Exception as exc:
-        return {'error':'30分钟/日线K线读取失败：'+str(exc)[:120],'entry':None,'action':None,'notes':[]}
-    try:breadth=_scheme2_breadth(now_ms)
-    except Exception as exc:
-        breadth=None;logger.warning(f'[V7 方案二] 大盘宽度计算失败：{exc}')
+    from alpha_v7_feed import anchored_frame,frame as v7_frame
     position=None
     try:
         import sys as _sys
@@ -2164,6 +2155,24 @@ def _scheme2_eval(symbol,cs,frames,now_ms):
         elif p:return {'error':'该币已有其他策略的持仓，方案二不处理','entry':None,'action':None,'notes':[]}
     except Exception:
         pass
+    try:
+        fr={'5m':frames['5m'],
+            '30m':anchored_frame(okx_client._exchange,cs,'30m',s2.BOOT_30M,now_ms),
+            '1d':anchored_frame(okx_client._exchange,cs,'1d',1500,now_ms)}
+    except Exception as exc:
+        return {'error':'30分钟/日线K线读取失败：'+str(exc)[:120],'entry':None,'action':None,'notes':[]}
+    if s2.needs_boot(symbol,position):
+        # V7.7.3：首次处理该币，用 60 天 5 分钟 + 约 62 天 30 分钟回放建立一买状态（只回放，不下单）
+        try:
+            b5=v7_frame(okx_client._exchange,cs,'5m',s2.BOOT_5M,now_ms)
+            b30=v7_frame(okx_client._exchange,cs,'30m',s2.BOOT_30M,now_ms)
+            if len(b5['ts'])>len(fr['5m']['ts']) and int(b5['ts'][-1])==int(fr['5m']['ts'][-1]):fr['5m']=b5
+            if len(b30['ts'])>len(fr['30m']['ts']) and int(b30['ts'][-1])==int(fr['30m']['ts'][-1]):fr['30m']=b30
+        except Exception as exc:
+            logger.warning(f'[V7 方案二] {symbol} 长历史回放读取失败，改用现有K线：{exc}')
+    try:breadth=_scheme2_breadth(now_ms)
+    except Exception as exc:
+        breadth=None;logger.warning(f'[V7 方案二] 大盘宽度计算失败：{exc}')
     try:
         res=s2.evaluate(symbol,fr,position,breadth,now_ms)
     except Exception as exc:
