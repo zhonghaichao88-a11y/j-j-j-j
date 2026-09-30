@@ -7,6 +7,8 @@
   "无大级别"变体只用 30分钟 + 下级。
 其余规则与第三版相同：一买只认趋势背驰（MACD面积 + 黄白线回抽0轴 + 斜率变小）、区间套早进场的二买/类二买、三买、
 分批各 1/3、一卖卖一半、二卖/三卖/大级别卖点清仓、一买低点止损、只有三买时回中枢止损、中枢9段升级、小转大。
+实战补充（搜集的实战做法，变体）：陆续卖（进入本级别背驰段先卖 1/3、宁早勿迟）、只做二买/类二买（最安全）、
+中枢位置（做多在中枢中轴下方、做空在上方）。
 中枢震荡做差价（变体）、只做多（变体，原文A股只能做多）、同级别分解（30分钟笔，单独一套）。
 不用移动止损、不看 BTC、不加均线过滤、不设最长持仓（原文：没有卖点就持有）。止损在最细的周期上逐根检查。
 用法: python3 yuanwen4.py 5m    （只用 5m2y 数据：日线/4h/30m/5m，三层）
@@ -25,12 +27,17 @@ MSOF = {'1m': 60000, '5m': 300000, '30m': 1800000, '4h': 14400000, '1d': 8640000
 V5 = {'三层_日线_30m_5m': dict(big='1d', conf='5m', mid=None, loose=False),
       '三层_日线_30m_5m_做差价': dict(big='1d', conf='5m', mid=None, loose=False, tday=True),
       '三层_日线_30m_5m_只做多': dict(big='1d', conf='5m', mid=None, loose=False, long_only=True),
+      '三层_日线_30m_5m_实战陆续卖': dict(big='1d', conf='5m', mid=None, loose=False, gradual=True),
+      '三层_日线_30m_5m_实战只做二买': dict(big='1d', conf='5m', mid=None, loose=False, only2=True),
+      '三层_日线_30m_5m_实战中枢位置': dict(big='1d', conf='5m', mid=None, loose=False, zpos=True),
+      '三层_日线_30m_5m_实战全部': dict(big='1d', conf='5m', mid=None, loose=False, gradual=True, only2=True, zpos=True),
       '三层_4h_30m_5m': dict(big='4h', conf='5m', mid=None, loose=False),
       '二层_30m_5m': dict(big=None, conf='5m', mid=None, loose=False),
       '含盘背_三层_日线_30m_5m': dict(big='1d', conf='5m', mid=None, loose=True)}
 V1 = {'四层_日线_30m_5m_1m': dict(big='1d', conf='1m', mid='5m', loose=False),
       '四层_日线_30m_5m_1m_做差价': dict(big='1d', conf='1m', mid='5m', loose=False, tday=True),
       '四层_日线_30m_5m_1m_只做多': dict(big='1d', conf='1m', mid='5m', loose=False, long_only=True),
+      '四层_日线_30m_5m_1m_实战全部': dict(big='1d', conf='1m', mid='5m', loose=False, gradual=True, only2=True, zpos=True),
       '四层_4h_30m_5m_1m': dict(big='4h', conf='1m', mid='5m', loose=False),
       '三层_30m_5m_1m': dict(big=None, conf='1m', mid='5m', loose=False),
       '含盘背_四层_日线_30m_5m_1m': dict(big='1d', conf='1m', mid='5m', loose=True)}
@@ -150,6 +157,8 @@ def one(inst):
                 elif X['sold1'] is None and ((ss and c1 and c1[1] == -d and div_ok(c1, V['loose']) and (not c1[3]['upgraded'] or big_ok))
                                              or any(e.get('kind') in kinds for e in confd)): act = '1卖'
                 anysub = {dd: [e for e in sub if e['side'] == dd and e.get('kind') in ('T1', 'T1P')] for dd in (1, -1)}
+                if act is None and V.get('gradual') and not X.get('g1') and c1 and c1[1] == -d and div_ok(c1, V['loose']):
+                    X['g1'] = True; P.sell(c[i], 1 / 3)       # 实战：一进入本级别背驰段就先卖 1/3（宁早勿迟），之后不再加仓
                 if act == '1卖':
                     P.sell(c[i], 0.5); X['sold1'] = ss[0]['price'] if ss else c[i]
                 elif act:
@@ -162,7 +171,7 @@ def one(inst):
             for d in (1, -1):
                 if V.get('long_only') and d == -1: continue
                 if not SB[d] or not mid_ok(d): continue
-                if P is not None and (P.d != d or X['sold1'] is not None): continue
+                if P is not None and (P.d != d or X['sold1'] is not None or X.get('g1')): continue
                 e0 = SB[d][0]; stage = None; stop = None
                 big_ok = c2 is not None and c2[1] == d and div_ok(c2, V['loose'])
                 if c1 and c1[1] == d and div_ok(c1, V['loose']) and (not c1[3]['upgraded'] or big_ok) and (not V['big'] or big_ok):
@@ -174,12 +183,18 @@ def one(inst):
                     if last is not None and last['side'] == d and main.L.known[nn - 1] > X['p1T'][d] and d * (e0['invalidation'] - (last['high'] if d == 1 else last['low'])) < 0:
                         stage = '2' if X['n2'][d] == 0 else 's'; stop = X['p1'][d]; X['n2'][d] += 1
                 if stage is None: continue
+                if V.get('only2') and stage in '13': continue          # 实战：二买/类二买最安全，只做这两类
+                if V.get('zpos') and stage in '2s':
+                    zs = [z for z in main.L.zones if z['known_at'] + main.ms <= T]
+                    if zs:
+                        mz = (zs[-1]['low'] + zs[-1]['high']) / 2
+                        if d * (c[i] - mz) > 0: continue              # 实战：做多在中枢中轴下方，做空在上方
                 ORD = {'1': 1, '2': 2, 's': 2.5, '3': 3}
                 if P is not None and (ORD[stage] < max(ORD[x] for x in P.stages) or (stage != 's' and stage in P.stages)): continue
                 risk = d * (c[i] - stop) / c[i]
                 if risk <= 0.0005: continue
                 if P is None:
-                    P = X['P'] = Pos(d); P.start = T; P.stop = stop; X['sold1'] = None; X['park'] = 0.0
+                    P = X['P'] = Pos(d); P.start = T; P.stop = stop; X['sold1'] = None; X['park'] = 0.0; X['g1'] = False
                     P.small2big = bool(X.get('s2b', {}).get(d)) and stage in '2s3'
                 elif stage in '12s':
                     P.stop = X['p1'][d] if X['p1'][d] is not None else P.stop
