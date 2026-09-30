@@ -39,6 +39,8 @@ CONFIGS = {
     # 拆分测试：移动止损按固定价差（入场ATR×2）回撤，而不是按比例；只跑加密币（与研究同一批）
     'scheme1_ib':      dict(tf='15m', params=dict(chan_scheme1=1), trail=True, btc=True, intrabar=True, crypto=True),
     'scheme1_old_ib':  dict(tf='15m', params=dict(chan_scheme1=1), trail=True, btc=True, suffix='15m_old', intrabar=True, crypto=True),
+    'scheme1_t':      dict(tf='15m', params=dict(chan_scheme1=1), trail=True, btc=True, intrabar=True, crypto=True, tday=True),
+    'scheme1_old_t':  dict(tf='15m', params=dict(chan_scheme1=1), trail=True, btc=True, suffix='15m_old', intrabar=True, crypto=True, tday=True),
     'scheme1_abs':      dict(tf='15m', params=dict(chan_scheme1=1), trail=True, btc=True, trail_abs=True, crypto=True),
     'scheme1_old_abs':  dict(tf='15m', params=dict(chan_scheme1=1), trail=True, btc=True, suffix='15m_old', trail_abs=True, crypto=True),
 }
@@ -155,7 +157,14 @@ def open_position(inst, out, F, j, ms, cfg):
 
 
 def close(p, px, t, reason):
-    d = p['d']; gross = d * (px - p['entry'])
+    d = p['d']
+    if 'size' in p:   # 做差价：已实现部分 + 剩余仓位；成本按实际成交量（单边 = 往返成本/2）
+        gross = p['realized'] + p['size'] * d * (px - p['avg'])
+        cost = p['cost'] / 2 * (p['turn'] + p['size'])
+        return dict(symbol=p['symbol'], label=p['label'], kind=p['kind'], side=p['side'], entry=p['entry'], exit=px,
+                    opened_ms=p['opened_ms'], closed_ms=t, reason=reason, trades_t=p['tcount'],
+                    r=(gross - cost * p['entry']) / p['risk'], ret=gross / p['entry'] - cost, risk_pct=p['risk'] / p['entry'])
+    gross = d * (px - p['entry'])
     return dict(symbol=p['symbol'], label=p['label'], kind=p['kind'], side=p['side'], entry=p['entry'], exit=px,
                 opened_ms=p['opened_ms'], closed_ms=t, reason=reason,
                 r=(gross - p['cost'] * p['entry']) / p['risk'], ret=gross / p['entry'] - p['cost'],
@@ -191,6 +200,19 @@ def manage(p, F, j, result, params, cfg, ms):
         return close(p, c, now_ms, '持仓到期')
     if (p.get('v7_exit_config') or {}).get('close_confirm') and d * (c - p['v7_strategy_stop']) < 0:
         return close(p, c, now_ms, '收盘确认结构失效')
+    if cfg.get('tday'):
+        # 中枢震荡做差价：持仓中出现反向笔级别买卖点（任意类型）减半；减半后出现同向买卖点再买回。
+        for e in result['signals']:
+            if e['known_at'] != t: continue
+            st = result['signal_status'].get(e['id'], {})
+            if st.get('invalidated_at') is not None and st['invalidated_at'] <= t: continue
+            if 'size' not in p:
+                p.update(size=1.0, avg=p['entry'], realized=0.0, turn=1.0, tcount=0)
+            if e['side'] == -d and p['size'] == 1.0 and d * (c - p['avg']) > 0:
+                p['realized'] += 0.5 * d * (c - p['avg']); p['size'] = 0.5; p['turn'] += 0.5; p['tcount'] += 1
+            elif e['side'] == d and p['size'] == 0.5:
+                p['avg'] = (p['avg'] + c) / 2; p['size'] = 1.0; p['turn'] += 0.5
+            break
     cc = p.get('v7_chan_config') or {}
     if cc.get('chan_exit_opposite'):
         ev = select_signal(result, t, {**V.PARAMS, **cc}, ms)
