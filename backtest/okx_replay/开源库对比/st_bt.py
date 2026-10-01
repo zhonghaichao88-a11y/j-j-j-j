@@ -107,6 +107,27 @@ def run(frames, btc_daily, fee=0.001, max_open=10, t0=None, t1=None, stake=100, 
     for t in allts:
         live = [(p, index[p].get(int(t))) for p in pairs]
         live = [(p, i) for p, i in live if i is not None]
+        if A.STRICT[0]:
+            # 严格口径（无前视）：开盘时只有“开盘就平掉的仓”能腾出位置
+            for p, i in live:
+                P = prep[p]
+                if P['pos'] is not None and P['pos']['pending_exit']:
+                    close(p, P, P['pos'], t, P['o'][i], '信号'); open_n -= 1
+            slots = max_open - open_n; new = []
+            for p, i in live:
+                P = prep[p]; kk = i - 1 - delay
+                if slots > 0 and P['pos'] is None and kk >= 0 and (P['ent'][kk] or P['sent'][kk]) and (t0 is None or P['ts'][kk] >= t0) \
+                        and P.get('last_exit') != int(t) and bal[0] >= stake:
+                    new.append((p, i)); slots -= 1
+            for p, i in live:
+                P = prep[p]
+                if P['pos'] is not None and manage(p, P, i, t): open_n -= 1
+            for p, i in new:
+                P = prep[p]; kk = i - 1 - delay; d = 1 if P['ent'][kk] else -1; e = P['o'][i]
+                P['pos'] = dict(entry=e, t=int(t), pending_exit=False, d=d, k=0, hwm=e, lwm=e, stop=e * (1 - SL) if d == 1 else e * (1 + SL))
+                P['pos']['stop0'] = P['pos']['stop']; open_n += 1; bal[0] -= stake
+                if manage(p, P, i, t): open_n -= 1
+            continue
         for p, i in live:
             P = prep[p]
             if P['pos'] is not None and manage(p, P, i, t): open_n -= 1
