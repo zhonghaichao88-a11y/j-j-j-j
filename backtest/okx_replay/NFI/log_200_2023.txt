@@ -1,0 +1,482 @@
+2026-10-01 18:29:36,286 - freqtrade - INFO - freqtrade 2026.9
+2026-10-01 18:29:36,464 - numexpr.utils - INFO - NumExpr defaulting to 4 threads.
+2026-10-01 18:29:38,352 - freqtrade.configuration.load_config - INFO - Using config: nfi/config_200part.json ...
+2026-10-01 18:29:38,355 - freqtrade.loggers - INFO - Enabling colorized output.
+2026-10-01 18:29:38,355 - freqtrade.loggers - INFO - Logfile configured
+2026-10-01 18:29:38,356 - freqtrade.loggers - INFO - Verbosity set to 0
+2026-10-01 18:29:38,356 - freqtrade.configuration.configuration - INFO - Using max_open_trades: 6 ...
+2026-10-01 18:29:38,356 - freqtrade.configuration.configuration - INFO - Parameter --timerange detected: 20230101-20240101 ...
+2026-10-01 18:29:38,357 - freqtrade.configuration.configuration - INFO - Using user-data directory: ft ...
+2026-10-01 18:29:38,358 - freqtrade.configuration.configuration - INFO - Using data directory: ft/data_part/okx ...
+2026-10-01 18:29:38,358 - freqtrade.configuration.configuration - INFO - Using nfi/u200_2023 as backtest directory ...
+2026-10-01 18:29:38,359 - freqtrade.configuration.configuration - INFO - Parameter --export detected: trades ...
+2026-10-01 18:29:38,359 - freqtrade.configuration.configuration - INFO - Parameter --cache=day detected ...
+2026-10-01 18:29:38,359 - freqtrade.configuration.configuration - INFO - Filter trades by timerange: 20230101-20240101
+2026-10-01 18:29:38,360 - freqtrade.exchange.check_exchange - INFO - Checking exchange...
+2026-10-01 18:29:38,366 - freqtrade.exchange.check_exchange - INFO - Exchange "okx" is officially supported by the Freqtrade development team.
+2026-10-01 18:29:38,367 - freqtrade.configuration.configuration - INFO - Using pairlist from configuration.
+2026-10-01 18:29:38,367 - freqtrade.configuration.config_validation - INFO - Validating configuration ...
+2026-10-01 18:29:38,369 - freqtrade.commands.optimize_commands - INFO - Starting freqtrade in Backtesting mode
+2026-10-01 18:29:38,369 - freqtrade.exchange.exchange - INFO - Instance is running with dry_run enabled
+2026-10-01 18:29:38,370 - freqtrade.exchange.exchange - INFO - Using CCXT 4.5.84
+2026-10-01 18:29:38,370 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'options': {'defaultType': 'swap'}, 'httpsProxy': 'http://127.0.0.1:39397'}
+2026-10-01 18:29:38,373 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'options': {'defaultType': 'swap'}, 'httpsProxy': 'http://127.0.0.1:39397'}
+2026-10-01 18:29:38,375 - freqtrade.exchange.exchange - INFO - Using Exchange "OKX"
+2026-10-01 18:29:39,977 - freqtrade.exchange.exchange - INFO - Using cached leverage_tiers.
+2026-10-01 18:29:39,981 - freqtrade.exchange.exchange - INFO - Done initializing 480 markets.
+2026-10-01 18:29:40,020 - freqtrade.resolvers.exchange_resolver - INFO - Using resolved exchange class 'Okx' ...
+2026-10-01 18:29:40,063 - freqtrade.resolvers.iresolver - INFO - Using resolved strategy NostalgiaForInfinityX7 from '/home/user/ext/ft/strategies/NostalgiaForInfinityX7.py'...
+2026-10-01 18:29:40,063 - freqtrade.strategy.hyper - INFO - Found no parameter file.
+2026-10-01 18:29:40,065 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_currency' with value from the configuration: USDT.
+2026-10-01 18:29:40,065 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_amount' with value from the configuration: unlimited.
+2026-10-01 18:29:40,065 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'max_open_trades' with value from the configuration: 6.
+2026-10-01 18:29:40,066 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using minimal_roi: {}
+2026-10-01 18:29:40,066 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using timeframe: 5m
+2026-10-01 18:29:40,066 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stoploss: -0.99
+2026-10-01 18:29:40,066 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop: False
+2026-10-01 18:29:40,066 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive: 0.01
+2026-10-01 18:29:40,067 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive_offset: 0.03
+2026-10-01 18:29:40,067 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_only_offset_is_reached: True
+2026-10-01 18:29:40,067 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_custom_stoploss: False
+2026-10-01 18:29:40,067 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using process_only_new_candles: True
+2026-10-01 18:29:40,068 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_types: {'entry': 'limit', 'exit': 'limit', 'stoploss': 'limit', 'stoploss_on_exchange': False, 
+'stoploss_on_exchange_interval': 60}
+2026-10-01 18:29:40,068 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_time_in_force: {'entry': 'GTC', 'exit': 'GTC'}
+2026-10-01 18:29:40,068 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_currency: USDT
+2026-10-01 18:29:40,069 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_amount: unlimited
+2026-10-01 18:29:40,069 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using startup_candle_count: 480
+2026-10-01 18:29:40,069 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_exit_signal: True
+2026-10-01 18:29:40,069 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_only: False
+2026-10-01 18:29:40,069 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_roi_if_entry_signal: True
+2026-10-01 18:29:40,070 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_offset: 0.0
+2026-10-01 18:29:40,070 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using disable_dataframe_checks: False
+2026-10-01 18:29:40,070 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_buying_expired_candle_after: 0
+2026-10-01 18:29:40,070 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using position_adjustment_enable: True
+2026-10-01 18:29:40,071 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_entry_position_adjustment: -1
+2026-10-01 18:29:40,071 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_open_trades: 6
+2026-10-01 18:29:40,071 - freqtrade.configuration.config_validation - INFO - Validating configuration ...
+2026-10-01 18:29:40,076 - freqtrade.resolvers.iresolver - INFO - Using resolved pairlist StaticPairList from 
+'/home/user/ext/ftvenv/lib/python3.11/site-packages/freqtrade/plugins/pairlist/StaticPairList.py'...
+2026-10-01 18:29:40,086 - freqtrade.optimize.backtesting - INFO - Using fee 0.1000% from config.
+2026-10-01 18:29:40,087 - freqtrade.exchange.exchange - WARNING - Using 2 calls to get OHLCV. This can result in slower operations for the bot. Please check if you really need 480 candles for your 
+strategy.
+2026-10-01 18:29:40,336 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ARB/USDT:USDT, futures, 5m, data starts at 2023-03-23 14:00:00
+2026-10-01 18:29:40,768 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for DASH/USDT:USDT, futures, 5m found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:40,980 - freqtrade.data.history.datahandlers.idatahandler - WARNING - HBAR/USDT:USDT, futures, 5m, data starts at 2023-08-16 05:55:00
+2026-10-01 18:29:41,219 - freqtrade.optimize.backtesting - INFO - Loading data from 2022-12-30 08:00:00 up to 2024-01-01 00:00:00 (366 days).
+2026-10-01 18:29:41,232 - freqtrade.data.history.datahandlers.idatahandler - WARNING - AAVE/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,235 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for AAVE/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,245 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ADA/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,246 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ADA/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,257 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ALGO/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,258 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ALGO/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,268 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ARB/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,270 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ARB/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,285 - freqtrade.data.history.datahandlers.idatahandler - WARNING - AVAX/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,287 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for AVAX/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,300 - freqtrade.data.history.datahandlers.idatahandler - WARNING - BCH/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,301 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for BCH/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,311 - freqtrade.data.history.datahandlers.idatahandler - WARNING - BNB/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,312 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for BNB/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,323 - freqtrade.data.history.datahandlers.idatahandler - WARNING - BTC/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,325 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for BTC/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,337 - freqtrade.data.history.datahandlers.idatahandler - WARNING - CRV/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,339 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for CRV/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,353 - freqtrade.data.history.datahandlers.idatahandler - WARNING - DASH/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,355 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for DASH/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,367 - freqtrade.data.history.datahandlers.idatahandler - WARNING - DOGE/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,368 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for DOGE/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,379 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ETH/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,381 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ETH/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,393 - freqtrade.data.history.datahandlers.idatahandler - WARNING - FIL/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,394 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for FIL/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,409 - freqtrade.data.history.datahandlers.idatahandler - WARNING - HBAR/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,411 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for HBAR/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,422 - freqtrade.data.history.datahandlers.idatahandler - WARNING - LINK/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,423 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for LINK/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,434 - freqtrade.data.history.datahandlers.idatahandler - WARNING - LTC/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,435 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for LTC/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,446 - freqtrade.data.history.datahandlers.idatahandler - WARNING - NEAR/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 18:29:41,448 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for NEAR/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,537 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ARB/USDT:USDT, mark, 1h, data starts at 2023-03-23 14:00:00
+2026-10-01 18:29:41,654 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for DASH/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 18:29:41,725 - freqtrade.data.history.datahandlers.idatahandler - WARNING - HBAR/USDT:USDT, mark, 1h, data starts at 2023-08-16 05:00:00
+2026-10-01 18:29:53,532 - freqtrade.optimize.backtesting - INFO - Dataload complete. Calculating indicators
+2026-10-01 18:29:53,538 - freqtrade.optimize.backtesting - INFO - Running backtesting for Strategy NostalgiaForInfinityX7
+2026-10-01 18:29:53,606 - freqtrade.data.dataprovider - INFO - Loading data for BTC/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:29:53,636 - freqtrade.data.dataprovider - INFO - Loading data for AAVE/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:29:53,731 - freqtrade.data.dataprovider - INFO - Loading data for AAVE/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:29:53,776 - freqtrade.data.dataprovider - INFO - Loading data for AAVE/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:29:53,810 - freqtrade.data.dataprovider - INFO - Loading data for AAVE/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:29:53,818 - freqtrade.data.history.datahandlers.idatahandler - WARNING - AAVE/USDT:USDT, futures, 1d, data starts at 2021-11-01 00:00:00
+2026-10-01 18:29:58,469 - freqtrade.data.dataprovider - INFO - Loading data for ADA/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:29:58,522 - freqtrade.data.dataprovider - INFO - Loading data for ADA/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:29:58,553 - freqtrade.data.dataprovider - INFO - Loading data for ADA/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:29:58,581 - freqtrade.data.dataprovider - INFO - Loading data for ADA/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:29:58,589 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ADA/USDT:USDT, futures, 1d, data starts at 2021-11-01 00:00:00
+2026-10-01 18:30:01,206 - freqtrade.data.dataprovider - INFO - Loading data for ALGO/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:01,276 - freqtrade.data.dataprovider - INFO - Loading data for ALGO/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:01,309 - freqtrade.data.dataprovider - INFO - Loading data for ALGO/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:01,339 - freqtrade.data.dataprovider - INFO - Loading data for ALGO/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:01,347 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ALGO/USDT:USDT, futures, 1d, data starts at 2021-11-01 00:00:00
+2026-10-01 18:30:03,585 - freqtrade.data.dataprovider - INFO - Loading data for ARB/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:03,596 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ARB/USDT:USDT, futures, 15m, data starts at 2023-03-23 14:00:00
+2026-10-01 18:30:03,623 - freqtrade.data.dataprovider - INFO - Loading data for ARB/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:03,632 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ARB/USDT:USDT, futures, 1h, data starts at 2023-03-23 14:00:00
+2026-10-01 18:30:03,661 - freqtrade.data.dataprovider - INFO - Loading data for ARB/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:03,671 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ARB/USDT:USDT, futures, 4h, data starts at 2023-03-23 12:00:00
+2026-10-01 18:30:03,698 - freqtrade.data.dataprovider - INFO - Loading data for ARB/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:03,707 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ARB/USDT:USDT, futures, 1d, data starts at 2023-03-23 00:00:00
+2026-10-01 18:30:04,854 - freqtrade.data.dataprovider - INFO - Loading data for AVAX/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:04,906 - freqtrade.data.dataprovider - INFO - Loading data for AVAX/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:04,938 - freqtrade.data.dataprovider - INFO - Loading data for AVAX/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:04,966 - freqtrade.data.dataprovider - INFO - Loading data for AVAX/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:04,974 - freqtrade.data.history.datahandlers.idatahandler - WARNING - AVAX/USDT:USDT, futures, 1d, data starts at 2021-11-01 00:00:00
+2026-10-01 18:30:08,451 - freqtrade.data.dataprovider - INFO - Loading data for BCH/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:08,500 - freqtrade.data.dataprovider - INFO - Loading data for BCH/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:08,531 - freqtrade.data.dataprovider - INFO - Loading data for BCH/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:08,559 - freqtrade.data.dataprovider - INFO - Loading data for BCH/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:08,567 - freqtrade.data.history.datahandlers.idatahandler - WARNING - BCH/USDT:USDT, futures, 1d, data starts at 2021-11-01 00:00:00
+2026-10-01 18:30:10,974 - freqtrade.data.dataprovider - INFO - Loading data for BNB/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:11,031 - freqtrade.data.dataprovider - INFO - Loading data for BNB/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:11,042 - freqtrade.data.history.datahandlers.idatahandler - WARNING - BNB/USDT:USDT, futures, 1h, data starts at 2022-12-23 06:00:00
+2026-10-01 18:30:11,070 - freqtrade.data.dataprovider - INFO - Loading data for BNB/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:11,081 - freqtrade.data.history.datahandlers.idatahandler - WARNING - BNB/USDT:USDT, futures, 4h, data starts at 2022-12-23 04:00:00
+2026-10-01 18:30:11,104 - freqtrade.data.dataprovider - INFO - Loading data for BNB/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:11,113 - freqtrade.data.history.datahandlers.idatahandler - WARNING - BNB/USDT:USDT, futures, 1d, data starts at 2022-12-23 00:00:00
+2026-10-01 18:30:13,099 - freqtrade.data.dataprovider - INFO - Loading data for BTC/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:13,154 - freqtrade.data.dataprovider - INFO - Loading data for BTC/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:13,198 - freqtrade.data.dataprovider - INFO - Loading data for BTC/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:13,208 - freqtrade.data.history.datahandlers.idatahandler - WARNING - BTC/USDT:USDT, futures, 1d, data starts at 2021-11-01 00:00:00
+2026-10-01 18:30:15,921 - freqtrade.data.dataprovider - INFO - Loading data for CRV/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:15,974 - freqtrade.data.dataprovider - INFO - Loading data for CRV/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:16,016 - freqtrade.data.dataprovider - INFO - Loading data for CRV/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:16,048 - freqtrade.data.dataprovider - INFO - Loading data for CRV/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:16,057 - freqtrade.data.history.datahandlers.idatahandler - WARNING - CRV/USDT:USDT, futures, 1d, data starts at 2021-11-01 00:00:00
+2026-10-01 18:30:18,250 - freqtrade.data.dataprovider - INFO - Loading data for DOGE/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:18,302 - freqtrade.data.dataprovider - INFO - Loading data for DOGE/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:18,332 - freqtrade.data.dataprovider - INFO - Loading data for DOGE/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:18,359 - freqtrade.data.dataprovider - INFO - Loading data for DOGE/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:18,367 - freqtrade.data.history.datahandlers.idatahandler - WARNING - DOGE/USDT:USDT, futures, 1d, data starts at 2021-11-01 00:00:00
+2026-10-01 18:30:20,724 - freqtrade.data.dataprovider - INFO - Loading data for ETH/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:20,778 - freqtrade.data.dataprovider - INFO - Loading data for ETH/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:20,810 - freqtrade.data.dataprovider - INFO - Loading data for ETH/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:20,836 - freqtrade.data.dataprovider - INFO - Loading data for ETH/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:20,844 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ETH/USDT:USDT, futures, 1d, data starts at 2021-11-01 00:00:00
+2026-10-01 18:30:23,211 - freqtrade.data.dataprovider - INFO - Loading data for FIL/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:23,267 - freqtrade.data.dataprovider - INFO - Loading data for FIL/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:23,312 - freqtrade.data.dataprovider - INFO - Loading data for FIL/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:23,348 - freqtrade.data.dataprovider - INFO - Loading data for FIL/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:23,358 - freqtrade.data.history.datahandlers.idatahandler - WARNING - FIL/USDT:USDT, futures, 1d, data starts at 2021-11-01 00:00:00
+2026-10-01 18:30:25,474 - freqtrade.data.dataprovider - INFO - Loading data for HBAR/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:25,485 - freqtrade.data.history.datahandlers.idatahandler - WARNING - HBAR/USDT:USDT, futures, 15m, data starts at 2023-08-16 05:45:00
+2026-10-01 18:30:25,508 - freqtrade.data.dataprovider - INFO - Loading data for HBAR/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:25,515 - freqtrade.data.history.datahandlers.idatahandler - WARNING - HBAR/USDT:USDT, futures, 1h, data starts at 2023-08-16 05:00:00
+2026-10-01 18:30:25,533 - freqtrade.data.dataprovider - INFO - Loading data for HBAR/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:25,541 - freqtrade.data.history.datahandlers.idatahandler - WARNING - HBAR/USDT:USDT, futures, 4h, data starts at 2023-08-16 04:00:00
+2026-10-01 18:30:25,556 - freqtrade.data.dataprovider - INFO - Loading data for HBAR/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:25,563 - freqtrade.data.history.datahandlers.idatahandler - WARNING - HBAR/USDT:USDT, futures, 1d, data starts at 2023-08-16 00:00:00
+2026-10-01 18:30:26,047 - freqtrade.data.dataprovider - INFO - Loading data for LINK/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:26,102 - freqtrade.data.dataprovider - INFO - Loading data for LINK/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:26,133 - freqtrade.data.dataprovider - INFO - Loading data for LINK/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:26,161 - freqtrade.data.dataprovider - INFO - Loading data for LINK/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:26,170 - freqtrade.data.history.datahandlers.idatahandler - WARNING - LINK/USDT:USDT, futures, 1d, data starts at 2021-11-01 00:00:00
+2026-10-01 18:30:29,053 - freqtrade.data.dataprovider - INFO - Loading data for LTC/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:29,109 - freqtrade.data.dataprovider - INFO - Loading data for LTC/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:29,151 - freqtrade.data.dataprovider - INFO - Loading data for LTC/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:29,184 - freqtrade.data.dataprovider - INFO - Loading data for LTC/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:29,192 - freqtrade.data.history.datahandlers.idatahandler - WARNING - LTC/USDT:USDT, futures, 1d, data starts at 2021-11-01 00:00:00
+2026-10-01 18:30:31,400 - freqtrade.data.dataprovider - INFO - Loading data for NEAR/USDT:USDT 15m from 2022-12-27 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:31,447 - freqtrade.data.dataprovider - INFO - Loading data for NEAR/USDT:USDT 1h from 2022-12-12 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:31,478 - freqtrade.data.dataprovider - INFO - Loading data for NEAR/USDT:USDT 4h from 2022-10-13 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:31,504 - freqtrade.data.dataprovider - INFO - Loading data for NEAR/USDT:USDT 1d from 2021-09-08 00:00:00 to 2024-01-01 00:00:00
+2026-10-01 18:30:31,511 - freqtrade.data.history.datahandlers.idatahandler - WARNING - NEAR/USDT:USDT, futures, 1d, data starts at 2021-11-01 00:00:00
+2026-10-01 18:30:34,322 - freqtrade.optimize.backtesting - INFO - Backtesting with data from 2023-01-01 00:00:00 up to 2024-01-01 00:00:00 (365 days).
+2026-10-01 18:30:48,937 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_1_entry) [2023-01-20 14:30:00+00:00] [DOGE/USDT:USDT] | Rate: 0.08113 | Stake amount: 6.841 | Profit (stake): -3.031 | 
+Profit: -2.95% | Tag: g24
+2026-10-01 18:30:49,067 - NostalgiaForInfinityX7 - INFO - Grinding exit (grind_1_exit) [2023-01-20 20:00:00+00:00] [DOGE/USDT:USDT] | Rate: 0.0835 | Stake amount: 6.958 | Coin amount: 250.0 | Profit 
+(stake): 0.432 | Profit: 0.35% | Grind profit: 2.92% (0.572 USDT)
+2026-10-01 18:30:51,421 - NostalgiaForInfinityX7 - INFO - Grinding exit (gm0) [NEAR/USDT:USDT] | Rate: 2.012 | Stake amount: 4.103 | Coin amount: 2.039166666666667 | Profit (stake): 0.462 | Profit: 
+2.14% | Grind profit: 2.34% (0.288 USDT)
+2026-10-01 18:31:04,637 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2023-04-11 14:00:00+00:00] [NEAR/USDT:USDT] | Rate: 2.084 | Stake amount: 8.650 | Profit (stake): 0.822 | Profit: 3.80% 
+| Grind profit: 0.00% (0.000 USDT)
+2026-10-01 18:31:05,309 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2023-04-12 12:35:00+00:00] [NEAR/USDT:USDT] | Rate: 2.138 | Stake amount: 8.552 | Coin amount: 12.0 | Profit (stake): 
+1.689 | Profit: 3.62% | Grind profit: 2.59% (0.665 USDT)
+2026-10-01 18:31:06,151 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2023-04-13 14:00:00+00:00] [NEAR/USDT:USDT] | Rate: 2.19 | Stake amount: 8.650 | Profit (stake): 1.949 | Profit: 4.17% |
+Grind profit: 0.00% (0.000 USDT)
+2026-10-01 18:31:06,524 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2023-04-14 00:40:00+00:00] [NEAR/USDT:USDT] | Rate: 2.243 | Stake amount: 8.224 | Coin amount: 11.0 | Profit (stake): 
+2.748 | Profit: 3.88% | Grind profit: 2.42% (0.597 USDT)
+2026-10-01 18:31:07,347 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2023-04-15 00:50:00+00:00] [NEAR/USDT:USDT] | Rate: 2.197 | Stake amount: 8.650 | Profit (stake): 2.472 | Profit: 3.49% 
+| Grind profit: 0.00% (0.000 USDT)
+2026-10-01 18:31:07,574 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2023-04-15 07:40:00+00:00] [NEAR/USDT:USDT] | Rate: 2.251 | Stake amount: 8.254 | Coin amount: 11.0 | Profit (stake): 
+3.341 | Profit: 3.52% | Grind profit: 2.46% (0.609 USDT)
+2026-10-01 18:31:08,492 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2023-04-16 08:20:00+00:00] [NEAR/USDT:USDT] | Rate: 2.288 | Stake amount: 8.650 | Profit (stake): 3.599 | Profit: 3.79% 
+| Grind profit: 0.00% (0.000 USDT)
+2026-10-01 18:31:08,924 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2023-04-16 19:10:00+00:00] [NEAR/USDT:USDT] | Rate: 2.339 | Stake amount: 8.576 | Coin amount: 11.0 | Profit (stake): 
+4.466 | Profit: 3.72% | Grind profit: 2.23% (0.574 USDT)
+2026-10-01 18:31:10,095 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2023-04-18 02:00:00+00:00] [NEAR/USDT:USDT] | Rate: 2.275 | Stake amount: 8.650 | Profit (stake): 4.019 | Profit: 3.34% 
+| Grind profit: 0.00% (0.000 USDT)
+2026-10-01 18:31:10,202 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2023-04-18 04:50:00+00:00] [NEAR/USDT:USDT] | Rate: 2.325 | Stake amount: 8.525 | Coin amount: 11.0 | Profit (stake): 
+4.868 | Profit: 3.35% | Grind profit: 2.20% (0.562 USDT)
+2026-10-01 18:31:11,352 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2023-04-19 05:30:00+00:00] [NEAR/USDT:USDT] | Rate: 2.376 | Stake amount: 8.650 | Profit (stake): 5.224 | Profit: 3.60% 
+| Grind profit: 0.00% (0.000 USDT)
+2026-10-01 18:31:19,720 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_4_entry) [2023-12-13 02:00:00+00:00] [FIL/USDT:USDT] | Rate: 4.528 | Stake amount: 2.457 | Profit (stake): -9.160 | 
+Profit: -6.21% | Tag: 
+2026-10-01 18:31:20,587 - NostalgiaForInfinityX7 - INFO - Grinding exit (grind_4_exit) [2023-12-14 06:15:00+00:00] [FIL/USDT:USDT] | Rate: 4.773 | Stake amount: 2.546 | Coin amount: 1.6 | Profit 
+(stake): -1.293 | Profit: -0.84% | Grind profit: 5.41% (0.384 USDT)
+2026-10-01 18:31:21,000 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_1_entry) [2023-12-14 20:00:00+00:00] [FIL/USDT:USDT] | Rate: 4.77 | Stake amount: 9.829 | Profit (stake): -1.385 | 
+Profit: -0.89% | Tag: g24
+backtest ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4/4           100% • 0:01:07 • 0:00:00
+backtest ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 105120/105120 100% • 0:01:41 • 0:00:00
+2026-10-01 18:31:24,531 - freqtrade.misc - INFO - dumping json to "nfi/u200_2023-2026-10-01_18-31-24.meta.json"
+Result for strategy NostalgiaForInfinityX7
+                                                  BACKTESTING REPORT                                                   
+┏━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃           Pair ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃     Avg Duration ┃  Win  Draw  Loss  Win% ┃
+┡━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│  FIL/USDT:USDT │     11 │         4.76 │          19.535 │         9.77 │          9:24:00 │   11     0     0   100 │
+│ AVAX/USDT:USDT │      5 │         7.64 │          17.260 │         8.63 │          0:29:00 │    5     0     0   100 │
+│  CRV/USDT:USDT │      7 │         6.02 │          16.730 │         8.37 │          1:34:00 │    7     0     0   100 │
+│ NEAR/USDT:USDT │      6 │         6.53 │          15.613 │         7.81 │ 4 days, 17:19:00 │    6     0     0   100 │
+│ LINK/USDT:USDT │      4 │         5.92 │           9.943 │         4.97 │          1:02:00 │    4     0     0   100 │
+│  ARB/USDT:USDT │      4 │          6.0 │           9.886 │         4.94 │          3:08:00 │    4     0     0   100 │
+│  ADA/USDT:USDT │      3 │         6.27 │           9.145 │         4.57 │          0:37:00 │    3     0     0   100 │
+│ HBAR/USDT:USDT │      4 │         5.52 │           9.040 │         4.52 │         19:10:00 │    4     0     0   100 │
+│  BCH/USDT:USDT │      4 │         4.25 │           7.224 │         3.61 │          1:24:00 │    4     0     0   100 │
+│  LTC/USDT:USDT │      3 │         5.37 │           6.642 │         3.32 │          2:30:00 │    3     0     0   100 │
+│ ALGO/USDT:USDT │      3 │         4.59 │           6.476 │         3.24 │          0:18:00 │    3     0     0   100 │
+│ DOGE/USDT:USDT │      3 │         4.94 │           6.035 │         3.02 │         18:02:00 │    3     0     0   100 │
+│ AAVE/USDT:USDT │      1 │         3.24 │           1.514 │         0.76 │          0:15:00 │    1     0     0   100 │
+│  BNB/USDT:USDT │      0 │          0.0 │           0.000 │          0.0 │             0:00 │    0     0     0     0 │
+│  BTC/USDT:USDT │      0 │          0.0 │           0.000 │          0.0 │             0:00 │    0     0     0     0 │
+│  ETH/USDT:USDT │      0 │          0.0 │           0.000 │          0.0 │             0:00 │    0     0     0     0 │
+│          TOTAL │     58 │         5.61 │         135.043 │        67.52 │         16:33:00 │   58     0     0   100 │
+└────────────────┴────────┴──────────────┴─────────────────┴──────────────┴──────────────────┴────────────────────────┘
+                                         LEFT OPEN TRADES REPORT                                          
+┏━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  Pair ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃ Avg Duration ┃  Win  Draw  Loss  Win% ┃
+┡━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ TOTAL │      0 │          0.0 │           0.000 │          0.0 │         0:00 │    0     0     0     0 │
+└───────┴────────┴──────────────┴─────────────────┴──────────────┴──────────────┴────────────────────────┘
+                                                   ENTER TAG STATS                                                    
+┏━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃   Enter Tag ┃ Entries ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃      Avg Duration ┃  Win  Draw  Loss  Win% ┃
+┡━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│         142 │      17 │         5.11 │          38.265 │        19.13 │           9:06:00 │   17     0     0   100 │
+│         141 │      11 │         5.27 │          22.337 │        11.17 │           0:54:00 │   11     0     0   100 │
+│           4 │       2 │        11.15 │          10.767 │         5.38 │           0:15:00 │    2     0     0   100 │
+│         145 │       3 │         6.46 │           7.409 │          3.7 │           3:57:00 │    3     0     0   100 │
+│       2 141 │       1 │        12.24 │           6.249 │         3.12 │           0:25:00 │    1     0     0   100 │
+│       6 141 │       1 │        11.93 │           6.108 │         3.05 │           1:10:00 │    1     0     0   100 │
+│         143 │       4 │         3.98 │           6.000 │          3.0 │           1:18:00 │    4     0     0   100 │
+│         120 │       1 │         9.76 │           5.499 │         2.75 │ 27 days, 10:55:00 │    1     0     0   100 │
+│  63 103 142 │       1 │         8.18 │           3.541 │         1.77 │           2:30:00 │    1     0     0   100 │
+│           2 │       2 │         3.84 │           3.495 │         1.75 │           0:52:00 │    2     0     0   100 │
+│         163 │       2 │          3.7 │           3.391 │          1.7 │           3:28:00 │    2     0     0   100 │
+│  43 141 143 │       1 │         8.36 │           3.296 │         1.65 │           0:05:00 │    1     0     0   100 │
+│      62 143 │       1 │         7.48 │           3.123 │         1.56 │           0:30:00 │    1     0     0   100 │
+│           6 │       1 │         7.88 │           3.017 │         1.51 │           4:50:00 │    1     0     0   100 │
+│          45 │       1 │         6.36 │           2.746 │         1.37 │           0:15:00 │    1     0     0   100 │
+│           1 │       1 │         5.38 │           2.304 │         1.15 │           1:10:00 │    1     0     0   100 │
+│     2 4 141 │       1 │         4.96 │           1.945 │         0.97 │           0:10:00 │    1     0     0   100 │
+│          41 │       1 │          3.6 │           1.470 │         0.74 │           3:30:00 │    1     0     0   100 │
+│   41 63 142 │       1 │         3.39 │           1.379 │         0.69 │           3:25:00 │    1     0     0   100 │
+│         144 │       1 │         3.52 │           1.249 │         0.62 │           0:25:00 │    1     0     0   100 │
+│          65 │       1 │         7.41 │           0.638 │         0.32 │          16:10:00 │    1     0     0   100 │
+│          64 │       1 │         3.88 │           0.470 │         0.24 │  2 days, 18:20:00 │    1     0     0   100 │
+│         562 │       2 │         1.73 │           0.345 │         0.17 │           4:55:00 │    2     0     0   100 │
+│       TOTAL │      58 │         5.61 │         135.043 │        67.52 │          16:33:00 │   58     0     0   100 │
+└─────────────┴─────────┴──────────────┴─────────────────┴──────────────┴───────────────────┴────────────────────────┘
+                                                              EXIT REASON STATS                                                              
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                          Exit Reason ┃ Exits ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃      Avg Duration ┃  Win  Draw  Loss  Win% ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│           exit_long_normal_u_6 ( 4 ) │     1 │        18.21 │           9.157 │         4.58 │           0:05:00 │    1     0     0   100 │
+│             exit_long_tc_u_1 ( 141 ) │     5 │         3.98 │           8.185 │         4.09 │           0:07:00 │    5     0     0   100 │
+│    exit_long_normal_d_4_70 ( 2 141 ) │     1 │        12.24 │           6.249 │         3.12 │           0:25:00 │    1     0     0   100 │
+│    exit_long_normal_d_3_81 ( 6 141 ) │     1 │        11.93 │           6.108 │         3.05 │           1:10:00 │    1     0     0   100 │
+│         exit_long_tc_d_4_119 ( 142 ) │     1 │        13.11 │           5.639 │         2.82 │           1:00:00 │    1     0     0   100 │
+│            exit_long_grind_g ( 120 ) │     1 │         9.76 │           5.499 │         2.75 │ 27 days, 10:55:00 │    1     0     0   100 │
+│          exit_long_tc_w_3_12 ( 145 ) │     1 │         11.6 │           4.049 │         2.02 │           3:00:00 │    1     0     0   100 │
+│         exit_long_tc_d_1_120 ( 142 ) │     2 │         4.23 │           3.909 │         1.95 │           0:32:00 │    2     0     0   100 │
+│   exit_long_tc_d_2_78 ( 63 103 142 ) │     1 │         8.18 │           3.541 │         1.77 │           2:30:00 │    1     0     0   100 │
+│          exit_long_tc_d_2_40 ( 142 ) │     1 │         6.86 │           3.357 │         1.68 │           1:10:00 │    1     0     0   100 │
+│   exit_long_quick_u_2 ( 43 141 143 ) │     1 │         8.36 │           3.296 │         1.65 │           0:05:00 │    1     0     0   100 │
+│             exit_long_tc_u_2 ( 143 ) │     1 │         8.16 │           3.220 │         1.61 │           0:10:00 │    1     0     0   100 │
+│       exit_long_tc_d_2_46 ( 62 143 ) │     1 │         7.48 │           3.123 │         1.56 │           0:30:00 │    1     0     0   100 │
+│          exit_long_tc_w_3_10 ( 141 ) │     1 │         9.38 │           3.085 │         1.54 │           2:05:00 │    1     0     0   100 │
+│           exit_long_tc_w_2_8 ( 142 ) │     1 │         6.29 │           3.079 │         1.54 │           1:10:00 │    1     0     0   100 │
+│       exit_long_normal_d_2_100 ( 6 ) │     1 │         7.88 │           3.017 │         1.51 │           4:50:00 │    1     0     0   100 │
+│          exit_long_tc_d_1_40 ( 142 ) │     1 │         5.93 │           2.903 │         1.45 │           0:45:00 │    1     0     0   100 │
+│          exit_long_tc_d_2_20 ( 142 ) │     1 │         6.45 │           2.822 │         1.41 │           0:20:00 │    1     0     0   100 │
+│         exit_long_tc_d_2_124 ( 141 ) │     1 │         8.51 │           2.790 │         1.39 │           1:20:00 │    1     0     0   100 │
+│        exit_long_quick_d_2_20 ( 45 ) │     1 │         6.36 │           2.746 │         1.37 │           0:15:00 │    1     0     0   100 │
+│           exit_long_tc_w_2_8 ( 141 ) │     1 │         7.79 │           2.566 │         1.28 │           2:05:00 │    1     0     0   100 │
+│          exit_long_tc_d_1_20 ( 141 ) │     1 │         5.26 │           2.557 │         1.28 │           0:20:00 │    1     0     0   100 │
+│           exit_long_tc_2_1_1 ( 142 ) │     1 │         5.97 │           2.447 │         1.22 │   2 days, 4:15:00 │    1     0     0   100 │
+│           exit_long_tc_w_1_3 ( 142 ) │     1 │         5.64 │           2.441 │         1.22 │           0:55:00 │    1     0     0   100 │
+│       exit_long_normal_d_1_114 ( 1 ) │     1 │         5.38 │           2.304 │         1.15 │           1:10:00 │    1     0     0   100 │
+│           exit_long_normal_u_1 ( 2 ) │     1 │         4.43 │           2.246 │         1.12 │           0:05:00 │    1     0     0   100 │
+│          exit_long_tc_d_1_27 ( 142 ) │     1 │          5.5 │           1.946 │         0.97 │           0:50:00 │    1     0     0   100 │
+│     exit_long_normal_u_1 ( 2 4 141 ) │     1 │         4.96 │           1.945 │         0.97 │           0:10:00 │    1     0     0   100 │
+│       exit_long_scalp_d_1_95 ( 163 ) │     1 │         4.16 │           1.875 │         0.94 │           6:20:00 │    1     0     0   100 │
+│          exit_long_tc_d_1_71 ( 142 ) │     1 │         5.07 │           1.837 │         0.92 │           0:50:00 │    1     0     0   100 │
+│         exit_long_tc_d_1_120 ( 145 ) │     1 │          3.5 │           1.779 │         0.89 │           0:15:00 │    1     0     0   100 │
+│         exit_long_tc_d_1_120 ( 141 ) │     1 │          3.7 │           1.718 │         0.86 │           0:35:00 │    1     0     0   100 │
+│           exit_long_normal_u_1 ( 4 ) │     1 │         4.08 │           1.609 │          0.8 │           0:25:00 │    1     0     0   100 │
+│          exit_long_tc_d_1_72 ( 142 ) │     1 │         3.27 │           1.596 │          0.8 │           0:50:00 │    1     0     0   100 │
+│          exit_long_tc_d_1_61 ( 145 ) │     1 │         4.27 │           1.581 │         0.79 │           8:35:00 │    1     0     0   100 │
+│          exit_long_tc_d_1_60 ( 142 ) │     1 │         3.23 │           1.551 │         0.78 │           0:40:00 │    1     0     0   100 │
+│           exit_long_tc_d_1_3 ( 142 ) │     1 │         4.17 │           1.535 │         0.77 │           1:10:00 │    1     0     0   100 │
+│      exit_long_scalp_d_1_120 ( 163 ) │     1 │         3.25 │           1.516 │         0.76 │           0:35:00 │    1     0     0   100 │
+│          exit_long_tc_d_1_70 ( 142 ) │     1 │         3.24 │           1.514 │         0.76 │           0:15:00 │    1     0     0   100 │
+│        exit_long_quick_d_1_38 ( 41 ) │     1 │          3.6 │           1.470 │         0.74 │           3:30:00 │    1     0     0   100 │
+│          exit_long_tc_w_1_11 ( 141 ) │     1 │         3.47 │           1.437 │         0.72 │           2:50:00 │    1     0     0   100 │
+│ exit_long_quick_d_1_38 ( 41 63 142 ) │     1 │         3.39 │           1.379 │         0.69 │           3:25:00 │    1     0     0   100 │
+│          exit_long_tc_d_1_37 ( 142 ) │     1 │         3.04 │           1.294 │         0.65 │           0:50:00 │    1     0     0   100 │
+│        exit_long_normal_d_1_53 ( 2 ) │     1 │         3.26 │           1.249 │         0.62 │           1:40:00 │    1     0     0   100 │
+│          exit_long_tc_d_1_65 ( 144 ) │     1 │         3.52 │           1.249 │         0.62 │           0:25:00 │    1     0     0   100 │
+│          exit_long_tc_d_1_20 ( 143 ) │     1 │          3.2 │           1.147 │         0.57 │           0:55:00 │    1     0     0   100 │
+│           exit_long_tc_w_1_3 ( 143 ) │     1 │         3.04 │           1.083 │         0.54 │           1:30:00 │    1     0     0   100 │
+│           exit_long_rebuy_e_r ( 65 ) │     1 │         7.41 │           0.638 │         0.32 │          16:10:00 │    1     0     0   100 │
+│          exit_long_tc_d_0_97 ( 143 ) │     1 │         1.54 │           0.551 │         0.28 │           2:35:00 │    1     0     0   100 │
+│       exit_long_rebuy_d_1_130 ( 64 ) │     1 │         3.88 │           0.470 │         0.24 │  2 days, 18:20:00 │    1     0     0   100 │
+│          exit_long_tc_w_0_17 ( 142 ) │     1 │         0.64 │           0.395 │          0.2 │  3 days, 18:30:00 │    1     0     0   100 │
+│     exit_short_rebuy_d_0_130 ( 562 ) │     1 │         2.13 │           0.190 │         0.09 │           1:10:00 │    1     0     0   100 │
+│       exit_short_rebuy_w_0_1 ( 562 ) │     1 │         1.34 │           0.155 │         0.08 │           8:40:00 │    1     0     0   100 │
+│                                TOTAL │    58 │         5.61 │         135.043 │        67.52 │          16:33:00 │   58     0     0   100 │
+└──────────────────────────────────────┴───────┴──────────────┴─────────────────┴──────────────┴───────────────────┴────────────────────────┘
+                                                                      MIXED TAG STATS                                                                       
+┏━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃   Enter Tag ┃                          Exit Reason ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃      Avg Duration ┃  Win  Draw  Loss  Win% ┃
+┡━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│           4 │           exit_long_normal_u_6 ( 4 ) │      1 │        18.21 │           9.157 │         4.58 │           0:05:00 │    1     0     0   100 │
+│         141 │             exit_long_tc_u_1 ( 141 ) │      5 │         3.98 │           8.185 │         4.09 │           0:07:00 │    5     0     0   100 │
+│       2 141 │    exit_long_normal_d_4_70 ( 2 141 ) │      1 │        12.24 │           6.249 │         3.12 │           0:25:00 │    1     0     0   100 │
+│       6 141 │    exit_long_normal_d_3_81 ( 6 141 ) │      1 │        11.93 │           6.108 │         3.05 │           1:10:00 │    1     0     0   100 │
+│         142 │         exit_long_tc_d_4_119 ( 142 ) │      1 │        13.11 │           5.639 │         2.82 │           1:00:00 │    1     0     0   100 │
+│         120 │            exit_long_grind_g ( 120 ) │      1 │         9.76 │           5.499 │         2.75 │ 27 days, 10:55:00 │    1     0     0   100 │
+│         145 │          exit_long_tc_w_3_12 ( 145 ) │      1 │         11.6 │           4.049 │         2.02 │           3:00:00 │    1     0     0   100 │
+│         142 │         exit_long_tc_d_1_120 ( 142 ) │      2 │         4.23 │           3.909 │         1.95 │           0:32:00 │    2     0     0   100 │
+│  63 103 142 │   exit_long_tc_d_2_78 ( 63 103 142 ) │      1 │         8.18 │           3.541 │         1.77 │           2:30:00 │    1     0     0   100 │
+│         142 │          exit_long_tc_d_2_40 ( 142 ) │      1 │         6.86 │           3.357 │         1.68 │           1:10:00 │    1     0     0   100 │
+│  43 141 143 │   exit_long_quick_u_2 ( 43 141 143 ) │      1 │         8.36 │           3.296 │         1.65 │           0:05:00 │    1     0     0   100 │
+│         143 │             exit_long_tc_u_2 ( 143 ) │      1 │         8.16 │           3.220 │         1.61 │           0:10:00 │    1     0     0   100 │
+│      62 143 │       exit_long_tc_d_2_46 ( 62 143 ) │      1 │         7.48 │           3.123 │         1.56 │           0:30:00 │    1     0     0   100 │
+│         141 │          exit_long_tc_w_3_10 ( 141 ) │      1 │         9.38 │           3.085 │         1.54 │           2:05:00 │    1     0     0   100 │
+│         142 │           exit_long_tc_w_2_8 ( 142 ) │      1 │         6.29 │           3.079 │         1.54 │           1:10:00 │    1     0     0   100 │
+│           6 │       exit_long_normal_d_2_100 ( 6 ) │      1 │         7.88 │           3.017 │         1.51 │           4:50:00 │    1     0     0   100 │
+│         142 │          exit_long_tc_d_1_40 ( 142 ) │      1 │         5.93 │           2.903 │         1.45 │           0:45:00 │    1     0     0   100 │
+│         142 │          exit_long_tc_d_2_20 ( 142 ) │      1 │         6.45 │           2.822 │         1.41 │           0:20:00 │    1     0     0   100 │
+│         141 │         exit_long_tc_d_2_124 ( 141 ) │      1 │         8.51 │           2.790 │         1.39 │           1:20:00 │    1     0     0   100 │
+│          45 │        exit_long_quick_d_2_20 ( 45 ) │      1 │         6.36 │           2.746 │         1.37 │           0:15:00 │    1     0     0   100 │
+│         141 │           exit_long_tc_w_2_8 ( 141 ) │      1 │         7.79 │           2.566 │         1.28 │           2:05:00 │    1     0     0   100 │
+│         141 │          exit_long_tc_d_1_20 ( 141 ) │      1 │         5.26 │           2.557 │         1.28 │           0:20:00 │    1     0     0   100 │
+│         142 │           exit_long_tc_2_1_1 ( 142 ) │      1 │         5.97 │           2.447 │         1.22 │   2 days, 4:15:00 │    1     0     0   100 │
+│         142 │           exit_long_tc_w_1_3 ( 142 ) │      1 │         5.64 │           2.441 │         1.22 │           0:55:00 │    1     0     0   100 │
+│           1 │       exit_long_normal_d_1_114 ( 1 ) │      1 │         5.38 │           2.304 │         1.15 │           1:10:00 │    1     0     0   100 │
+│           2 │           exit_long_normal_u_1 ( 2 ) │      1 │         4.43 │           2.246 │         1.12 │           0:05:00 │    1     0     0   100 │
+│         142 │          exit_long_tc_d_1_27 ( 142 ) │      1 │          5.5 │           1.946 │         0.97 │           0:50:00 │    1     0     0   100 │
+│     2 4 141 │     exit_long_normal_u_1 ( 2 4 141 ) │      1 │         4.96 │           1.945 │         0.97 │           0:10:00 │    1     0     0   100 │
+│         163 │       exit_long_scalp_d_1_95 ( 163 ) │      1 │         4.16 │           1.875 │         0.94 │           6:20:00 │    1     0     0   100 │
+│         142 │          exit_long_tc_d_1_71 ( 142 ) │      1 │         5.07 │           1.837 │         0.92 │           0:50:00 │    1     0     0   100 │
+│         145 │         exit_long_tc_d_1_120 ( 145 ) │      1 │          3.5 │           1.779 │         0.89 │           0:15:00 │    1     0     0   100 │
+│         141 │         exit_long_tc_d_1_120 ( 141 ) │      1 │          3.7 │           1.718 │         0.86 │           0:35:00 │    1     0     0   100 │
+│           4 │           exit_long_normal_u_1 ( 4 ) │      1 │         4.08 │           1.609 │          0.8 │           0:25:00 │    1     0     0   100 │
+│         142 │          exit_long_tc_d_1_72 ( 142 ) │      1 │         3.27 │           1.596 │          0.8 │           0:50:00 │    1     0     0   100 │
+│         145 │          exit_long_tc_d_1_61 ( 145 ) │      1 │         4.27 │           1.581 │         0.79 │           8:35:00 │    1     0     0   100 │
+│         142 │          exit_long_tc_d_1_60 ( 142 ) │      1 │         3.23 │           1.551 │         0.78 │           0:40:00 │    1     0     0   100 │
+│         142 │           exit_long_tc_d_1_3 ( 142 ) │      1 │         4.17 │           1.535 │         0.77 │           1:10:00 │    1     0     0   100 │
+│         163 │      exit_long_scalp_d_1_120 ( 163 ) │      1 │         3.25 │           1.516 │         0.76 │           0:35:00 │    1     0     0   100 │
+│         142 │          exit_long_tc_d_1_70 ( 142 ) │      1 │         3.24 │           1.514 │         0.76 │           0:15:00 │    1     0     0   100 │
+│          41 │        exit_long_quick_d_1_38 ( 41 ) │      1 │          3.6 │           1.470 │         0.74 │           3:30:00 │    1     0     0   100 │
+│         141 │          exit_long_tc_w_1_11 ( 141 ) │      1 │         3.47 │           1.437 │         0.72 │           2:50:00 │    1     0     0   100 │
+│   41 63 142 │ exit_long_quick_d_1_38 ( 41 63 142 ) │      1 │         3.39 │           1.379 │         0.69 │           3:25:00 │    1     0     0   100 │
+│         142 │          exit_long_tc_d_1_37 ( 142 ) │      1 │         3.04 │           1.294 │         0.65 │           0:50:00 │    1     0     0   100 │
+│           2 │        exit_long_normal_d_1_53 ( 2 ) │      1 │         3.26 │           1.249 │         0.62 │           1:40:00 │    1     0     0   100 │
+│         144 │          exit_long_tc_d_1_65 ( 144 ) │      1 │         3.52 │           1.249 │         0.62 │           0:25:00 │    1     0     0   100 │
+│         143 │          exit_long_tc_d_1_20 ( 143 ) │      1 │          3.2 │           1.147 │         0.57 │           0:55:00 │    1     0     0   100 │
+│         143 │           exit_long_tc_w_1_3 ( 143 ) │      1 │         3.04 │           1.083 │         0.54 │           1:30:00 │    1     0     0   100 │
+│          65 │           exit_long_rebuy_e_r ( 65 ) │      1 │         7.41 │           0.638 │         0.32 │          16:10:00 │    1     0     0   100 │
+│         143 │          exit_long_tc_d_0_97 ( 143 ) │      1 │         1.54 │           0.551 │         0.28 │           2:35:00 │    1     0     0   100 │
+│          64 │       exit_long_rebuy_d_1_130 ( 64 ) │      1 │         3.88 │           0.470 │         0.24 │  2 days, 18:20:00 │    1     0     0   100 │
+│         142 │          exit_long_tc_w_0_17 ( 142 ) │      1 │         0.64 │           0.395 │          0.2 │  3 days, 18:30:00 │    1     0     0   100 │
+│         562 │     exit_short_rebuy_d_0_130 ( 562 ) │      1 │         2.13 │           0.190 │         0.09 │           1:10:00 │    1     0     0   100 │
+│         562 │       exit_short_rebuy_w_0_1 ( 562 ) │      1 │         1.34 │           0.155 │         0.08 │           8:40:00 │    1     0     0   100 │
+│       TOTAL │                                      │     58 │         5.61 │         135.043 │        67.52 │          16:33:00 │   58     0     0   100 │
+└─────────────┴──────────────────────────────────────┴────────┴──────────────┴─────────────────┴──────────────┴───────────────────┴────────────────────────┘
+                                   SUMMARY METRICS                                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Metric                                 ┃ Value                                     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ Backtesting from                       │ 2023-01-01 00:00:00                       │
+│ Backtesting to                         │ 2024-01-01 00:00:00                       │
+│ Trading Mode                           │ Isolated Futures                          │
+│ Max open trades                        │ 6                                         │
+│                                        │                                           │
+│ Total/Daily Avg Trades                 │ 58 / 0.16                                 │
+│ Starting balance                       │ 200 USDT                                  │
+│ Final balance                          │ 335.043 USDT                              │
+│ Absolute profit                        │ 135.043 USDT                              │
+│ Total profit %                         │ 67.52%                                    │
+│ CAGR %                                 │ 67.52%                                    │
+│ Sharpe (closed trades)                 │ 4.41                                      │
+│ Sortino (closed trades)                │ -100.00                                   │
+│ Calmar (closed trades)                 │ -100.00                                   │
+│ SQN                                    │ 10.98                                     │
+│ Mean profit p-value                    │ 1.102e-15                                 │
+│ Profit factor                          │ 0.00                                      │
+│ Expectancy (Ratio)                     │ 2.33 (100.00)                             │
+│ Avg. daily profit                      │ 0.37 USDT                                 │
+│ Avg. stake amount                      │ 39.584 USDT                               │
+│ Market change                          │ 100.59%                                   │
+│ Total trade volume                     │ 14252.372 USDT                            │
+│                                        │                                           │
+│ Long / Short trades                    │ 56 / 2                                    │
+│ Long / Short profit %                  │ 67.35% / 0.17%                            │
+│ Long / Short profit USDT               │ 134.698 / 0.345                           │
+│                                        │                                           │
+│ Best Pair                              │ FIL/USDT:USDT 9.77%                       │
+│ Worst Pair                             │ BNB/USDT:USDT 0.00%                       │
+│ Best trade                             │ AVAX/USDT:USDT 18.21%                     │
+│ Worst trade                            │ FIL/USDT:USDT 0.64%                       │
+│ Best day                               │ 23.76 USDT                                │
+│ Worst day                              │ 0 USDT                                    │
+│ Days win/draw/lose                     │ 27 / 318 / 0                              │
+│ Min/Max/Avg. Duration Winners          │ 0d 00:05 / 27d 10:55 / 0d 16:33           │
+│ Min/Max/Avg. Duration Losers           │ 0d 00:00 / 0d 00:00 / 0d 00:00            │
+│ Max Consecutive Wins / Loss            │ 58 / 0                                    │
+│ Rejected Entry signals                 │ 17                                        │
+│ Entry/Exit Timeouts                    │ 0 / 0                                     │
+│                                        │                                           │
+│ Min/Max balance (closed trades)        │ 202.79 USDT / 335.043 USDT                │
+│ Max % of account underwater            │ 0.00%                                     │
+│ Absolute drawdown                      │ 0 USDT (0.00%)                            │
+│ Drawdown duration                      │ 0 days 00:00:00                           │
+│ Profit at drawdown start               │ 0 USDT                                    │
+│ Profit at drawdown end                 │ 0 USDT                                    │
+│ Drawdown start                         │ 2023-01-16 09:30:00                       │
+│ Drawdown end                           │ 2023-01-16 09:30:00                       │
+│                                        │                                           │
+│ Wallet based Metrics                   │                                           │
+│ Min/Max balance (wallet balance)       │ 200 USDT / 335.043 USDT                   │
+│ Min/Max balance dates (wallet balance) │ 2023-01-01 00:05:00 / 2023-12-26 18:55:00 │
+│ Max % of account underwater (balance)  │ 0.02%                                     │
+│ Absolute drawdown (wallet balance)     │ 0.06 USDT (0.02%)                         │
+│ Drawdown duration                      │ 3 days 02:35:00                           │
+│ Profit at drawdown start               │ 109.109 USDT                              │
+│ Profit at drawdown end                 │ 109.048 USDT                              │
+│ Drawdown start                         │ 2023-12-11 03:45:00                       │
+│ Drawdown end                           │ 2023-12-14 06:20:00                       │
+│ Sharpe (daily wallet balance)          │ 3.77                                      │
+│ Sortino (daily wallet balance)         │ -100.00                                   │
+│ Calmar (daily wallet balance)          │ 18181.98                                  │
+└────────────────────────────────────────┴───────────────────────────────────────────┘
+
+Backtested 2023-01-01 00:00:00 -> 2024-01-01 00:00:00 | Max open trades : 6
+                                                             STRATEGY SUMMARY                                                              
+┏━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃               Strategy ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃ Avg Duration ┃  Win  Draw  Loss  Win% ┃      Drawdown ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
+│ NostalgiaForInfinityX7 │     58 │         5.61 │         135.043 │        67.52 │     16:33:00 │   58     0     0   100 │ 0 USDT  0.00% │
+└────────────────────────┴────────┴──────────────┴─────────────────┴──────────────┴──────────────┴────────────────────────┴───────────────┘
