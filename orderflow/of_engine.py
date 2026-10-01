@@ -13,28 +13,17 @@ import threading
 import time
 from dataclasses import asdict, dataclass, field
 
-import gzip
-
 from of_core import Bar, Detector, SIGNAL_NAMES, LIVE_ONLY, auto_row_size, volume_profile, imbalances, stacked
+from of_playbook import Playbook, PB_NAMES
+
+ALL_NAMES = {**SIGNAL_NAMES, **PB_NAMES}     # 形态打法 + 实战打法（关键位 + 订单流确认）
+PB_HOLD_MS = 120 * 60_000                    # 实战打法最多拿 120 分钟（和回测一样）
+PB_FILL_MS = 4 * 60_000                      # 限价单挂 3~4 分钟没成交就撤
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(HERE, "of_state.json")
-REC_DIR = os.path.join(HERE, "data_rec")
 BIG_USD = {"BTC": 200_000, "ETH": 100_000, "SOL": 50_000}     # 单笔（同一毫秒同方向合并）超过这个金额算大单
 
-
-class Recorder:
-    """把实时数据录下来（爆仓、盘口、持仓、每根K线的全部字段），以后可以拿来回测只能实时用的打法。"""
-
-    def __init__(self, inst):
-        self.inst = inst
-
-    def write(self, kind, obj):
-        day = time.strftime("%Y%m%d", time.gmtime())
-        d = os.path.join(REC_DIR, day)
-        os.makedirs(d, exist_ok=True)
-        with gzip.open(os.path.join(d, f"{self.inst}_{kind}.jsonl.gz"), "at", encoding="utf-8") as f:
-            f.write(json.dumps(obj, ensure_ascii=False, separators=(",", ":")) + "\n")
 TRADE_LOG = os.path.join(HERE, "of_trades.jsonl")
 TF_MS = {"1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000, "1h": 3_600_000}
 
@@ -223,6 +212,9 @@ class SymbolEngine:
         self.app, self.inst, self.tf, self.row, self.ct = app, inst, tf, row, ct_val
         self.det = Detector(row, enabled=list(SIGNAL_NAMES))
         self.builder = BarBuilder(tf, row, self._on_bar)
+        self.pb = Playbook(row)                       # 实战打法：1 分钟足迹 + 关键位
+        self.pb_builder = BarBuilder("1m", row, self._on_pb_bar)
+        self.limit_orders: list = []                  # 实战打法的限价单（价格碰到才进场）
         self.signals: list[dict] = []
         self.last = math.nan
         self.pending: list = []       # 收盘出信号，下一笔成交进场
@@ -232,24 +224,15 @@ class SymbolEngine:
         self.ext = {"funding": math.nan, "next_funding": 0, "oi": math.nan, "oi_usd": math.nan,
                     "oi_hist": [], "ls": math.nan, "top_ls": math.nan, "liqs": [], "bigs": [], "obi": math.nan}
         self.wall_seen: dict = {}     # (方向, 行) -> 第一次看到的时间；挂够 30 秒才算真墙（防假挂单）
-        self.rec = Recorder(inst)
+
 
     def _on_bar(self, bar: Bar, seeded=False):
         sigs = self.det.on_bar(bar)
         if seeded:
             return
-        if not self.backfilling:
-            try:
-                self.rec.write("bars", {"t": bar.t, "o": bar.o, "h": bar.h, "l": bar.l, "c": bar.c, "row": self.row,
-                                        "rows": [[r, x, y] for r, (x, y) in bar.rows.items()],
-                                        "liq_long": bar.liq_long, "liq_short": bar.liq_short,
-                                        "big_buy": bar.big_buy, "big_sell": bar.big_sell, "oi": bar.oi,
-                                        "funding": bar.funding, "ls": bar.ls, "obi": bar.obi,
-                                        "wall_bid": bar.wall_bid, "wall_ask": bar.wall_ask})
-            except Exception:  # noqa: BLE001
-                pass
+
         for s in sigs:
-            d = {"t": bar.t, "kind": s.kind, "name": SIGNAL_NAMES[s.kind], "side": s.side,
+            d = {"t": bar.t, "kind": s.kind, "name": ALL_NAMES[s.kind], "side": s.side,
                  "stop": s.stop, "target": s.target, "price": bar.c, "note": s.note,
                  "traded": False}
             if self.backfilling:
@@ -258,6 +241,30 @@ class SymbolEngine:
             self.signals = self.signals[-200:]
             if not self.backfilling:
                 self.pending.append((s, d))
+
+    def _on_pb_bar(self, bar: Bar, seeded=False):
+        for s in self.pb.on_bar(bar):
+            d = {"t": bar.t, "kind": s.kind, "name": ALL_NAMES[s.kind], "side": s.side, "stop": s.stop,
+                 "target": s.target, "price": s.entry, "note": f"关键位：{s.level}，限价 {s.entry:.6g}", "traded": False}
+            if self.backfilling:
+                d["skip"] = "历史信号"
+            self.signals = (self.signals + [d])[-200:]
+            if not self.backfilling:
+                self.limit_orders.append((s, d, bar.t + 60_000 + PB_FILL_MS))
+
+    def _check_limits(self, price, ts):
+        keep = []
+        for s, d, until in self.limit_orders:
+            if ts > until:
+                d["skip"] = "限价没成交，已撤"
+                continue
+            if (s.side == 1 and price <= s.entry) or (s.side == -1 and price >= s.entry):
+                self.app.try_open(self, s, d, price, ts)
+                if not d.get("traded") and not d.get("skip"):
+                    d["skip"] = "没开成"
+                continue
+            keep.append((s, d, until))
+        self.limit_orders = keep
 
     def _cur_bar(self, ts):
         b = self.builder.cur
@@ -293,11 +300,14 @@ class SymbolEngine:
             self._flush_big()
             self._agg = {"ts": ts, "buy": is_buy, "q": qty, "usd": qty * price, "px": price}
         self.builder.add(price, qty, is_buy, ts)
+        self.pb_builder.add(price, qty, is_buy, ts)
         c = self.builder.cur
         if c is not None and math.isnan(c.oi):        # 新K线：先带上最新的持仓、费率、多空比
             c.oi, c.funding, c.ls = self.ext["oi"], self.ext["funding"], self.ext["ls"]
         if self.backfilling:
             return
+        if self.limit_orders:
+            self._check_limits(price, ts)
         if self.pending:
             todo, self.pending = self.pending, []
             for s, d in todo:
@@ -317,10 +327,6 @@ class SymbolEngine:
             else:
                 b.liq_short += qty
             b.liqs.append((price, qty, side))
-        try:
-            self.rec.write("liq", item)
-        except Exception:  # noqa: BLE001
-            pass
 
     def on_oi(self, oi_coin, oi_usd, ts):
         self.ext["oi"], self.ext["oi_usd"] = oi_coin, oi_usd
@@ -418,6 +424,7 @@ class SymbolEngine:
                 "zones": [z for z in self.det.zones if not z["used"]],
                 "signals": self.signals[-30:],
                 "ext": {k: v for k, v in self.ext.items() if k != "oi_hist"},
+                "levels": [] if math.isnan(self.last) else [[x, n] for x, n in self.pb.levels(self.last)],
                 "oi_1h": self._oi_change(3600_000),
                 "extras_status": getattr(self.app.extras.get(self.inst), "status", "")}
 
@@ -524,11 +531,14 @@ class OrderFlowApp:
             d["skip"] = f"下单失败：{e}"
             self.say(f"{eng.inst} 下单失败：{e}")
             return
+        if s.kind in PB_NAMES:
+            eng.pb.trades_today += 1
         pos = Position(eng.inst, s.kind, s.side, qty, fill, s.stop, s.target, ts,
-                       ts + self.cfg.get("max_hold_bars", 48) * TF_MS[eng.tf], oid, br is not self.paper)
+                       ts + (PB_HOLD_MS if s.kind in PB_NAMES else self.cfg.get("max_hold_bars", 48) * TF_MS[eng.tf]),
+                       oid, br is not self.paper)
         self.acct.positions.append(pos)
         d["traded"] = True
-        self.say(f"[{br.name}] 开{'多' if s.side == 1 else '空'} {eng.inst} {SIGNAL_NAMES[s.kind]} 价 {fill:.6g} 数量 {qty:.6g} 止损 {s.stop:.6g} 止盈 {s.target:.6g}")
+        self.say(f"[{br.name}] 开{'多' if s.side == 1 else '空'} {eng.inst} {ALL_NAMES[s.kind]} 价 {fill:.6g} 数量 {qty:.6g} 止损 {s.stop:.6g} 止盈 {s.target:.6g}")
         self.save()
 
     def check_exits(self, eng: SymbolEngine, price, ts):
@@ -562,12 +572,14 @@ class OrderFlowApp:
             self.acct.day_pnl += pnl
             self.acct.closed += 1
             self.acct.wins += pnl > 0
-            rec = {"sym": pos.sym, "kind": SIGNAL_NAMES[pos.kind], "side": pos.side, "entry": pos.entry,
+            rec = {"sym": pos.sym, "kind": ALL_NAMES[pos.kind], "side": pos.side, "entry": pos.entry,
                    "exit": exit_px, "pnl": round(pnl, 4), "why": why, "t_open": pos.t_open, "t_close": ts,
                    "live": pos.live}
             self.history.append(rec)
             with open(TRADE_LOG, "a", encoding="utf-8") as f:
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            if pos.kind in PB_NAMES and eng is not None:
+                eng.pb.record_result(pnl > 0)
             self.say(f"平仓 {pos.sym} {why} 盈亏 {pnl:+.2f}U")
             self.save()
 
@@ -581,10 +593,10 @@ class OrderFlowApp:
     def state(self, inst):
         eng = self.engines.get(inst)
         return {"view": eng.view() if eng else None,
-                "symbols": [x for x in self.cfg["symbols"] if x in self.engines],
+                "symbols": [x for x in self.cfg.get("symbols_live", self.cfg["symbols"]) if x in self.engines],
                 "feed": {k: f.status for k, f in self.feeds.items()},
                 "cfg": self.cfg, "live_ok": self.live_confirmed, "allow_live": self.allow_live,
-                "signal_names": SIGNAL_NAMES, "live_only": sorted(LIVE_ONLY),
+                "signal_names": ALL_NAMES, "live_only": sorted(LIVE_ONLY), "pb_kinds": sorted(PB_NAMES),
                 "acct": {**asdict(self.acct), "positions": [asdict(p) for p in self.acct.positions]},
                 "last": {k: e.last for k, e in self.engines.items()},
                 "history": self.history[-50:], "log": self.log[-60:]}

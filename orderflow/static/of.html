@@ -137,6 +137,10 @@ function draw(){
   if(V.prev_day){ for(const [k,c] of [['vah','#8888'],['val','#8888'],['poc','#d4a01788']]){ const y=yOfPx(V.prev_day[k]);
       ctx.strokeStyle=c; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(plotR,y); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle=c; ctx.fillText('昨日'+k.toUpperCase(),4,y-7);} }
+  // 关键位（昨日高低点/价值区/POC、VWAP、开盘区间、整数关口）
+  for(const [px,name] of (V.levels||[])){ const y=yOfPx(px); if(y<0||y>plotH) continue;
+    ctx.strokeStyle='#b388ff88'; ctx.setLineDash([6,3]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(plotR,y); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='#b388ff'; ctx.textAlign='right'; ctx.fillText(name+' '+fp(px), plotR-4, y-7); ctx.textAlign='left'; }
   // 堆叠失衡区
   for(const z of V.zones||[]){ const y1=yOfPx(z.hi), y2=yOfPx(z.lo);
     ctx.fillStyle = z.side>0?'#26a69a22':'#ef535022'; ctx.fillRect(0,y1,plotR,y2-y1); }
@@ -241,9 +245,10 @@ $('#zoomIn').onclick=()=>{colW=Math.min(180,colW+12);cellH=Math.min(30,cellH+2);
 $('#zoomOut').onclick=()=>{colW=Math.max(60,colW-12);cellH=Math.max(10,cellH-2);draw();};
 $('#center').onclick=()=>{priceOff=0;barOff=0;follow=true;draw();};
 
-function btText(k){ const tfm=(S&&S.cfg&&S.cfg.tf)||'5m'; const r=(BT[tfm]||{})[k];
+function btText(k){ let tfm=(S&&S.cfg&&S.cfg.tf)||'5m'; const r=(BT[tfm]||{})[k];
   if(((S&&S.live_only)||[]).includes(k)) return '<small style="color:#f0b90b">没有历史数据，无法回测；程序运行时会自动录下数据，录够了再测</small>';
   if(!r) return '<small>还没有回测结果</small>';
+  if(r.note) tfm=r.note;
   const good = r.pf>1.1 && r.pf_a>1 && r.pf_b>1;
   return `<small style="color:${good?'#26a69a':'#ef5350'}">${tfm}回测 ${r.n}笔 胜率${(r.win*100).toFixed(0)}% PF ${r.pf.toFixed(2)}（前半${r.pf_a.toFixed(2)} / 后半${r.pf_b.toFixed(2)}）${good?' 过关':' 不过关'}</small>`; }
 let built=false;

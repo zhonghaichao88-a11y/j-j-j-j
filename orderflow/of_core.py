@@ -328,8 +328,8 @@ class Detector:
                 out.append(self._mk("liq_cascade", -1, bar.c, bar.h + self.row, bar, f"空单爆仓 {usd_s/1e6:.2f}M$"))
 
         # 持仓量变化
-        ois = [b.oi for b in past + [bar] if not math.isnan(b.oi)]
-        if len(ois) >= 50 and not math.isnan(bar.oi):
+        ois = [b.oi for b in past + [bar] if not math.isnan(b.oi) and b.oi > 0]
+        if len(ois) >= 50 and not math.isnan(bar.oi) and bar.oi > 0:
             ch = np.diff(np.array(ois)) / np.array(ois[:-1])
             d_now, sd = ch[-1], float(np.std(ch[:-1])) or 1e-12
             # 8 持仓骤降反转：持仓突然大降（大批平仓/爆仓）+ 价格跌，收在上半截 → 多；价格涨的镜像 → 空

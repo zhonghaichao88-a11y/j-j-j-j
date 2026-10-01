@@ -1,5 +1,5 @@
 {
- "symbols": ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP"],
+ "symbols": "auto",
  "tf": "5m",
  "enabled": [],
  "auto": false,
@@ -7,5 +7,7 @@
  "max_leverage": 3,
  "max_positions": 2,
  "daily_loss_pct": 3,
- "paper_equity": 1000
+ "paper_equity": 1000,
+ "top_n": 5,
+ "v7_days": 2
 }

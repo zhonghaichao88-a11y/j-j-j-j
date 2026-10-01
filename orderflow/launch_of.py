@@ -68,6 +68,24 @@ def ask_keys():
     print("已保存到 .env")
 
 
+def ask_v7_dir():
+    """找 V7 录的数据（V7 文件夹里的 recorder_data）。旁边就有 V7 文件夹会自动找到，找不到才问一次。"""
+    sys.path.insert(0, str(ROOT))
+    import of_v7data
+    env = read_env()
+    if of_v7data.find_dir(env.get("OF_V7_DATA")):
+        return
+    print("-" * 60)
+    print("没找到 V7 录的实盘数据（V7 文件夹里的 recorder_data）。")
+    print("把 V7 文件夹拖进这个窗口再按回车（或者手动输入路径）；没有就直接回车跳过。")
+    p = input("V7 文件夹: ").strip().strip('"')
+    if p and of_v7data.find_dir(p):
+        write_env({"OF_V7_DATA": p})
+        print("已保存。")
+    elif p:
+        print("这个文件夹里没找到 recorder_data 的数据，先跳过（启动后按配置里的币运行）。")
+
+
 def wait_ready(proc, timeout=180) -> bool:
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # 本机检查不走代理
     end = time.monotonic() + timeout
@@ -89,6 +107,7 @@ def main():
     if not ENV.exists() and (ROOT / ".env.example").exists():
         shutil.copy(ROOT / ".env.example", ENV)
     ask_keys()
+    ask_v7_dir()
     proc = subprocess.Popen([sys.executable, str(ROOT / "of_app.py")], cwd=ROOT,
                             env=dict(os.environ, OF_NO_BROWSER="1"))
     try:
