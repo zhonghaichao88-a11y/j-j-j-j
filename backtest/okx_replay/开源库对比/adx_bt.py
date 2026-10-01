@@ -39,7 +39,7 @@ def signals(f, adx_th=25, di_th=25):
     return np.nan_to_num(ent).astype(bool), np.nan_to_num(ex).astype(bool)
 
 
-def run(frames, btc_daily, fee=0.001, roi=0.01, sl=0.25, adx_th=25, di_th=25, max_open=10, t0=None, t1=None, use_btc=True, stake=100, wallet=1000, short=False, delay=0):
+def run(frames, btc_daily, fee=0.001, roi=0.01, sl=0.25, adx_th=25, di_th=25, max_open=10, t0=None, t1=None, use_btc=True, stake=100, wallet=1000, short=False, delay=0, max_hold=0):
     pairs = sorted(frames); prep = {}; bal = [float(wallet)]   # 可用余额：亏损后可能不够开满 10 仓（与 freqtrade 一致）
     for p in pairs:
         f = frames[p]; ts = np.asarray(f['ts'], np.int64)
@@ -68,6 +68,7 @@ def run(frames, btc_daily, fee=0.001, roi=0.01, sl=0.25, adx_th=25, di_th=25, ma
         """本根K线内的持仓处理（与 freqtrade 回测顺序一致）；返回是否平仓。"""
         pos = P['pos']; e = pos['entry']; d = pos['d']
         if pos['pending_exit']: close(p, P, pos, t, P['o'][i], '信号'); return True
+        if max_hold and int(t) - pos['t'] >= max_hold * H: close(p, P, pos, t, P['o'][i], '超时'); return True
         if d == 1:
             stop = e * (1 - sl)
             if P['l'][i] <= stop: close(p, P, pos, t, min(stop, P['o'][i]), '止损'); return True
@@ -89,8 +90,8 @@ def run(frames, btc_daily, fee=0.001, roi=0.01, sl=0.25, adx_th=25, di_th=25, ma
             # 严格口径：开盘时只有“开盘就平掉的仓”（上一根出场信号）能腾出位置；本小时盘中止盈止损腾出的位置，要到下一根才能用
             for p, i in live:
                 P = prep[p]
-                if P['pos'] is not None and P['pos']['pending_exit']:
-                    close(p, P, P['pos'], t, P['o'][i], '信号'); open_n -= 1
+                if P['pos'] is not None and (P['pos']['pending_exit'] or (max_hold and int(t) - P['pos']['t'] >= max_hold * H)):
+                    close(p, P, P['pos'], t, P['o'][i], '信号' if P['pos']['pending_exit'] else '超时'); open_n -= 1
             slots = max_open - open_n; new = []
             for p, i in live:
                 P = prep[p]
