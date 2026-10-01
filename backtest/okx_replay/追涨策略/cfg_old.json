@@ -1,0 +1,84 @@
+{
+ "max_open_trades": -1,
+ "stake_currency": "USDT",
+ "stake_amount": 100,
+ "tradable_balance_ratio": 0.99,
+ "dry_run": true,
+ "dry_run_wallet": 1000000,
+ "trading_mode": "futures",
+ "fee": 0.001,
+ "exchange": {
+  "name": "okx",
+  "key": "",
+  "secret": "",
+  "password": "",
+  "ccxt_config": {
+   "httpsProxy": "http://127.0.0.1:39397"
+  },
+  "ccxt_async_config": {
+   "httpsProxy": "http://127.0.0.1:39397"
+  },
+  "pair_whitelist": [
+   "AAVE/USDT:USDT",
+   "ADA/USDT:USDT",
+   "AKE/USDT:USDT",
+   "ALGO/USDT:USDT",
+   "ARB/USDT:USDT",
+   "AVAX/USDT:USDT",
+   "BCH/USDT:USDT",
+   "BNB/USDT:USDT",
+   "BTC/USDT:USDT",
+   "CRV/USDT:USDT",
+   "DASH/USDT:USDT",
+   "DOGE/USDT:USDT",
+   "ENA/USDT:USDT",
+   "ETH/USDT:USDT",
+   "FIL/USDT:USDT",
+   "GRASS/USDT:USDT",
+   "HBAR/USDT:USDT",
+   "HYPE/USDT:USDT",
+   "LINK/USDT:USDT",
+   "LIT/USDT:USDT",
+   "LTC/USDT:USDT",
+   "MUBARAK/USDT:USDT",
+   "NEAR/USDT:USDT",
+   "NMR/USDT:USDT",
+   "ONDO/USDT:USDT",
+   "PEPE/USDT:USDT",
+   "PUMP/USDT:USDT",
+   "SOL/USDT:USDT",
+   "SOON/USDT:USDT",
+   "SUI/USDT:USDT",
+   "TAO/USDT:USDT",
+   "TRUMP/USDT:USDT",
+   "UNI/USDT:USDT",
+   "USELESS/USDT:USDT",
+   "WLD/USDT:USDT",
+   "XDP/USDT:USDT",
+   "XLM/USDT:USDT",
+   "XPL/USDT:USDT",
+   "XRP/USDT:USDT",
+   "ZEC/USDT:USDT"
+  ],
+  "pair_blacklist": []
+ },
+ "pairlists": [
+  {
+   "method": "StaticPairList"
+  }
+ ],
+ "entry_pricing": {
+  "price_side": "same",
+  "use_order_book": false,
+  "price_last_balance": 0.0
+ },
+ "exit_pricing": {
+  "price_side": "same",
+  "use_order_book": false
+ },
+ "dataformat_ohlcv": "feather",
+ "internals": {
+  "process_throttle_secs": 5
+ },
+ "margin_mode": "isolated"
+}
