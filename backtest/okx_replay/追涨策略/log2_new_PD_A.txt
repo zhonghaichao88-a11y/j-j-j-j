@@ -1,0 +1,357 @@
+2026-10-01 19:42:22,699 - freqtrade - INFO - freqtrade 2026.9
+2026-10-01 19:42:22,837 - numexpr.utils - INFO - NumExpr defaulting to 4 threads.
+2026-10-01 19:42:24,348 - freqtrade.configuration.load_config - INFO - Using config: pump/cfg_new.json ...
+2026-10-01 19:42:24,351 - freqtrade.loggers - INFO - Enabling colorized output.
+2026-10-01 19:42:24,352 - freqtrade.loggers - INFO - Logfile configured
+2026-10-01 19:42:24,352 - freqtrade.loggers - INFO - Verbosity set to 0
+2026-10-01 19:42:24,353 - freqtrade.configuration.configuration - INFO - Using max_open_trades: -1 ...
+2026-10-01 19:42:24,353 - freqtrade.configuration.configuration - INFO - Parameter --timeframe-detail detected, using 5m for intra-candle backtesting ...
+2026-10-01 19:42:24,353 - freqtrade.configuration.configuration - INFO - Parameter --timerange detected: 20241101-20260929 ...
+2026-10-01 19:42:24,354 - freqtrade.configuration.configuration - INFO - Using user-data directory: ft ...
+2026-10-01 19:42:24,354 - freqtrade.configuration.configuration - INFO - Using data directory: ft/data/okx ...
+2026-10-01 19:42:24,355 - freqtrade.configuration.configuration - INFO - Using pump/v2new_PD_A as backtest directory ...
+2026-10-01 19:42:24,355 - freqtrade.configuration.configuration - INFO - Parameter --export detected: trades ...
+2026-10-01 19:42:24,355 - freqtrade.configuration.configuration - INFO - Parameter --cache=day detected ...
+2026-10-01 19:42:24,356 - freqtrade.configuration.configuration - INFO - Filter trades by timerange: 20241101-20260929
+2026-10-01 19:42:24,356 - freqtrade.exchange.check_exchange - INFO - Checking exchange...
+2026-10-01 19:42:24,363 - freqtrade.exchange.check_exchange - INFO - Exchange "okx" is officially supported by the Freqtrade development team.
+2026-10-01 19:42:24,363 - freqtrade.configuration.configuration - INFO - Using pairlist from configuration.
+2026-10-01 19:42:24,363 - freqtrade.configuration.config_validation - INFO - Validating configuration ...
+2026-10-01 19:42:24,365 - freqtrade.commands.optimize_commands - INFO - Starting freqtrade in Backtesting mode
+2026-10-01 19:42:24,366 - freqtrade.exchange.exchange - INFO - Instance is running with dry_run enabled
+2026-10-01 19:42:24,366 - freqtrade.exchange.exchange - INFO - Using CCXT 4.5.84
+2026-10-01 19:42:24,366 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'options': {'defaultType': 'swap'}, 'httpsProxy': 'http://127.0.0.1:39397'}
+2026-10-01 19:42:24,369 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'options': {'defaultType': 'swap'}, 'httpsProxy': 'http://127.0.0.1:39397'}
+2026-10-01 19:42:24,372 - freqtrade.exchange.exchange - INFO - Using Exchange "OKX"
+2026-10-01 19:42:25,875 - freqtrade.exchange.exchange - INFO - Using cached leverage_tiers.
+2026-10-01 19:42:25,876 - freqtrade.exchange.exchange - INFO - Done initializing 480 markets.
+2026-10-01 19:42:25,915 - freqtrade.resolvers.exchange_resolver - INFO - Using resolved exchange class 'Okx' ...
+2026-10-01 19:42:25,944 - freqtrade.resolvers.iresolver - INFO - Using resolved strategy PD_A from '/home/user/ext/ft/strategies/PumpV2.py'...
+2026-10-01 19:42:25,944 - freqtrade.strategy.hyper - INFO - Found no parameter file.
+2026-10-01 19:42:25,945 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_currency' with value from the configuration: USDT.
+2026-10-01 19:42:25,945 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_amount' with value from the configuration: 100.
+2026-10-01 19:42:25,945 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'max_open_trades' with value from the configuration: inf.
+2026-10-01 19:42:25,945 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using minimal_roi: {'0': 0.1}
+2026-10-01 19:42:25,945 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using timeframe: 1h
+2026-10-01 19:42:25,946 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stoploss: -0.25
+2026-10-01 19:42:25,946 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop: False
+2026-10-01 19:42:25,946 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive_offset: 0.0
+2026-10-01 19:42:25,946 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_only_offset_is_reached: False
+2026-10-01 19:42:25,946 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_custom_stoploss: False
+2026-10-01 19:42:25,946 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using process_only_new_candles: True
+2026-10-01 19:42:25,946 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_types: {'entry': 'limit', 'exit': 'limit', 'stoploss': 'limit', 'stoploss_on_exchange': False, 
+'stoploss_on_exchange_interval': 60}
+2026-10-01 19:42:25,947 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_time_in_force: {'entry': 'GTC', 'exit': 'GTC'}
+2026-10-01 19:42:25,947 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_currency: USDT
+2026-10-01 19:42:25,947 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_amount: 100
+2026-10-01 19:42:25,947 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using startup_candle_count: 120
+2026-10-01 19:42:25,947 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_exit_signal: False
+2026-10-01 19:42:25,947 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_only: False
+2026-10-01 19:42:25,948 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_roi_if_entry_signal: False
+2026-10-01 19:42:25,948 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_offset: 0.0
+2026-10-01 19:42:25,948 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using disable_dataframe_checks: False
+2026-10-01 19:42:25,948 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_buying_expired_candle_after: 0
+2026-10-01 19:42:25,948 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using position_adjustment_enable: False
+2026-10-01 19:42:25,948 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_entry_position_adjustment: -1
+2026-10-01 19:42:25,948 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_open_trades: inf
+2026-10-01 19:42:25,949 - freqtrade.configuration.config_validation - INFO - Validating configuration ...
+2026-10-01 19:42:25,953 - freqtrade.resolvers.iresolver - INFO - Using resolved pairlist StaticPairList from 
+'/home/user/ext/ftvenv/lib/python3.11/site-packages/freqtrade/plugins/pairlist/StaticPairList.py'...
+2026-10-01 19:42:25,965 - freqtrade.optimize.backtesting - INFO - Using fee 0.1000% from config.
+2026-10-01 19:42:26,056 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ZEC/USDT:USDT, futures, 1h, data starts at 2025-11-06 03:00:00
+2026-10-01 19:42:26,145 - freqtrade.data.history.datahandlers.idatahandler - WARNING - PUMP/USDT:USDT, futures, 1h, data starts at 2025-07-14 17:00:00
+2026-10-01 19:42:26,238 - freqtrade.data.history.datahandlers.idatahandler - WARNING - HYPE/USDT:USDT, futures, 1h, data starts at 2025-02-21 07:00:00
+2026-10-01 19:42:26,401 - freqtrade.data.history.datahandlers.idatahandler - WARNING - TRUMP/USDT:USDT, futures, 1h, data starts at 2025-01-19 05:00:00
+2026-10-01 19:42:26,438 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ENA/USDT:USDT, futures, 1h, data starts at 2025-09-17 07:00:00
+2026-10-01 19:42:26,537 - freqtrade.data.history.datahandlers.idatahandler - WARNING - GRASS/USDT:USDT, futures, 1h, data starts at 2024-10-28 14:00:00
+2026-10-01 19:42:26,579 - freqtrade.data.history.datahandlers.idatahandler - WARNING - XDP/USDT:USDT, futures, 1h, data starts at 2026-09-28 14:00:00
+2026-10-01 19:42:26,599 - freqtrade.data.history.datahandlers.idatahandler - WARNING - SOON/USDT:USDT, futures, 1h, data starts at 2025-05-23 11:00:00
+2026-10-01 19:42:26,740 - freqtrade.data.history.datahandlers.idatahandler - WARNING - XPL/USDT:USDT, futures, 1h, data starts at 2025-08-28 11:00:00
+2026-10-01 19:42:26,851 - freqtrade.data.history.datahandlers.idatahandler - WARNING - AKE/USDT:USDT, futures, 1h, data starts at 2026-09-16 07:00:00
+2026-10-01 19:42:26,868 - freqtrade.data.history.datahandlers.idatahandler - WARNING - MUBARAK/USDT:USDT, futures, 1h, data starts at 2025-06-03 10:00:00
+2026-10-01 19:42:26,888 - freqtrade.data.history.datahandlers.idatahandler - WARNING - LIT/USDT:USDT, futures, 1h, data starts at 2025-12-24 03:00:00
+2026-10-01 19:42:26,938 - freqtrade.data.history.datahandlers.idatahandler - WARNING - DASH/USDT:USDT, futures, 1h, data starts at 2025-11-06 03:00:00
+2026-10-01 19:42:26,963 - freqtrade.data.history.datahandlers.idatahandler - WARNING - USELESS/USDT:USDT, futures, 1h, data starts at 2025-07-25 10:00:00
+2026-10-01 19:42:26,989 - freqtrade.optimize.backtesting - INFO - Loading data from 2024-10-27 00:00:00 up to 2026-09-29 00:00:00 (702 days).
+2026-10-01 19:42:27,247 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ZEC/USDT:USDT, futures, 5m, data starts at 2025-11-06 03:15:00
+2026-10-01 19:42:27,576 - freqtrade.data.history.datahandlers.idatahandler - WARNING - PUMP/USDT:USDT, futures, 5m, data starts at 2025-07-14 17:30:00
+2026-10-01 19:42:27,924 - freqtrade.data.history.datahandlers.idatahandler - WARNING - HYPE/USDT:USDT, futures, 5m, data starts at 2025-02-21 07:00:00
+2026-10-01 19:42:28,584 - freqtrade.data.history.datahandlers.idatahandler - WARNING - TRUMP/USDT:USDT, futures, 5m, data starts at 2025-01-19 05:30:00
+2026-10-01 19:42:28,749 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ENA/USDT:USDT, futures, 5m, data starts at 2025-09-17 07:30:00
+2026-10-01 19:42:29,362 - freqtrade.data.history.datahandlers.idatahandler - WARNING - XDP/USDT:USDT, futures, 5m, data starts at 2026-09-28 14:00:00
+2026-10-01 19:42:29,383 - freqtrade.data.history.datahandlers.idatahandler - WARNING - SOON/USDT:USDT, futures, 5m, data starts at 2025-05-23 11:30:00
+2026-10-01 19:42:29,839 - freqtrade.data.history.datahandlers.idatahandler - WARNING - XPL/USDT:USDT, futures, 5m, data starts at 2025-08-28 11:00:00
+2026-10-01 19:42:30,020 - freqtrade.data.history.datahandlers.idatahandler - WARNING - AKE/USDT:USDT, futures, 5m, data starts at 2026-09-16 07:00:00
+2026-10-01 19:42:30,071 - freqtrade.data.history.datahandlers.idatahandler - WARNING - MUBARAK/USDT:USDT, futures, 5m, data starts at 2025-06-03 10:30:00
+2026-10-01 19:42:30,138 - freqtrade.data.history.datahandlers.idatahandler - WARNING - LIT/USDT:USDT, futures, 5m, data starts at 2025-12-24 03:30:00
+2026-10-01 19:42:30,296 - freqtrade.data.history.datahandlers.idatahandler - WARNING - DASH/USDT:USDT, futures, 5m, data starts at 2025-11-06 03:00:00
+2026-10-01 19:42:30,363 - freqtrade.data.history.datahandlers.idatahandler - WARNING - USELESS/USDT:USDT, futures, 5m, data starts at 2025-07-25 10:00:00
+2026-10-01 19:42:30,416 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ETH/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,418 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for BTC/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,420 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ZEC/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,421 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for SOL/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,423 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for XRP/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,424 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for DOGE/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,426 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for PUMP/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,427 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for HBAR/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,429 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for NEAR/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,430 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for SUI/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,432 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for HYPE/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,434 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for LINK/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,435 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for UNI/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,437 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for WLD/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,438 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for PEPE/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,439 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ONDO/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,447 - freqtrade.data.history.datahandlers.idatahandler - WARNING - AAVE/USDT:USDT, funding_rate, 1h, data starts at 2026-06-29 08:00:00
+2026-10-01 19:42:30,448 - freqtrade.data.history.datahandlers.idatahandler - WARNING - AAVE/USDT:USDT, funding_rate, 1h, data ends at 2026-08-01 08:00:00
+2026-10-01 19:42:30,452 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for TRUMP/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,453 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for AVAX/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,455 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ENA/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,456 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ARB/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,457 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for LTC/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,459 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for NMR/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,461 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for FIL/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,462 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for GRASS/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,463 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ADA/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,464 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for XDP/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,466 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for SOON/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,467 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for XLM/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,468 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for CRV/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,470 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for TAO/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,471 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for BCH/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,472 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for XPL/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,474 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for BNB/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,475 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for AKE/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,477 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for MUBARAK/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,478 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for LIT/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,479 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ALGO/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,480 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for DASH/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,481 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for USELESS/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 19:42:30,530 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ZEC/USDT:USDT, mark, 1h, data starts at 2025-11-06 03:00:00
+2026-10-01 19:42:30,615 - freqtrade.data.history.datahandlers.idatahandler - WARNING - PUMP/USDT:USDT, mark, 1h, data starts at 2025-07-14 17:00:00
+2026-10-01 19:42:30,690 - freqtrade.data.history.datahandlers.idatahandler - WARNING - HYPE/USDT:USDT, mark, 1h, data starts at 2025-02-21 07:00:00
+2026-10-01 19:42:30,859 - freqtrade.data.history.datahandlers.idatahandler - WARNING - TRUMP/USDT:USDT, mark, 1h, data starts at 2025-01-19 05:00:00
+2026-10-01 19:42:30,900 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ENA/USDT:USDT, mark, 1h, data starts at 2025-09-17 07:00:00
+2026-10-01 19:42:31,030 - freqtrade.data.history.datahandlers.idatahandler - WARNING - XDP/USDT:USDT, mark, 1h, data starts at 2026-09-28 14:00:00
+2026-10-01 19:42:31,044 - freqtrade.data.history.datahandlers.idatahandler - WARNING - SOON/USDT:USDT, mark, 1h, data starts at 2025-05-23 11:00:00
+2026-10-01 19:42:31,150 - freqtrade.data.history.datahandlers.idatahandler - WARNING - XPL/USDT:USDT, mark, 1h, data starts at 2025-08-28 11:00:00
+2026-10-01 19:42:31,190 - freqtrade.data.history.datahandlers.idatahandler - WARNING - AKE/USDT:USDT, mark, 1h, data starts at 2026-09-16 07:00:00
+2026-10-01 19:42:31,207 - freqtrade.data.history.datahandlers.idatahandler - WARNING - MUBARAK/USDT:USDT, mark, 1h, data starts at 2025-06-03 10:00:00
+2026-10-01 19:42:31,248 - freqtrade.data.history.datahandlers.idatahandler - WARNING - LIT/USDT:USDT, mark, 1h, data starts at 2025-12-24 03:00:00
+2026-10-01 19:42:31,309 - freqtrade.data.history.datahandlers.idatahandler - WARNING - DASH/USDT:USDT, mark, 1h, data starts at 2025-11-06 03:00:00
+2026-10-01 19:42:31,328 - freqtrade.data.history.datahandlers.idatahandler - WARNING - USELESS/USDT:USDT, mark, 1h, data starts at 2025-07-25 10:00:00
+2026-10-01 19:42:35,632 - freqtrade.optimize.backtesting - INFO - Dataload complete. Calculating indicators
+2026-10-01 19:42:35,635 - freqtrade.optimize.backtesting - INFO - Running backtesting for Strategy PD_A
+2026-10-01 19:42:35,637 - freqtrade.data.dataprovider - INFO - Loading data for ETH/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:35,685 - freqtrade.data.dataprovider - INFO - Loading data for BTC/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:35,721 - freqtrade.data.dataprovider - INFO - Loading data for ZEC/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:35,729 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ZEC/USDT:USDT, futures, 4h, data starts at 2025-11-06 00:00:00
+2026-10-01 19:42:35,744 - freqtrade.data.dataprovider - INFO - Loading data for SOL/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:35,775 - freqtrade.data.dataprovider - INFO - Loading data for XRP/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:35,814 - freqtrade.data.dataprovider - INFO - Loading data for DOGE/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:35,863 - freqtrade.data.dataprovider - INFO - Loading data for PUMP/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:35,871 - freqtrade.data.history.datahandlers.idatahandler - WARNING - PUMP/USDT:USDT, futures, 4h, data starts at 2025-07-14 16:00:00
+2026-10-01 19:42:35,894 - freqtrade.data.dataprovider - INFO - Loading data for HBAR/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:35,937 - freqtrade.data.dataprovider - INFO - Loading data for NEAR/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:35,973 - freqtrade.data.dataprovider - INFO - Loading data for SUI/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,002 - freqtrade.data.dataprovider - INFO - Loading data for HYPE/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,011 - freqtrade.data.history.datahandlers.idatahandler - WARNING - HYPE/USDT:USDT, futures, 4h, data starts at 2025-02-21 04:00:00
+2026-10-01 19:42:36,034 - freqtrade.data.dataprovider - INFO - Loading data for LINK/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,072 - freqtrade.data.dataprovider - INFO - Loading data for UNI/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,101 - freqtrade.data.dataprovider - INFO - Loading data for WLD/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,157 - freqtrade.data.dataprovider - INFO - Loading data for PEPE/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,200 - freqtrade.data.dataprovider - INFO - Loading data for ONDO/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,244 - freqtrade.data.dataprovider - INFO - Loading data for AAVE/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,275 - freqtrade.data.dataprovider - INFO - Loading data for TRUMP/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,283 - freqtrade.data.history.datahandlers.idatahandler - WARNING - TRUMP/USDT:USDT, futures, 4h, data starts at 2025-01-19 04:00:00
+2026-10-01 19:42:36,318 - freqtrade.data.dataprovider - INFO - Loading data for AVAX/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,367 - freqtrade.data.dataprovider - INFO - Loading data for ENA/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,382 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ENA/USDT:USDT, futures, 4h, data starts at 2025-09-17 04:00:00
+2026-10-01 19:42:36,411 - freqtrade.data.dataprovider - INFO - Loading data for ARB/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,452 - freqtrade.data.dataprovider - INFO - Loading data for LTC/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,501 - freqtrade.data.dataprovider - INFO - Loading data for NMR/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,540 - freqtrade.data.dataprovider - INFO - Loading data for FIL/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,576 - freqtrade.data.dataprovider - INFO - Loading data for GRASS/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,583 - freqtrade.data.history.datahandlers.idatahandler - WARNING - GRASS/USDT:USDT, futures, 4h, data starts at 2024-10-28 12:00:00
+2026-10-01 19:42:36,608 - freqtrade.data.dataprovider - INFO - Loading data for ADA/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,642 - freqtrade.data.dataprovider - INFO - Loading data for XDP/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,648 - freqtrade.data.history.datahandlers.idatahandler - WARNING - XDP/USDT:USDT, futures, 4h, data starts at 2026-09-28 12:00:00
+2026-10-01 19:42:36,667 - freqtrade.data.dataprovider - INFO - Loading data for SOON/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,675 - freqtrade.data.history.datahandlers.idatahandler - WARNING - SOON/USDT:USDT, futures, 4h, data starts at 2025-05-23 08:00:00
+2026-10-01 19:42:36,695 - freqtrade.data.dataprovider - INFO - Loading data for XLM/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,734 - freqtrade.data.dataprovider - INFO - Loading data for CRV/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,776 - freqtrade.data.dataprovider - INFO - Loading data for TAO/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,816 - freqtrade.data.dataprovider - INFO - Loading data for BCH/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,856 - freqtrade.data.dataprovider - INFO - Loading data for XPL/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,864 - freqtrade.data.history.datahandlers.idatahandler - WARNING - XPL/USDT:USDT, futures, 4h, data starts at 2025-08-28 08:00:00
+2026-10-01 19:42:36,887 - freqtrade.data.dataprovider - INFO - Loading data for BNB/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,930 - freqtrade.data.dataprovider - INFO - Loading data for AKE/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,937 - freqtrade.data.history.datahandlers.idatahandler - WARNING - AKE/USDT:USDT, futures, 4h, data starts at 2026-09-16 04:00:00
+2026-10-01 19:42:36,956 - freqtrade.data.dataprovider - INFO - Loading data for MUBARAK/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,966 - freqtrade.data.history.datahandlers.idatahandler - WARNING - MUBARAK/USDT:USDT, futures, 4h, data starts at 2025-06-03 08:00:00
+2026-10-01 19:42:36,988 - freqtrade.data.dataprovider - INFO - Loading data for LIT/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:36,994 - freqtrade.data.history.datahandlers.idatahandler - WARNING - LIT/USDT:USDT, futures, 4h, data starts at 2025-12-24 00:00:00
+2026-10-01 19:42:37,013 - freqtrade.data.dataprovider - INFO - Loading data for ALGO/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:37,049 - freqtrade.data.dataprovider - INFO - Loading data for DASH/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:37,057 - freqtrade.data.history.datahandlers.idatahandler - WARNING - DASH/USDT:USDT, futures, 4h, data starts at 2025-11-06 00:00:00
+2026-10-01 19:42:37,079 - freqtrade.data.dataprovider - INFO - Loading data for USELESS/USDT:USDT 4h from 2024-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 19:42:37,089 - freqtrade.data.history.datahandlers.idatahandler - WARNING - USELESS/USDT:USDT, futures, 4h, data starts at 2025-07-25 08:00:00
+2026-10-01 19:42:37,121 - freqtrade.data.converter.converter - WARNING - XDP/USDT:USDT has no data left after adjusting for startup candles, skipping.
+2026-10-01 19:42:37,135 - freqtrade.optimize.backtesting - INFO - Backtesting with data from 2024-11-01 00:00:00 up to 2026-09-29 00:00:00 (697 days).
+backtest ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4/4         100% • 0:00:12 • 0:00:00
+backtest ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16728/16728 100% • 0:04:30 • 0:00:00
+2026-10-01 19:46:58,788 - freqtrade.misc - INFO - dumping json to "pump/v2new_PD_A-2026-10-01_19-46-58.meta.json"
+Result for strategy PD_A
+                                                    BACKTESTING REPORT                                                     
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃              Pair ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃      Avg Duration ┃  Win  Draw  Loss  Win% ┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│    HYPE/USDT:USDT │     28 │         4.43 │         122.150 │         0.01 │  8 days, 10:24:00 │   23     0     5  82.1 │
+│ MUBARAK/USDT:USDT │     29 │         3.95 │         113.012 │         0.01 │  6 days, 10:02:00 │   24     0     5  82.8 │
+│ USELESS/USDT:USDT │     38 │          2.6 │          98.657 │         0.01 │   2 days, 9:24:00 │   30     0     8  78.9 │
+│    NEAR/USDT:USDT │     38 │          2.6 │          98.534 │         0.01 │  7 days, 23:42:00 │   30     0     8  78.9 │
+│    SOON/USDT:USDT │     33 │         2.54 │          84.881 │         0.01 │   7 days, 5:07:00 │   26     0     7  78.8 │
+│    PUMP/USDT:USDT │     22 │         3.62 │          78.502 │         0.01 │   8 days, 3:07:00 │   18     0     4  81.8 │
+│     XPL/USDT:USDT │     31 │         2.41 │          74.227 │         0.01 │  4 days, 13:14:00 │   24     0     7  77.4 │
+│     TAO/USDT:USDT │     30 │          1.8 │          54.003 │         0.01 │  9 days, 17:31:00 │   23     0     7  76.7 │
+│     BCH/USDT:USDT │     26 │         1.89 │          51.350 │         0.01 │  15 days, 7:41:00 │   20     0     6  76.9 │
+│     CRV/USDT:USDT │     29 │         1.42 │          41.481 │          0.0 │  12 days, 4:36:00 │   22     0     7  75.9 │
+│     BTC/USDT:USDT │     10 │         2.97 │          30.223 │          0.0 │ 51 days, 19:44:00 │    8     0     2  80.0 │
+│     FIL/USDT:USDT │     24 │         1.22 │          29.281 │          0.0 │ 12 days, 19:16:00 │   18     0     6  75.0 │
+│     NMR/USDT:USDT │     37 │          0.5 │          18.761 │          0.0 │  9 days, 10:28:00 │   27     0    10  73.0 │
+│     ENA/USDT:USDT │     19 │         0.75 │          14.534 │          0.0 │  7 days, 19:51:00 │   14     0     5  73.7 │
+│     ZEC/USDT:USDT │     19 │         0.75 │          13.426 │          0.0 │  5 days, 18:51:00 │   14     0     5  73.7 │
+│     LIT/USDT:USDT │     15 │         0.63 │           9.450 │          0.0 │  6 days, 10:12:00 │   11     0     4  73.3 │
+│    DASH/USDT:USDT │     22 │         0.42 │           9.312 │          0.0 │  7 days, 14:11:00 │   16     0     6  72.7 │
+│     XDP/USDT:USDT │      0 │          0.0 │           0.000 │          0.0 │              0:00 │    0     0     0     0 │
+│     AKE/USDT:USDT │      0 │          0.0 │           0.000 │          0.0 │              0:00 │    0     0     0     0 │
+│     BNB/USDT:USDT │     14 │        -0.04 │          -0.509 │         -0.0 │  39 days, 2:41:00 │   10     0     4  71.4 │
+│     XRP/USDT:USDT │     17 │        -0.34 │          -5.684 │         -0.0 │  19 days, 8:46:00 │   12     0     5  70.6 │
+│    ONDO/USDT:USDT │     24 │        -0.25 │          -5.839 │         -0.0 │ 13 days, 20:37:00 │   17     0     7  70.8 │
+│    AAVE/USDT:USDT │     27 │        -0.68 │         -17.225 │         -0.0 │  11 days, 9:30:00 │   19     0     8  70.4 │
+│   GRASS/USDT:USDT │     36 │        -0.74 │         -26.277 │         -0.0 │   6 days, 8:33:00 │   25     0    11  69.4 │
+│     ADA/USDT:USDT │     28 │         -1.3 │         -32.447 │         -0.0 │  12 days, 6:01:00 │   19     0     9  67.9 │
+│     ETH/USDT:USDT │     20 │         -2.3 │         -44.491 │         -0.0 │ 21 days, 18:34:00 │   13     0     7  65.0 │
+│     SUI/USDT:USDT │     30 │        -1.72 │         -49.710 │         -0.0 │ 10 days, 15:31:00 │   20     0    10  66.7 │
+│    DOGE/USDT:USDT │     22 │        -2.78 │         -59.222 │        -0.01 │  16 days, 6:12:00 │   14     0     8  63.6 │
+│    AVAX/USDT:USDT │     22 │        -2.78 │         -59.853 │        -0.01 │ 16 days, 23:18:00 │   14     0     8  63.6 │
+│    PEPE/USDT:USDT │     32 │        -2.08 │         -60.618 │        -0.01 │  9 days, 23:59:00 │   21     0    11  65.6 │
+│     SOL/USDT:USDT │     25 │        -2.65 │         -65.749 │        -0.01 │ 14 days, 16:59:00 │   16     0     9  64.0 │
+│     LTC/USDT:USDT │     21 │        -3.39 │         -66.331 │        -0.01 │ 19 days, 18:07:00 │   13     0     8  61.9 │
+│    HBAR/USDT:USDT │     17 │        -4.47 │         -75.626 │        -0.01 │ 22 days, 15:06:00 │   10     0     7  58.8 │
+│   TRUMP/USDT:USDT │     31 │        -2.47 │         -76.269 │        -0.01 │  9 days, 11:25:00 │   20     0    11  64.5 │
+│    ALGO/USDT:USDT │     27 │        -3.01 │         -79.265 │        -0.01 │ 14 days, 20:59:00 │   17     0    10  63.0 │
+│     ARB/USDT:USDT │     34 │         -2.4 │         -81.478 │        -0.01 │  9 days, 14:23:00 │   22     0    12  64.7 │
+│     XLM/USDT:USDT │     23 │        -3.96 │         -89.807 │        -0.01 │ 16 days, 16:16:00 │   14     0     9  60.9 │
+│    LINK/USDT:USDT │     22 │        -4.38 │         -95.446 │        -0.01 │  15 days, 3:32:00 │   13     0     9  59.1 │
+│     UNI/USDT:USDT │     27 │        -4.32 │        -107.787 │        -0.01 │  12 days, 5:45:00 │   16     0    11  59.3 │
+│     WLD/USDT:USDT │     33 │        -3.84 │        -126.069 │        -0.01 │  8 days, 18:59:00 │   20     0    13  60.6 │
+│             TOTAL │    982 │        -0.33 │        -283.919 │        -0.03 │ 11 days, 17:57:00 │  693     0   289  70.6 │
+└───────────────────┴────────┴──────────────┴─────────────────┴──────────────┴───────────────────┴────────────────────────┘
+                                                LEFT OPEN TRADES REPORT                                                 
+┏━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃           Pair ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃      Avg Duration ┃  Win  Draw  Loss  Win% ┃
+┡━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│  CRV/USDT:USDT │      1 │         7.27 │           7.264 │          0.0 │ 14 days, 16:00:00 │    1     0     0   100 │
+│  XLM/USDT:USDT │      1 │         5.22 │           5.178 │          0.0 │           8:00:00 │    1     0     0   100 │
+│ AAVE/USDT:USDT │      1 │         2.77 │           2.731 │          0.0 │   4 days, 1:00:00 │    1     0     0   100 │
+│ HYPE/USDT:USDT │      1 │        -5.47 │          -5.052 │         -0.0 │  9 days, 19:00:00 │    0     0     1     0 │
+│  XPL/USDT:USDT │      1 │       -14.43 │         -14.419 │         -0.0 │  3 days, 13:00:00 │    0     0     1     0 │
+│          TOTAL │      5 │        -0.93 │          -4.297 │         -0.0 │  6 days, 11:24:00 │    3     0     2  60.0 │
+└────────────────┴────────┴──────────────┴─────────────────┴──────────────┴───────────────────┴────────────────────────┘
+                                                  ENTER TAG STATS                                                   
+┏━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Enter Tag ┃ Entries ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃      Avg Duration ┃  Win  Draw  Loss  Win% ┃
+┡━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│     OTHER │     982 │        -0.33 │        -283.919 │        -0.03 │ 11 days, 17:57:00 │  693     0   289  70.6 │
+│     TOTAL │     982 │        -0.33 │        -283.919 │        -0.03 │ 11 days, 17:57:00 │  693     0   289  70.6 │
+└───────────┴─────────┴──────────────┴─────────────────┴──────────────┴───────────────────┴────────────────────────┘
+                                                 EXIT REASON STATS                                                  
+┏━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Exit Reason ┃ Exits ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃      Avg Duration ┃  Win  Draw  Loss  Win% ┃
+┡━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│         roi │   690 │         10.0 │        6812.494 │         0.68 │  8 days, 15:13:00 │  690     0     0   100 │
+│  force_exit │     5 │        -0.93 │          -4.297 │         -0.0 │  6 days, 11:24:00 │    3     0     2  60.0 │
+│   stop_loss │   287 │       -25.14 │       -7092.116 │        -0.71 │  19 days, 7:49:00 │    0     0   287     0 │
+│       TOTAL │   982 │        -0.33 │        -283.919 │        -0.03 │ 11 days, 17:57:00 │  693     0   289  70.6 │
+└─────────────┴───────┴──────────────┴─────────────────┴──────────────┴───────────────────┴────────────────────────┘
+                                                         MIXED TAG STATS                                                         
+┏━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Enter Tag ┃ Exit Reason ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃      Avg Duration ┃  Win  Draw  Loss  Win% ┃
+┡━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│           │         roi │    690 │         10.0 │        6812.494 │         0.68 │  8 days, 15:13:00 │  690     0     0   100 │
+│           │  force_exit │      5 │        -0.93 │          -4.297 │         -0.0 │  6 days, 11:24:00 │    3     0     2  60.0 │
+│           │   stop_loss │    287 │       -25.14 │       -7092.116 │        -0.71 │  19 days, 7:49:00 │    0     0   287     0 │
+│     TOTAL │             │    982 │        -0.33 │        -283.919 │        -0.03 │ 11 days, 17:57:00 │  693     0   289  70.6 │
+└───────────┴─────────────┴────────┴──────────────┴─────────────────┴──────────────┴───────────────────┴────────────────────────┘
+                                   SUMMARY METRICS                                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Metric                                 ┃ Value                                     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ Backtesting from                       │ 2024-11-01 00:00:00                       │
+│ Backtesting to                         │ 2026-09-29 00:00:00                       │
+│ Trading Mode                           │ Isolated Futures                          │
+│ Max open trades                        │ 40                                        │
+│                                        │                                           │
+│ Total/Daily Avg Trades                 │ 982 / 1.41                                │
+│ Starting balance                       │ 1000000 USDT                              │
+│ Final balance                          │ 999716.081 USDT                           │
+│ Absolute profit                        │ -283.919 USDT                             │
+│ Total profit %                         │ -0.03%                                    │
+│ CAGR %                                 │ -0.01%                                    │
+│ Sharpe (closed trades)                 │ -0.49                                     │
+│ Sortino (closed trades)                │ -5.43                                     │
+│ Calmar (closed trades)                 │ -0.33                                     │
+│ SQN                                    │ -0.58                                     │
+│ Mean profit p-value                    │ 0.5649                                    │
+│ Profit factor                          │ 0.96                                      │
+│ Expectancy (Ratio)                     │ -0.29 (-0.01)                             │
+│ Avg. daily profit                      │ -0.407 USDT                               │
+│ Avg. stake amount                      │ 98.497 USDT                               │
+│ Market change                          │ 6.76%                                     │
+│ Total trade volume                     │ 193551.889 USDT                           │
+│                                        │                                           │
+│ Best Pair                              │ HYPE/USDT:USDT 0.01%                      │
+│ Worst Pair                             │ WLD/USDT:USDT -0.01%                      │
+│ Best trade                             │ MUBARAK/USDT:USDT 10.04%                  │
+│ Worst trade                            │ LINK/USDT:USDT -25.15%                    │
+│ Best day                               │ 148.908 USDT                              │
+│ Worst day                              │ -532.117 USDT                             │
+│ Days win/draw/lose                     │ 260 / 324 / 109                           │
+│ Min/Max/Avg. Duration Winners          │ 0d 00:00 / 153d 08:35 / 8d 14:59          │
+│ Min/Max/Avg. Duration Losers           │ 0d 00:00 / 122d 21:00 / 19d 05:43         │
+│ Max Consecutive Wins / Loss            │ 69 / 29                                   │
+│ Rejected Entry signals                 │ 0                                         │
+│ Entry/Exit Timeouts                    │ 0 / 0                                     │
+│                                        │                                           │
+│ Min/Max balance (closed trades)        │ 998258.41 USDT / 1000648.384 USDT         │
+│ Max % of account underwater            │ 0.24%                                     │
+│ Absolute drawdown                      │ 2389.974 USDT (0.24%)                     │
+│ Drawdown duration                      │ 383 days 21:15:00                         │
+│ Profit at drawdown start               │ 648.384 USDT                              │
+│ Profit at drawdown end                 │ -1741.59 USDT                             │
+│ Drawdown start                         │ 2025-01-18 03:00:00                       │
+│ Drawdown end                           │ 2026-02-06 00:15:00                       │
+│                                        │                                           │
+│ Wallet based Metrics                   │                                           │
+│ Min/Max balance (wallet balance)       │ 998258.41 USDT / 1000648.384 USDT         │
+│ Min/Max balance dates (wallet balance) │ 2026-02-06 01:00:00 / 2025-01-18 04:00:00 │
+│ Max % of account underwater (balance)  │ 0.24%                                     │
+│ Absolute drawdown (wallet balance)     │ 2389.974 USDT (0.24%)                     │
+│ Drawdown duration                      │ 383 days 21:00:00                         │
+│ Profit at drawdown start               │ 648.384 USDT                              │
+│ Profit at drawdown end                 │ -1741.59 USDT                             │
+│ Drawdown start                         │ 2025-01-18 04:00:00                       │
+│ Drawdown end                           │ 2026-02-06 01:00:00                       │
+│ Sharpe (daily wallet balance)          │ -0.18                                     │
+│ Sortino (daily wallet balance)         │ -0.10                                     │
+│ Calmar (daily wallet balance)          │ -0.32                                     │
+└────────────────────────────────────────┴───────────────────────────────────────────┘
+
+Backtested 2024-11-01 00:00:00 -> 2026-09-29 00:00:00 | Max open trades : 40
+                                                            STRATEGY SUMMARY                                                             
+┏━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Strategy ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃      Avg Duration ┃  Win  Draw  Loss  Win% ┃             Drawdown ┃
+┡━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━┩
+│     PD_A │    982 │        -0.33 │        -283.919 │        -0.03 │ 11 days, 17:57:00 │  693     0   289  70.6 │ 2389.974 USDT  0.24% │
+└──────────┴────────┴──────────────┴─────────────────┴──────────────┴───────────────────┴────────────────────────┴──────────────────────┘
