@@ -142,3 +142,61 @@ class Scheme3MakerTests(unittest.TestCase):
     def test_runaway_not_chased_by_default(self):
         r, a = self._run(False)
         self.assertEqual(r['maker_status'], 'ran_away'); a.open.assert_not_called()
+
+
+def _executor_with_fallback():
+    """test_v71_execution 的离线执行器，加上 _fallback_protection（不连网、不下真单）。"""
+    import ast, types, time as _t, uuid
+    from unittest.mock import Mock
+    from pathlib import Path
+    from typing import Optional
+    from test_v7_repairs import load_functions
+    root = Path(__file__).resolve().parents[1]
+    tree = ast.parse((root / 'alpha_live.py').read_text())
+    methods = {'_fee_cost', '_normalize_order', '_cancel_confirm_entry', 'open_maker', '_entry_protection', 'open', '_fallback_protection'}
+    klass = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'AlphaLiveExecutor')
+    klass.body = [n for n in klass.body if isinstance(n, ast.FunctionDef) and n.name in methods]
+    ns = {'Optional': Optional, 'uuid': uuid, 'time': types.SimpleNamespace(time=_t.time, sleep=lambda _: None), 'logger': Mock(),
+          'config': types.SimpleNamespace(trading=types.SimpleNamespace(margin_mode='cross')), 'symbol_to_ccxt': lambda s, t: 'BTC/USDT:USDT'}
+    load_functions('alpha_live.py', ['_safe_num'], ns)
+    exec(compile(ast.Module(body=[klass], type_ignores=[]), 'alpha_live.py', 'exec'), ns)
+    a = ns['AlphaLiveExecutor'](); a.PREFIX = 'AX'; a.TAG = 'ALPHAX'
+    ex = Mock(); ex.fetch_ticker.return_value = {'bid': 99, 'ask': 101, 'last': 100}; ex.price_to_precision.side_effect = lambda s, p: str(p)
+    ex.create_order.return_value = {'id': 'order1'}
+    ex.fetch_order.return_value = {'status': 'closed', 'filled': 4, 'average': 100}
+    a._ensure = lambda: ex; a.market = lambda _: {'contractSize': .1, 'info': {'tickSz': '.01'}}; a._ensure_leverage = Mock()
+    a.account = lambda: {'free': 1000, 'total': 1000}; a.pos_mode = lambda: 'net_mode'; a._contracts = lambda *args: 10
+    a.order_by_client_id = Mock(return_value={}); a.close = Mock(return_value={'flat_confirmed': True}); a.cancel_algo = Mock()
+    a.amend_protection = Mock(return_value={'verified': False, 'error': 'OKX 附加TP/SL尚未出现或ID不匹配: AXa,AXb'})
+    return a, ex
+
+
+class ProtectionFallbackTests(unittest.TestCase):
+    """限价单成交后附带 TP/SL 没出现：单独补挂止盈+止损（不平仓、不开熔断）；补挂失败才平仓。"""
+    def test_missing_attached_is_replaced_by_separate_orders(self):
+        from unittest.mock import Mock
+        a, ex = _executor_with_fallback()
+        a.place_native_sl = Mock(); a.place_native_tp = Mock()
+        r = a.open_maker('BTC-USDT-SWAP', 'long', 100, .012, .25, 3, client_order_id='AXtest', ttl=30, fallback_to_market=True)
+        self.assertEqual(r['filled'], 4); a.close.assert_not_called()
+        self.assertEqual(a.place_native_sl.call_args.args[2], 4); self.assertEqual(a.place_native_tp.call_args.args[2], 4)
+        self.assertAlmostEqual(a.place_native_tp.call_args.args[3], 101.2); self.assertAlmostEqual(a.place_native_sl.call_args.args[3], 75.0)
+        self.assertEqual(r['tp_attach_clordid'], a.place_native_tp.call_args.kwargs['client_id'])
+        self.assertEqual(r['sl_attach_clordid'], a.place_native_sl.call_args.kwargs['client_id'])
+        self.assertNotEqual(r['tp_attach_clordid'], r['sl_attach_clordid'])
+
+    def test_fallback_failure_flattens_and_marks_terminal(self):
+        from unittest.mock import Mock
+        a, ex = _executor_with_fallback()
+        a.place_native_sl = Mock(side_effect=RuntimeError('拒单')); a.place_native_tp = Mock()
+        with self.assertRaises(RuntimeError) as c:
+            a.open_maker('BTC-USDT-SWAP', 'long', 100, .012, .25, 3, client_order_id='AXtest', ttl=30, fallback_to_market=True)
+        a.close.assert_called_once(); self.assertTrue(getattr(c.exception, 'flat_terminal', False))
+
+    def test_other_failures_still_flatten(self):
+        from unittest.mock import Mock
+        a, ex = _executor_with_fallback()
+        a.amend_protection = Mock(return_value={'verified': False, 'error': '改价失败'}); a.place_native_sl = Mock(); a.place_native_tp = Mock()
+        with self.assertRaises(RuntimeError):
+            a.open_maker('BTC-USDT-SWAP', 'long', 100, .012, .25, 3, client_order_id='AXtest', ttl=30, fallback_to_market=True)
+        a.place_native_sl.assert_not_called(); a.close.assert_called_once()

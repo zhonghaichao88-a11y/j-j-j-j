@@ -454,6 +454,28 @@ class AlphaLiveExecutor:
                 raise ValueError('V6执行报价扣费后空间不足')
         return tp,sl
 
+    def _fallback_protection(self, symbol, side, contracts, tp_price, sl_price, attached_ids, rebased):
+        """成交后附带的 TP/SL 在 OKX 上没出现（常见于限价单部分成交后撤单、或交易所延迟）：
+        不直接平仓，改为按实际成交数量单独挂止盈单+止损单（只减仓），两张都按 ID 验证通过才算有保护。
+        只处理“附带单没出现”这一种情况；价格越界等其他失败照旧返回 None（由调用方平仓）。"""
+        if not str(rebased.get("error") or "").startswith("OKX 附加TP/SL尚未出现") or float(contracts or 0)<=0:
+            return None
+        tp_cid=self.PREFIX+uuid.uuid4().hex[:24]; sl_cid=self.PREFIX+uuid.uuid4().hex[:24]
+        try:
+            self.place_native_sl(symbol,side,contracts,sl_price,client_id=sl_cid,trigger_type="mark")
+            self.place_native_tp(symbol,side,contracts,tp_price,client_id=tp_cid)
+        except Exception as exc:
+            for cid in (tp_cid,sl_cid):
+                try: self.cancel_algo(symbol,algo_cl_ord_id=cid)
+                except Exception: pass
+            logger.warning(f"[ALPHA-X LIVE] {symbol} 单独补挂TP/SL失败：{exc}")
+            return None
+        for cid in attached_ids or []:          # 原附带单若之后才出现，撤掉避免重复（撤不掉也无害：只减仓）
+            try: self.cancel_algo(symbol,algo_cl_ord_id=cid)
+            except Exception: pass
+        logger.warning(f"[ALPHA-X LIVE] {symbol} 附带TP/SL未出现，已单独补挂并验证：TP={tp_price} SL={sl_price} 数量={contracts}")
+        return tp_cid,sl_cid
+
     def open(self,symbol,side,notional_usdt,tp_pct,sl_pct,leverage,client_order_id:Optional[str]=None,protection=None):
         if side not in ("long","short"): raise ValueError("side 必须是 long/short")
         if not 0<tp_pct<.5 or not 0<sl_pct<.5: raise ValueError("TP/SL 参数异常")
@@ -503,6 +525,9 @@ class AlphaLiveExecutor:
         if protection and ((side=='long' and not actual_sl<avg<actual_tp) or (side=='short' and not actual_tp<avg<actual_sl)):
             rebased={'verified':False,'error':'真实成交价已越过结构保护边界'}
         if not rebased.get("verified"):
+            fb=self._fallback_protection(symbol,side,filled,actual_tp,actual_sl,[tp_id,sl_id],rebased)
+            if fb: tp_id,sl_id=fb; rebased={"verified":True}
+        if not rebased.get("verified"):
             # A live position must never be left exposed without verified native
             # protection.  Immediately flatten the just-opened position and require
             # the exchange to report zero contracts before surfacing the error.
@@ -516,7 +541,8 @@ class AlphaLiveExecutor:
             detail=rebased.get('error') or rebased.get('errors') or rebased.get('count',0)
             if flat_error:
                 raise RuntimeError(f"成交后重设TP/SL失败，且强制平仓未确认归零: {detail}; {flat_error}")
-            raise RuntimeError(f"成交后重设TP/SL失败，系统已强制平仓并确认仓位归零: {detail}")
+            err=RuntimeError(f"成交后重设TP/SL失败，系统已强制平仓并确认仓位归零: {detail}")
+            err.flat_terminal=True; raise err
         return {"live":True,"symbol":symbol,"ccxt_symbol":cs,"side":side,"order_side":entry_side,"order_id":oid,"client_order_id":clid,"status":state,"filled":filled,"average":avg,
                 "tp":actual_tp,"sl":actual_sl,"pretrade_tp":tp,"pretrade_sl":sl,"notional_usdt":filled*avg*float(self.market(cs).get("contractSize") or 1.0),"leverage":leverage,"pos_mode":mode,"tp_attach_clordid":tp_id,"sl_attach_clordid":sl_id,"protection_rebased":True}
 
@@ -651,6 +677,9 @@ class AlphaLiveExecutor:
             if protection and ((side=='long' and not actual_sl<avg<actual_tp) or (side=='short' and not actual_tp<avg<actual_sl)):
                 rebased={'verified':False,'error':'真实成交价已越过结构保护边界'}
             if not rebased.get("verified"):
+                fb=self._fallback_protection(symbol,side,filled,actual_tp,actual_sl,[tp_id,sl_id],rebased)
+                if fb: tp_id,sl_id=fb; rebased={"verified":True}
+            if not rebased.get("verified"):
                 # 与市价路径一致：成交后保护无法验证，立即强平并要求交易所确认归零
                 flat_error=None
                 try:
@@ -659,7 +688,8 @@ class AlphaLiveExecutor:
                 except Exception as exc: flat_error=str(exc)
                 detail=rebased.get('error') or rebased.get('errors') or rebased.get('count',0)
                 if flat_error: raise RuntimeError(f"[maker]成交后重设TP/SL失败，且强制平仓未确认归零: {detail}; {flat_error}")
-                raise RuntimeError(f"[maker]成交后重设TP/SL失败，已强制平仓并确认归零: {detail}")
+                err=RuntimeError(f"[maker]成交后重设TP/SL失败，已强制平仓并确认归零: {detail}")
+                err.flat_terminal=True; raise err
             logger.warning(f"[ALPHA-X MAKER] {symbol} {side} maker成交 {filled}张 @ {avg}（部分成交={bool(filled<amount)}），TP/SL已验证")
             return {"live":True,"symbol":symbol,"ccxt_symbol":cs,"side":side,"order_side":entry_side,"order_id":oid,"client_order_id":clid,
                     "status":"closed","filled":filled,"average":avg,"tp":actual_tp,"sl":actual_sl,"pretrade_tp":tp,"pretrade_sl":sl,

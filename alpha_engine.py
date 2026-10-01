@@ -3416,7 +3416,8 @@ def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
         if not recovered_position:
             message="已确认当前无仓位，原订单仍需对账" if confirmed_flat else "持仓状态未确认，已停止新开仓并等待对账"
             # An empty position snapshot does not prove an ambiguous pending order was canceled.
-            if recovery_clid: ops_open_breaker(f"ENTRY_ORDER_RECONCILE:{symbol}")
+            # 订单已到终态、仓位已强平且交易所确认归零（flat_terminal）：没有待对账的东西，不开熔断，只记这一单失败。
+            if recovery_clid and not (confirmed_flat and getattr(exc,"flat_terminal",False)): ops_open_breaker(f"ENTRY_ORDER_RECONCILE:{symbol}")
             with LOCK:
                 STATE["live_error"]=f"{symbol}: {message}: {exc}"
                 STATE["last_open_error"]={"symbol":symbol,"error":str(exc)[:300],"trace_tail":traceback.format_exc()[-700:],"ts":time.time()}
