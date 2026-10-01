@@ -8,7 +8,8 @@
 import numpy as np, pandas as pd, talib
 
 H = 3600000; D = 86400000
-STRICT = [False]   # True = 盘中腾出的仓位要到下一根才能用（无前视）
+STRICT = [False]
+FILTER = [None]    # 可选：f -> (允许做多, 允许做空) 两个布尔数组（只能用已收盘数据）   # True = 盘中腾出的仓位要到下一根才能用（无前视）
 
 
 def btc_up(btc_daily, ts_h):
@@ -45,8 +46,12 @@ def run(frames, btc_daily, fee=0.001, roi=0.01, sl=0.25, adx_th=25, di_th=25, ma
         f = frames[p]; ts = np.asarray(f['ts'], np.int64)
         ent, ex = signals(f, adx_th, di_th)
         if use_btc: ent = ent & btc_up(btc_daily, ts + H)                # 信号K收盘时刻 = 下一根开盘
+        lo_ok = so_ok = None
+        if FILTER[0] is not None: lo_ok, so_ok = FILTER[0](f); ent = ent & lo_ok
         if short:
-            sent, sex = signals(mirror(f), adx_th, di_th); sent = sent & btc_down(btc_daily, ts + H)
+            sent, sex = signals(mirror(f), adx_th, di_th)
+            if use_btc: sent = sent & btc_down(btc_daily, ts + H)
+            if so_ok is not None: sent = sent & so_ok
         else:
             sent = sex = np.zeros(len(ts), bool)
         prep[p] = dict(ts=ts, o=np.asarray(f['open'], float), h=np.asarray(f['high'], float), l=np.asarray(f['low'], float),
