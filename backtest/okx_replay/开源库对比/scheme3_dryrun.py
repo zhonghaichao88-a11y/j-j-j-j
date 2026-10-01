@@ -24,11 +24,15 @@ def fake_open(symbol, side, notional, tp_pct, sl_pct, leverage, client_order_id=
     cs = symbol.replace('-USDT-SWAP', '/USDT:USDT'); t = ex.fetch_ticker(cs)
     p = float(t['ask'] if side == 'long' else t['bid']); d = 1 if side == 'long' else -1
     tp, sl = p * (1 + d * tp_pct), p * (1 - d * sl_pct)
-    ORDERS.append(dict(symbol=symbol, side=side, notional=round(notional, 2), price=p, tp=tp, sl=sl, tp_pct=tp_pct, sl_pct=sl_pct, lev=leverage))
+    ORDERS.append(dict(type='市价', symbol=symbol, side=side, notional=round(notional, 2), price=p, tp=tp, sl=sl, tp_pct=tp_pct, sl_pct=sl_pct, lev=leverage))
     return dict(order_id=uuid.uuid4().hex[:12], client_order_id=client_order_id, average=p, filled=1.0, tp=tp, sl=sl,
                 notional_usdt=notional, tp_attach_clordid='T' + uuid.uuid4().hex[:8], sl_attach_clordid='S' + uuid.uuid4().hex[:8])
 alpha_live.open = fake_open
-alpha_live.open_maker = lambda *a, **k: (_ for _ in ()).throw(RuntimeError('maker 不应被调用'))
+def fake_maker(symbol, side, notional, tp_pct, sl_pct, leverage, client_order_id=None, **k):
+    r = fake_open(symbol, side, notional, tp_pct, sl_pct, leverage, client_order_id)
+    ORDERS[-1].update(type='限价maker', fallback_market=k.get('fallback_to_market'), runaway=k.get('fallback_on_runaway'), ttl=k.get('ttl'))
+    return r
+alpha_live.open_maker = fake_maker
 alpha_live.positions = lambda *a, **k: [dict(symbol=s.replace('-USDT-SWAP', '/USDT:USDT'), side=p['side'], contracts=1.0) for s, p in ae.STATE['positions'].items()]
 alpha_live.pos_mode = lambda *a, **k: 'long_short_mode'
 alpha_live.protection_status = lambda *a, **k: {'verified': True, 'count': 2}

@@ -522,7 +522,7 @@ class AlphaLiveExecutor:
 
     def open_maker(self,symbol,side,notional_usdt,tp_pct,sl_pct,leverage,client_order_id:Optional[str]=None,
                    ttl:float=45.0,max_reprice:int=2,improve_bps:float=0.5,chase_bps:float=12.0,
-                   fallback_to_market:bool=False,ref_price:float=0.0,protection=None):
+                   fallback_to_market:bool=False,ref_price:float=0.0,protection=None,fallback_on_runaway:bool=False):
         """FAST maker 进场：post-only 限价单，只做 maker、绝不主动吃单（会立即吃单的报价会被OKX直接拒单，不会产生taker）。
         成交前不持仓、无风险；挂单时即附带原生 TP/SL，成交瞬间交易所侧就有保护，随后按真实成交均价 rebase 并逐笔校验，
         校验失败立即强平（与市价 open() 完全同一套安全保护）。
@@ -622,7 +622,11 @@ class AlphaLiveExecutor:
                     nt=ex.fetch_ticker(cs) or {}; nl=float(nt.get("last") or 0)
                     if nl>0 and ((side=="long" and nl>=ref*(1+float(chase_bps)/1e4)) or (side=="short" and nl<=ref*(1-float(chase_bps)/1e4))):
                         final=_finalize_partial()
-                        if final is None: return {"filled":0,"maker_status":"ran_away","order_id":oid,"client_order_id":clid}
+                        if final is None:
+                            if fallback_to_market and fallback_on_runaway:   # 方案三：价格跑开也要进场（回测按开盘价必进）
+                                logger.warning(f"[ALPHA-X MAKER] {symbol} 价格跑开未成交，按配置回退市价(taker) clOrdId={clid}")
+                                return market_fallback()
+                            return {"filled":0,"maker_status":"ran_away","order_id":oid,"client_order_id":clid}
                         break
                 except Exception as exc:
                     if getattr(exc,'client_order_id',None): raise

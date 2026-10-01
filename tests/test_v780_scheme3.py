@@ -120,3 +120,25 @@ class Scheme3Tests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class Scheme3MakerTests(unittest.TestCase):
+    """方案三：先挂限价(maker)，价格跑开或超时没成交 → 市价补上（不漏单）；其他策略价格跑开仍不追。"""
+    def _run(self, runaway):
+        from test_v71_execution import executor
+        from unittest.mock import Mock
+        a, e = executor()
+        e.fetch_ticker.return_value = {'bid': 99, 'ask': 101, 'last': 102}
+        e.fetch_order.return_value = {'status': 'open', 'filled': 0}
+        a.open = Mock(return_value={'filled': 1})
+        r = a.open_maker('BTC-USDT-SWAP', 'long', 100, .012, .25, 3, client_order_id='AXtest', ttl=30,
+                         fallback_to_market=True, ref_price=100, fallback_on_runaway=runaway)
+        return r, a
+
+    def test_runaway_falls_back_to_market_for_scheme3(self):
+        r, a = self._run(True)
+        self.assertEqual(r, {'filled': 1}); self.assertEqual(a.open.call_args.kwargs['client_order_id'], 'AXtestM1')
+
+    def test_runaway_not_chased_by_default(self):
+        r, a = self._run(False)
+        self.assertEqual(r['maker_status'], 'ran_away'); a.open.assert_not_called()

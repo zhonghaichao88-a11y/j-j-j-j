@@ -3263,7 +3263,8 @@ def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
         from alpha_ops import upsert_intent
         upsert_intent(intent_id,{"symbol":symbol,"side":side,"notional":notional,"client_order_id":clid,"signal_ts":now,"tp":float(pred["tp"]),"sl":float(pred["sl"]),"pipeline":pipeline})
         ops_record(intent_id,"NEW",{"symbol":symbol,"side":side,"notional":notional,"client_order_id":clid,"pipeline_ready":True})
-        use_maker=_fast_maker_enabled(pred)
+        _s3=bool((pred.get("fast_strategy") or {}).get("v7_scheme3"))
+        use_maker=_fast_maker_enabled(pred) or _s3        # 方案三固定：先挂限价(maker)省手续费，没成交再市价补上
         _v6_protection={}
         _fs=pred.get('fast_strategy') or {}
         if _fs.get('v7_scheme3'):
@@ -3285,7 +3286,8 @@ def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
                 r=alpha_live.open_maker(symbol,side,notional,float(pred["tp"]),float(pred["sl"]),int(cfg["leverage"]),
                                         client_order_id=clid,ttl=float(_mp["ttl"]),max_reprice=int(_mp["reprice"]),
                                         improve_bps=float(_mp["improve_bps"]),chase_bps=float(_mp["chase_bps"]),
-                                        fallback_to_market=(_mode=="maker_market"),ref_price=_ref,**_v6_protection)
+                                        fallback_to_market=(_mode=="maker_market" or _s3),ref_price=_ref,
+                                        **({"fallback_on_runaway":True} if _s3 else {}),**_v6_protection)
                 if float(r.get("filled") or 0)<=0:
                     mstatus=str(r.get("maker_status") or "no_fill")
                     with LOCK:
