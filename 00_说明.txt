@@ -1,0 +1,49 @@
+ALPHA-X 研究数据备份（2026-10-01 打包）
+==========================================
+所有压缩包都可以用 Windows 自带解压或 7-Zip 打开。保存在你自己的电脑或网盘里。
+
+01_K线_欧易.zip
+  欧易 USDT 永续合约历史K线（.npz 格式，每个币一个文件）
+  - XXX-USDT-SWAP_1h.npz        1 小时，181 个币（方案三 OKX181 用的）
+  - XXX-USDT-SWAP_5m.npz / _15m.npz / _30m.npz / _15m_old.npz / _5m2y.npz / _5mnew.npz   5/15/30 分钟
+  - XXX-USDT-SWAP_1m2y.npz      1 分钟，两年，40 个币
+  - okx64/XXX_1h.npz            方案三补测的 64 个币（2024-09-29 起）+ BTC 日线 BTC_1d.npz
+  - universe*.json              各批测试用的币列表
+
+02_K线_币安.zip
+  币安 U本位合约 1 小时K线
+  - XXXUSDT_bn1h.npz            币安独有的 416 个币（2024-09 ~ 2026-08）
+  - XXXUSDT_bnold1h.npz         更早年份 137 个币（2021-10 ~ 2024-09）
+  - bnf_BTC-USDT-SWAP.npz       BTC 行情（算大盘过滤用）
+  - bn_funding.json             历史资金费率
+
+03_真实数据_币安订单流_持仓量_资金费率.zip
+  币安官方公开的真实数据（data.binance.vision）
+  - bn_cache/XXX-bookDepth-日期.csv   盘口深度（各价位挂单量）
+  - bn_cache/XXX-metrics-日期.csv     持仓量 OI、多空比、主动买卖比（5 分钟一条）
+  - bn_cache/XXX-fundingRate-月份.csv 资金费率
+  - fund_oi.json、sq_flow*.csv/json   整理后的订单流特征
+
+04_freqtrade_欧易K线数据.zip
+  freqtrade 用的欧易合约K线（.feather，1m/5m/15m/1h/4h/1d 等），以及配置和 58 个开源策略
+
+05_研究结果_脚本_回测记录.zip
+  所有测试脚本、结果表（csv/txt/json）、freqtrade 回测记录
+
+怎么读（需要 Python）：
+  import numpy as np;  z = np.load('ETH-USDT-SWAP_1h.npz');  z['ts'], z['open'], z['high'], z['low'], z['close']
+    （ts 是 UTC 毫秒时间戳，K线开盘时间）
+  import pandas as pd; pd.read_feather('BTC_USDT_USDT-1h-futures.feather')
+  pd.read_csv('BTCUSDT-metrics-2026-08-01.csv')
+
+另外：所有代码、脚本、结果表也都在 GitHub 仓库 zhonghaichao88-a11y/j-j-j-j 的
+分支 claude/v7-logic-review-9uiayw 里（不会丢）。你实盘自己录制的数据 recorder_data 在你的 ALPHA-X 包里，不在这里。
+
+==========================================
+怎么还原（每个包被切成了每份 90MB 的小块：xxx.zip.part_aa、part_ab……）：
+  Windows：在这个文件夹打开命令提示符(cmd)，执行
+      copy /b 01_K线_欧易.zip.part_* 01_K线_欧易.zip
+  （其他包同理，把名字换掉）然后正常解压。
+  Mac / Linux：cat 01_K线_欧易.zip.part_* > 01_K线_欧易.zip
+  下载：在 GitHub 网页切到 data-backup 分支，点绿色 Code 按钮 → Download ZIP（或逐个文件下载）。
+  每个包的 SHA256 校验值在 SHA256.txt 里。
