@@ -9,9 +9,7 @@ if errorlevel 1 goto fail
 .venv\Scripts\python.exe -m pip install -q -r requirements.txt
 if errorlevel 1 goto fail
 if not exist .env copy .env.example .env >nul
-echo 订单流看盘：浏览器打开 http://127.0.0.1:8010   （默认模拟盘，不会动你的钱）
-start "" http://127.0.0.1:8010
-.venv\Scripts\python.exe of_app.py
+.venv\Scripts\python.exe launch_of.py
 if errorlevel 1 goto fail
 exit /b 0
 :fail

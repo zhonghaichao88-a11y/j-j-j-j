@@ -150,6 +150,11 @@ async def index():
     return FileResponse(os.path.join(HERE, "static", "of.html"))
 
 
+@app.get("/api/ready")
+async def ready():
+    return {"ready": True}
+
+
 @app.get("/api/bt")
 async def bt():
     p = os.path.join(HERE, "of_backtest_result.json")
