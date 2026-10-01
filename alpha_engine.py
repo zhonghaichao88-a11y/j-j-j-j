@@ -3440,7 +3440,9 @@ def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
             ops_open_breaker(f"ENTRY_QUERY_FAILED:{symbol}")
             logger.exception(f"[ALPHA-X LIVE] {symbol} 开仓异常恢复失败: {recover_exc}")
         if not recovered_position:
-            message="已确认当前无仓位，原订单仍需对账" if confirmed_flat else "持仓状态未确认，已停止新开仓并等待对账"
+            _not_sent=locals().get("_submits0") is not None and int(getattr(alpha_live,"entry_submits",0) or 0)==int(locals().get("_submits0") or 0)
+            message=("开仓单还没发出去（网络或报价错误），无仓位、不需要对账，本单跳过" if (confirmed_flat and _not_sent) else
+                     "已确认当前无仓位，原订单仍需对账" if confirmed_flat else "持仓状态未确认，已停止新开仓并等待对账")
             # An empty position snapshot does not prove an ambiguous pending order was canceled.
             # 订单已到终态、仓位已强平且交易所确认归零（flat_terminal）：没有待对账的东西，不开熔断，只记这一单失败。
             _sent=locals().get("_submits0") is None or int(getattr(alpha_live,"entry_submits",0) or 0)!=int(locals().get("_submits0") or 0)

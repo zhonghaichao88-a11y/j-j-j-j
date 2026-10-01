@@ -252,3 +252,33 @@ class LiveRobustnessTests(unittest.TestCase):
         for line in src.splitlines():
             if 'create_order(cs,"market",entry_side' in line or 'create_order(cs,"post_only"' in line:
                 self.assertIn('entry_submits', src[:src.index(line)].splitlines()[-1])
+
+
+class NetworkRobustnessTests(unittest.TestCase):
+    """V7.8.6：网络不稳时 K 线下载自动重试；限价挂单等待中查报价失败不再当成异常。"""
+    def test_feed_retries_network_errors(self):
+        import ccxt, alpha_v7_feed as feed
+        from unittest.mock import Mock
+        now = 1_800_000_000_000 // H * H + 60_000
+        rows = [[str(now - (i + 2) * H), '1', '2', '0.5', '1.5', '10', '0', '0', '1'] for i in range(5)]
+        ex = Mock(); ex.id = 'okx_test_net'; ex.market.return_value = {'id': 'X-USDT-SWAP'}
+        ex.request.side_effect = [ccxt.NetworkError('okx GET https://www.okx.com/api/v5/market/candles'),
+                                  {'code': '0', 'data': rows}, {'code': '0', 'data': []}]
+        with patch.object(feed.time, 'sleep'), patch.object(feed, '_throttle'):
+            f = feed.frame(ex, 'X/USDT:USDT', '1h', count=5, now_ms=now)
+        self.assertEqual(len(f['ts']), 5)
+
+    def test_maker_wait_survives_ticker_failure(self):
+        from unittest.mock import Mock
+        a, ex = _executor_with_fallback()
+        a.amend_protection = Mock(return_value={'verified': True})
+        calls = {'n': 0}
+        def tick(*_a, **_k):
+            calls['n'] += 1
+            if calls['n'] == 2: raise RuntimeError('okx GET https://www.okx.com/api/v5/market/ticker')
+            return {'bid': 99, 'ask': 101, 'last': 100}
+        ex.fetch_ticker.side_effect = tick
+        seq = iter([{'status': 'open', 'filled': 0}, {'status': 'closed', 'filled': 4, 'average': 100}])
+        ex.fetch_order.side_effect = lambda *a, **k: next(seq)
+        r = a.open_maker('BTC-USDT-SWAP', 'long', 100, .012, .25, 3, client_order_id='AXtest', ttl=30, fallback_to_market=True)
+        self.assertEqual(r['filled'], 4)

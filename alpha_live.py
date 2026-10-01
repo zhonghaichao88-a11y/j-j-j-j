@@ -658,7 +658,8 @@ class AlphaLiveExecutor:
                         break
                 except Exception as exc:
                     if getattr(exc,'client_order_id',None): raise
-                    raise RuntimeError(f'挂单状态查询异常，禁止补发: {exc}') from exc
+                    # 只是查报价失败（网络抖动）：本次跳过“价格跑开”检查，挂单照常等待，订单状态下一次继续查
+                    logger.warning(f"[ALPHA-X MAKER] {symbol} 挂单等待中查报价失败，跳过本次跑开检查：{exc}")
             if final is None:  # TTL 到点
                 final=_finalize_partial()
                 if final is None:

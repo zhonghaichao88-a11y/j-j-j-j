@@ -32,6 +32,15 @@ def _throttle():
   if wait>0:time.sleep(wait)
   _RATE_LAST[0]=time.monotonic()
 
+def _network_error(exc):
+ """网络类错误（超时、连接失败、交易所暂时不可用）：值得重试。"""
+ try:
+  import ccxt
+  if isinstance(exc,ccxt.NetworkError):return True
+ except Exception:pass
+ t=str(exc).lower()
+ return any(k in t for k in ('timed out','timeout','connection','temporarily unavailable','502','503','504'))
+
 def frame(exchange,symbol,tf='5m',count=1500,now_ms=None):
  if tf not in TF:raise ValueError('不支持的K线周期：'+str(tf))
  now_ms=int(now_ms or time.time()*1000);bar,ms=TF[tf];key=(getattr(exchange,'id','okx'),symbol,tf)
@@ -52,8 +61,8 @@ def frame(exchange,symbol,tf='5m',count=1500,now_ms=None):
    _throttle()
    try:raw=exchange.request('market/history-candles' if before is not None else 'market/candles','public','GET',args)
    except Exception as exc:
-    # 限速（50011 / 429）时等一下再试；其他错误照常抛出
-    if attempt<3 and ('50011' in str(exc) or '429' in str(exc) or 'Too Many' in str(exc)):time.sleep(1.0+attempt);continue
+    # 限速（50011 / 429）或网络中断（超时、连不上）时等一下再试；其他错误照常抛出
+    if attempt<3 and ('50011' in str(exc) or '429' in str(exc) or 'Too Many' in str(exc) or _network_error(exc)):time.sleep(1.0+2*attempt);continue
     raise
    if str((raw or {}).get('code'))=='50011' and attempt<3:time.sleep(1.0+attempt);continue
    break
