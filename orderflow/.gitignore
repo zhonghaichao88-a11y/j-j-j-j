@@ -5,3 +5,4 @@ of_state.json.tmp
 of_trades.jsonl
 __pycache__/
 fp_data/
+data_rec/

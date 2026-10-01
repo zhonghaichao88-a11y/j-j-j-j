@@ -18,7 +18,8 @@ from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
 
 from of_core import auto_row_size  # noqa: E402
 from of_engine import OrderFlowApp, SymbolEngine, TF_MS  # noqa: E402
-from of_feed import OkxFeed  # noqa: E402
+from of_feed import OkxExtras, OkxFeed, REST  # noqa: E402
+import httpx  # noqa: E402
 
 CFG_FILE = os.path.join(HERE, "of_config.json")
 BACKFILL_BARS = int(os.environ.get("OF_BACKFILL_BARS", "8"))
@@ -72,8 +73,13 @@ async def start_symbol(inst: str):
     tf_ms = TF_MS[core.cfg["tf"]]
     now = int(time.time() * 1000)
     since = now - now % tf_ms - BACKFILL_BARS * tf_ms
-    eng.builder.seed([c for c in cs if c[0] < since])
+    seeded = [c for c in cs if c[0] < since]
+    eng.builder.seed(seeded)
+    await seed_derivs(eng, inst)
     core.engines[inst] = eng
+    ex = OkxExtras(inst, PROXY, eng.on_liq, eng.on_oi, eng.on_funding, eng.on_ratio)
+    core.extras[inst] = ex
+    asyncio.create_task(ex.run())
     core.say(f"{inst} 启动：{core.cfg['tf']} 足迹，每格 {row:g}，正在补最近 {BACKFILL_BARS} 根足迹…")
     try:
         hist = await feed.backfill(since, max_pages=600)
@@ -94,10 +100,49 @@ async def start_symbol(inst: str):
     await feed.run()
 
 
+async def seed_derivs(eng, inst):
+    """历史K线补上持仓量、多空比（欧易 5 分钟数据，最近 100 条），让相关打法一启动就能算"""
+    try:
+        async with httpx.AsyncClient(proxy=PROXY, timeout=15) as c:
+            oi = (await c.get(f"{REST}/api/v5/rubik/stat/contracts/open-interest-history",
+                              params={"instId": inst, "period": "5m", "limit": 100})).json().get("data", [])
+            ls = (await c.get(f"{REST}/api/v5/rubik/stat/contracts/long-short-account-ratio-contract",
+                              params={"instId": inst, "period": "5m", "limit": 100})).json().get("data", [])
+        oi = sorted((int(r[0]), float(r[2])) for r in oi)
+        ls = sorted((int(r[0]), float(r[1])) for r in ls)
+        tf = eng.builder.tf_ms
+        for b in eng.builder.bars:
+            end = b.t + tf
+            v = [x for t, x in oi if t <= end]
+            if v:
+                b.oi = v[-1]
+            v = [x for t, x in ls if t <= end]
+            if v:
+                b.ls = v[-1]
+        # 用补好的数据重新跑一遍识别器，让它记住持仓和多空比的历史
+        eng.det = type(eng.det)(eng.row, enabled=list(eng.det.enabled))
+        for b in eng.builder.bars:
+            eng.det.on_bar(b)
+    except Exception as e:  # noqa: BLE001
+        core.say(f"{inst} 补持仓/多空比历史失败（不影响运行）：{e}")
+
+
+async def book_sampler():
+    while True:
+        await asyncio.sleep(2)
+        now = int(time.time() * 1000)
+        for eng in list(core.engines.values()):
+            try:
+                eng.sample_book(now)
+            except Exception as e:  # noqa: BLE001
+                core.say(f"{eng.inst} 盘口采样出错：{e}")
+
+
 @app.on_event("startup")
 async def _startup():
     for inst in core.cfg["symbols"]:
         asyncio.create_task(start_symbol(inst))
+    asyncio.create_task(book_sampler())
 
 
 @app.get("/")

@@ -1,4 +1,4 @@
-"""订单流核心：足迹K线、成交量分布、8种订单流形态识别。
+"""订单流核心：足迹K线、成交量分布、盘口/爆仓/持仓/资金费率/多空比/大单，共 14 种形态识别。
 回测和实盘用同一份代码，信号只用已经收盘的K线，不偷看未来。
 
 术语：
@@ -28,6 +28,18 @@ DEFAULT_PARAMS = {
     "rr": 2.0,               # 止盈 = 2 倍止损距离
     "max_hold": 48,          # 最多拿多少根K线
     "min_stop_rows": 2,      # 止损至少离开几格
+    # ---- 衍生品数据和盘口
+    "liq_mult": 4.0,         # 爆仓反转：本根爆仓量 ≥ 过去平均的 4 倍
+    "liq_min_usd": 300_000,  #           且至少这么多美元
+    "oi_z": 3.0,             # 持仓骤降：持仓变化比过去 100 根的波动大 3 倍
+    "oi_div_n": 3,           # 持仓背离：看最近 3 根的持仓变化
+    "funding_hi": 0.0001,    # 资金费率极端：≥ 0.01%/8小时（多头在付费），≤ -0.01%（空头在付费）
+    "ls_pct": 0.95,          # 多空比极端：处在过去 N 根的 95% 分位以上
+    "ls_n": 500,
+    "big_mult": 3.0,         # 大单跟随：大单净买入 ≥ 过去平均大单量的 3 倍
+    "wall_mult": 5.0,        # 大单墙：某一格挂单 ≥ 平均每格挂单的 5 倍
+    "wall_rows": 4,          #         而且离成交价 4 格以内
+    "obi_th": 0.35,          # 盘口失衡：买卖挂单差 / 总挂单 ≥ 0.35（价格上下 0.3% 以内）
 }
 
 
@@ -40,6 +52,20 @@ class Bar:
     c: float = math.nan
     rows: dict = field(default_factory=dict)   # 行号 -> [bid, ask]
     closed: bool = False
+    # 衍生品和盘口（实盘实时填；回测里有历史的就填，没有就是 nan / 0）
+    liq_long: float = 0.0      # 本根K线里被强平的多单（币数量）
+    liq_short: float = 0.0     # 被强平的空单
+    liqs: list = field(default_factory=list)   # [(价格, 数量, 1=空单爆仓/-1=多单爆仓)]
+    big_buy: float = 0.0       # 大单主动买（币数量）
+    big_sell: float = 0.0
+    bigs: list = field(default_factory=list)   # [(价格, 数量, 1买/-1卖)]
+    oi: float = math.nan       # 收盘时的持仓量
+    funding: float = math.nan  # 当前资金费率
+    ls: float = math.nan       # 多空人数比
+    obi: float = math.nan      # 盘口失衡（这根K线里的平均值，-1 ~ 1，正数=买单多）
+    heat: dict = field(default_factory=dict)   # 行号 -> [挂买单累计, 挂卖单累计, 采样次数]
+    wall_bid: float = math.nan  # 收盘时下方最近的大买单墙价格
+    wall_ask: float = math.nan
 
     @property
     def vol(self) -> float:
@@ -134,7 +160,17 @@ SIGNAL_NAMES = {
     "divergence": "Delta背离",
     "trapped": "被套反向",
     "va_reentry": "价值区回归",
+    "liq_cascade": "爆仓反转",
+    "oi_flush": "持仓骤降反转",
+    "oi_divergence": "持仓背离",
+    "funding_extreme": "资金费率极端",
+    "ls_crowd": "多空比极端",
+    "big_follow": "大单跟随",
+    "book_wall": "大单墙反弹",
+    "book_imbalance": "盘口失衡突破",
 }
+# 有历史数据、能回测的 / 只能实时用（盘口和真实爆仓没有历史，程序会一边跑一边录下来）
+LIVE_ONLY = {"liq_cascade", "book_wall", "book_imbalance"}
 
 
 @dataclass
@@ -267,7 +303,93 @@ class Detector:
                 s.target = vp["poc"]
                 if bar.c - s.target > 0.5 * (s.stop - bar.c):
                     sigs.append(s)
+        sigs += self._derivs(bar, prior, mid, new_high, new_low, delta)
         return sigs
+
+
+    # ------------------------------------------------------------ 衍生品 + 盘口形态
+    def _derivs(self, bar, prior, mid, new_high, new_low, delta):
+        p, en, out = self.p, self.enabled, []
+        rng = max(bar.h - bar.l, 1e-12)
+        past = self.bars[-101:-1]
+
+        # 7 爆仓反转：大量多单被强平、价格砸出新低却收回来 → 多（空单爆仓镜像 → 空）
+        if "liq_cascade" in en:
+            hist = [b.liq_long + b.liq_short for b in past[-50:]]
+            avg = sum(hist) / len(hist) if hist else 0.0
+            usd_l, usd_s = bar.liq_long * bar.c, bar.liq_short * bar.c
+            low10 = min(b.l for b in prior[-10:])
+            high10 = max(b.h for b in prior[-10:])
+            if usd_l >= p["liq_min_usd"] and bar.liq_long >= p["liq_mult"] * avg and bar.l <= low10 \
+                    and bar.c >= bar.l + 0.4 * rng:
+                out.append(self._mk("liq_cascade", 1, bar.c, bar.l - self.row, bar, f"多单爆仓 {usd_l/1e6:.2f}M$"))
+            elif usd_s >= p["liq_min_usd"] and bar.liq_short >= p["liq_mult"] * avg and bar.h >= high10 \
+                    and bar.c <= bar.h - 0.4 * rng:
+                out.append(self._mk("liq_cascade", -1, bar.c, bar.h + self.row, bar, f"空单爆仓 {usd_s/1e6:.2f}M$"))
+
+        # 持仓量变化
+        ois = [b.oi for b in past + [bar] if not math.isnan(b.oi)]
+        if len(ois) >= 50 and not math.isnan(bar.oi):
+            ch = np.diff(np.array(ois)) / np.array(ois[:-1])
+            d_now, sd = ch[-1], float(np.std(ch[:-1])) or 1e-12
+            # 8 持仓骤降反转：持仓突然大降（大批平仓/爆仓）+ 价格跌，收在上半截 → 多；价格涨的镜像 → 空
+            if "oi_flush" in en and d_now <= -p["oi_z"] * sd:
+                if bar.c < bar.o and bar.c >= mid:
+                    out.append(self._mk("oi_flush", 1, bar.c, bar.l - self.row, bar, f"持仓 {d_now*100:+.2f}%"))
+                elif bar.c > bar.o and bar.c <= mid:
+                    out.append(self._mk("oi_flush", -1, bar.c, bar.h + self.row, bar, f"持仓 {d_now*100:+.2f}%"))
+            # 9 持仓背离：创新高但持仓在降（空头回补的假涨）且 delta 为负 → 空；新低镜像 → 多
+            n = p["oi_div_n"]
+            if "oi_divergence" in en and len(ois) > n:
+                oi_dn = ois[-1] < ois[-1 - n]
+                if new_high and oi_dn and delta < 0 and bar.c < mid:
+                    out.append(self._mk("oi_divergence", -1, bar.c, bar.h + self.row, bar))
+                elif new_low and oi_dn and delta > 0 and bar.c > mid:
+                    out.append(self._mk("oi_divergence", 1, bar.c, bar.l - self.row, bar))
+
+        # 10 资金费率极端：多头付很高的费还在追、冲新高失败 → 空；空头拥挤镜像 → 多
+        if "funding_extreme" in en and not math.isnan(bar.funding):
+            if bar.funding >= p["funding_hi"] and new_high and delta < 0 and bar.c < bar.o:
+                out.append(self._mk("funding_extreme", -1, bar.c, bar.h + self.row, bar, f"费率 {bar.funding*100:.3f}%"))
+            elif bar.funding <= -p["funding_hi"] and new_low and delta > 0 and bar.c > bar.o:
+                out.append(self._mk("funding_extreme", 1, bar.c, bar.l - self.row, bar, f"费率 {bar.funding*100:.3f}%"))
+
+        # 11 多空比极端：做多的人数到了历史高位、价格冲高回落 → 空；镜像 → 多
+        if "ls_crowd" in en and not math.isnan(bar.ls):
+            lss = [b.ls for b in self.bars[-p["ls_n"]:] if not math.isnan(b.ls)]
+            if len(lss) >= 100:
+                hi_q, lo_q = np.quantile(lss, p["ls_pct"]), np.quantile(lss, 1 - p["ls_pct"])
+                if bar.ls >= hi_q and new_high and bar.c < mid:
+                    out.append(self._mk("ls_crowd", -1, bar.c, bar.h + self.row, bar, f"多空比 {bar.ls:.2f}"))
+                elif bar.ls <= lo_q and new_low and bar.c > mid:
+                    out.append(self._mk("ls_crowd", 1, bar.c, bar.l - self.row, bar, f"多空比 {bar.ls:.2f}"))
+
+        # 12 大单跟随：大单净买入远超平常、收在高位并突破 → 多；镜像 → 空
+        if "big_follow" in en:
+            hist = [abs(b.big_buy - b.big_sell) for b in past[-50:]]
+            avg = sum(hist) / len(hist) if hist else 0.0
+            net = bar.big_buy - bar.big_sell
+            if avg > 0 and abs(net) >= p["big_mult"] * avg:
+                if net > 0 and bar.c >= bar.h - 0.25 * rng and bar.c > max(b.h for b in prior[-5:]):
+                    out.append(self._mk("big_follow", 1, bar.c, bar.l - self.row, bar, f"大单净买 {net:.4g}"))
+                elif net < 0 and bar.c <= bar.l + 0.25 * rng and bar.c < min(b.l for b in prior[-5:]):
+                    out.append(self._mk("big_follow", -1, bar.c, bar.h + self.row, bar, f"大单净卖 {-net:.4g}"))
+
+        # 13 大单墙反弹：砸到下方大买单墙、墙没破、收回来 → 多（上方卖单墙镜像 → 空）
+        if "book_wall" in en:
+            wb, wa = bar.wall_bid, bar.wall_ask
+            if not math.isnan(wb) and bar.l <= wb + self.row and bar.c > wb + self.row and delta < 0:
+                out.append(self._mk("book_wall", 1, bar.c, wb - 2 * self.row, bar, f"买单墙 {wb:.6g}"))
+            elif not math.isnan(wa) and bar.h >= wa - self.row and bar.c < wa - self.row and delta > 0:
+                out.append(self._mk("book_wall", -1, bar.c, wa + 2 * self.row, bar, f"卖单墙 {wa:.6g}"))
+
+        # 14 盘口失衡突破：买单明显比卖单厚 + 主动买为主 + 突破前高 → 多；镜像 → 空
+        if "book_imbalance" in en and not math.isnan(bar.obi):
+            if bar.obi >= p["obi_th"] and delta > 0 and bar.c > max(b.h for b in prior[-5:]):
+                out.append(self._mk("book_imbalance", 1, bar.c, bar.l - self.row, bar, f"盘口 {bar.obi:+.2f}"))
+            elif bar.obi <= -p["obi_th"] and delta < 0 and bar.c < min(b.l for b in prior[-5:]):
+                out.append(self._mk("book_imbalance", -1, bar.c, bar.h + self.row, bar, f"盘口 {bar.obi:+.2f}"))
+        return out
 
 
 def auto_row_size(ranges: list[float], fine_tick: float, target_rows=20) -> float:

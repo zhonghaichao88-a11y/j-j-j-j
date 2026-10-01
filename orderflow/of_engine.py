@@ -13,10 +13,28 @@ import threading
 import time
 from dataclasses import asdict, dataclass, field
 
-from of_core import Bar, Detector, SIGNAL_NAMES, auto_row_size, volume_profile, imbalances, stacked
+import gzip
+
+from of_core import Bar, Detector, SIGNAL_NAMES, LIVE_ONLY, auto_row_size, volume_profile, imbalances, stacked
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(HERE, "of_state.json")
+REC_DIR = os.path.join(HERE, "data_rec")
+BIG_USD = {"BTC": 200_000, "ETH": 100_000, "SOL": 50_000}     # 单笔（同一毫秒同方向合并）超过这个金额算大单
+
+
+class Recorder:
+    """把实时数据录下来（爆仓、盘口、持仓、每根K线的全部字段），以后可以拿来回测只能实时用的打法。"""
+
+    def __init__(self, inst):
+        self.inst = inst
+
+    def write(self, kind, obj):
+        day = time.strftime("%Y%m%d", time.gmtime())
+        d = os.path.join(REC_DIR, day)
+        os.makedirs(d, exist_ok=True)
+        with gzip.open(os.path.join(d, f"{self.inst}_{kind}.jsonl.gz"), "at", encoding="utf-8") as f:
+            f.write(json.dumps(obj, ensure_ascii=False, separators=(",", ":")) + "\n")
 TRADE_LOG = os.path.join(HERE, "of_trades.jsonl")
 TF_MS = {"1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000, "1h": 3_600_000}
 
@@ -209,11 +227,27 @@ class SymbolEngine:
         self.last = math.nan
         self.pending: list = []       # 收盘出信号，下一笔成交进场
         self.backfilling = False
+        self.big_usd = BIG_USD.get(inst.split("-")[0], 50_000)
+        self._agg = None              # 正在合并的一笔（同毫秒、同方向）
+        self.ext = {"funding": math.nan, "next_funding": 0, "oi": math.nan, "oi_usd": math.nan,
+                    "oi_hist": [], "ls": math.nan, "top_ls": math.nan, "liqs": [], "bigs": [], "obi": math.nan}
+        self.wall_seen: dict = {}     # (方向, 行) -> 第一次看到的时间；挂够 30 秒才算真墙（防假挂单）
+        self.rec = Recorder(inst)
 
     def _on_bar(self, bar: Bar, seeded=False):
         sigs = self.det.on_bar(bar)
         if seeded:
             return
+        if not self.backfilling:
+            try:
+                self.rec.write("bars", {"t": bar.t, "o": bar.o, "h": bar.h, "l": bar.l, "c": bar.c, "row": self.row,
+                                        "rows": [[r, x, y] for r, (x, y) in bar.rows.items()],
+                                        "liq_long": bar.liq_long, "liq_short": bar.liq_short,
+                                        "big_buy": bar.big_buy, "big_sell": bar.big_sell, "oi": bar.oi,
+                                        "funding": bar.funding, "ls": bar.ls, "obi": bar.obi,
+                                        "wall_bid": bar.wall_bid, "wall_ask": bar.wall_ask})
+            except Exception:  # noqa: BLE001
+                pass
         for s in sigs:
             d = {"t": bar.t, "kind": s.kind, "name": SIGNAL_NAMES[s.kind], "side": s.side,
                  "stop": s.stop, "target": s.target, "price": bar.c, "note": s.note,
@@ -225,9 +259,43 @@ class SymbolEngine:
             if not self.backfilling:
                 self.pending.append((s, d))
 
+    def _cur_bar(self, ts):
+        b = self.builder.cur
+        if b is not None and b.t <= ts < b.t + self.builder.tf_ms:
+            return b
+        return None
+
+    def _flush_big(self):
+        a = self._agg
+        self._agg = None
+        if not a or a["usd"] < self.big_usd:
+            return
+        b = self._cur_bar(a["ts"]) or self.builder.cur
+        if b is None:
+            return
+        side = 1 if a["buy"] else -1
+        if a["buy"]:
+            b.big_buy += a["q"]
+        else:
+            b.big_sell += a["q"]
+        item = (a["px"], a["q"], side, a["ts"])
+        b.bigs.append(item[:3])
+        self.ext["bigs"] = (self.ext["bigs"] + [item])[-50:]
+
     def on_trade(self, price, size, is_buy, ts):
         self.last = price
-        self.builder.add(price, size * self.ct, is_buy, ts)
+        qty = size * self.ct
+        # 合并大单：同一毫秒、同方向的成交算一笔
+        a = self._agg
+        if a and a["ts"] == ts and a["buy"] == is_buy:
+            a["q"] += qty; a["usd"] += qty * price; a["px"] = price
+        else:
+            self._flush_big()
+            self._agg = {"ts": ts, "buy": is_buy, "q": qty, "usd": qty * price, "px": price}
+        self.builder.add(price, qty, is_buy, ts)
+        c = self.builder.cur
+        if c is not None and math.isnan(c.oi):        # 新K线：先带上最新的持仓、费率、多空比
+            c.oi, c.funding, c.ls = self.ext["oi"], self.ext["funding"], self.ext["ls"]
         if self.backfilling:
             return
         if self.pending:
@@ -235,6 +303,92 @@ class SymbolEngine:
             for s, d in todo:
                 self.app.try_open(self, s, d, price, ts)
         self.app.check_exits(self, price, ts)
+
+    def on_liq(self, price, size, side, ts, history=False):
+        qty = size * self.ct
+        item = {"px": price, "q": qty, "usd": qty * price, "side": side, "ts": ts}
+        self.ext["liqs"] = (self.ext["liqs"] + [item])[-100:]
+        if history:
+            return
+        b = self._cur_bar(ts) or self.builder.cur
+        if b is not None:
+            if side == -1:
+                b.liq_long += qty
+            else:
+                b.liq_short += qty
+            b.liqs.append((price, qty, side))
+        try:
+            self.rec.write("liq", item)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def on_oi(self, oi_coin, oi_usd, ts):
+        self.ext["oi"], self.ext["oi_usd"] = oi_coin, oi_usd
+        h = self.ext["oi_hist"]
+        h.append((ts, oi_coin))
+        self.ext["oi_hist"] = h[-2000:]
+        if self.builder.cur is not None:
+            self.builder.cur.oi = oi_coin
+
+    def on_funding(self, rate, next_ts):
+        self.ext["funding"], self.ext["next_funding"] = rate, next_ts
+        if self.builder.cur is not None:
+            self.builder.cur.funding = rate
+
+    def on_ratio(self, ls, top_ls):
+        self.ext["ls"], self.ext["top_ls"] = ls, top_ls
+        if self.builder.cur is not None:
+            self.builder.cur.ls = ls
+
+    def sample_book(self, ts):
+        """每 2 秒采样一次盘口：热力图、盘口失衡、大单墙"""
+        b = self.builder.cur
+        if b is None or math.isnan(self.last):
+            return
+        bids, asks = self.app.feeds[self.inst].book.levels()
+        if not bids or not asks:
+            return
+        row, px = self.row, self.last
+        hb, ha = {}, {}
+        for p_, q in bids.items():
+            r = int(math.floor(p_ / row))
+            hb[r] = hb.get(r, 0.0) + q * self.ct
+        for p_, q in asks.items():
+            r = int(math.floor(p_ / row))
+            ha[r] = ha.get(r, 0.0) + q * self.ct
+        r0 = int(math.floor(px / row))
+        for r in range(r0 - 80, r0 + 81):
+            if r in hb or r in ha:
+                cell = b.heat.setdefault(r, [0.0, 0.0, 0])
+                cell[0] += hb.get(r, 0.0); cell[1] += ha.get(r, 0.0); cell[2] += 1
+        # 盘口失衡：价格上下 0.3% 以内
+        lo, hi = px * 0.997, px * 1.003
+        sb = sum(q for p_, q in bids.items() if p_ >= lo)
+        sa = sum(q for p_, q in asks.items() if p_ <= hi)
+        obi = (sb - sa) / (sb + sa) if sb + sa > 0 else 0.0
+        n = getattr(b, "_obi_n", 0)
+        b.obi = obi if n == 0 or math.isnan(b.obi) else (b.obi * n + obi) / (n + 1)
+        b._obi_n = n + 1
+        self.ext["obi"] = obi
+        # 大单墙：附近几格里挂单 ≥ 平均每格 5 倍，并且已经挂了 30 秒以上
+        near = [hb.get(r, 0) for r in range(r0 - 40, r0 + 1)] + [ha.get(r, 0) for r in range(r0, r0 + 41)]
+        avg = sum(near) / max(1, len(near))
+        p = self.det.p
+        now = time.time()
+        live_walls = set()
+        wb = wa = math.nan
+        for k in range(0, p["wall_rows"] + 1):
+            rb, ra = r0 - k, r0 + k
+            if hb.get(rb, 0) >= p["wall_mult"] * avg > 0:
+                live_walls.add((1, rb))
+                if now - self.wall_seen.setdefault((1, rb), now) >= 30 and math.isnan(wb):
+                    wb = rb * row
+            if ha.get(ra, 0) >= p["wall_mult"] * avg > 0:
+                live_walls.add((-1, ra))
+                if now - self.wall_seen.setdefault((-1, ra), now) >= 30 and math.isnan(wa):
+                    wa = (ra + 1) * row
+        self.wall_seen = {k: v for k, v in self.wall_seen.items() if k in live_walls}
+        b.wall_bid, b.wall_ask = wb, wa
 
     def view(self, n=40):
         bars = self.builder.bars[-(n - 1):] + ([self.builder.cur] if self.builder.cur else [])
@@ -248,7 +402,11 @@ class SymbolEngine:
                         "rows": [[r, round(x, 4), round(y, 4)] for r, (x, y) in sorted(b.rows.items())],
                         "buy_imb": sorted(bi), "sell_imb": sorted(si),
                         "stack_buy": stacked(bi, 3), "stack_sell": stacked(si, 3),
-                        "delta": b.delta, "vol": b.vol, "poc": b.poc_row()})
+                        "delta": b.delta, "vol": b.vol, "poc": b.poc_row(),
+                        "heat": [[r, round(x / c, 4), round(y / c, 4)] for r, (x, y, c) in b.heat.items() if c],
+                        "liq_long": b.liq_long, "liq_short": b.liq_short, "liqs": b.liqs[-60:],
+                        "big_buy": b.big_buy, "big_sell": b.big_sell, "bigs": b.bigs[-60:],
+                        "oi": b.oi, "obi": b.obi, "wall_bid": b.wall_bid, "wall_ask": b.wall_ask})
         real = [b for b in self.builder.bars if not getattr(b, "seeded", False)][-288:]
         vp = volume_profile(real + ([self.builder.cur] if self.builder.cur else []), self.row)
         bids, asks = self.app.feeds[self.inst].book.top(80)
@@ -258,7 +416,19 @@ class SymbolEngine:
                 "prev_day": self.det.prev_day_profile and {k: self.det.prev_day_profile[k] for k in ("poc", "vah", "val")},
                 "dom": {"bids": [[p, s * self.ct] for p, s in bids], "asks": [[p, s * self.ct] for p, s in asks]},
                 "zones": [z for z in self.det.zones if not z["used"]],
-                "signals": self.signals[-30:]}
+                "signals": self.signals[-30:],
+                "ext": {k: v for k, v in self.ext.items() if k != "oi_hist"},
+                "oi_1h": self._oi_change(3600_000),
+                "extras_status": getattr(self.app.extras.get(self.inst), "status", "")}
+
+    def _oi_change(self, ms):
+        h = self.ext["oi_hist"]
+        if len(h) < 2:
+            return None
+        t1, v1 = h[-1]
+        old = [v for t, v in h if t <= t1 - ms]
+        v0 = old[-1] if old else h[0][1]
+        return (v1 / v0 - 1) if v0 else None
 
 
 class OrderFlowApp:
@@ -272,6 +442,7 @@ class OrderFlowApp:
         self.live_confirmed = False
         self.engines: dict[str, SymbolEngine] = {}
         self.feeds = {}
+        self.extras = {}
         self.log: list[str] = []
         self.history: list[dict] = []
         self._load()
@@ -413,7 +584,7 @@ class OrderFlowApp:
                 "symbols": [x for x in self.cfg["symbols"] if x in self.engines],
                 "feed": {k: f.status for k, f in self.feeds.items()},
                 "cfg": self.cfg, "live_ok": self.live_confirmed, "allow_live": self.allow_live,
-                "signal_names": SIGNAL_NAMES,
+                "signal_names": SIGNAL_NAMES, "live_only": sorted(LIVE_ONLY),
                 "acct": {**asdict(self.acct), "positions": [asdict(p) for p in self.acct.positions]},
                 "last": {k: e.last for k, e in self.engines.items()},
                 "history": self.history[-50:], "log": self.log[-60:]}

@@ -106,3 +106,34 @@ def test_auto_trading_off_never_opens(tmp_path, monkeypatch):
     s = C.Signal("absorption", 1, 99.0, 102.0, 0)
     app.try_open(Eng(), s, {}, 100.0, 0)
     assert app.acct.positions == []
+
+
+def _flat(n=30, px=100.0):
+    out = []
+    for i in range(n):
+        b = mkbar(i * 300_000, px, px + 1, px - 1, px, {int(px) - 1: [5.0, 5.0], int(px): [5.0, 5.0]})
+        out.append(b)
+    return out
+
+
+def test_liquidation_cascade_long_signal():
+    d = C.Detector(1.0, enabled=["liq_cascade"])
+    for b in _flat():
+        d.on_bar(b)
+    b = mkbar(30 * 300_000, 100, 100.5, 95, 99, {95: [20.0, 5.0], 96: [10.0, 5.0], 99: [5.0, 5.0]})
+    b.liq_long = 10_000.0          # 100 万美元级别的多单爆仓
+    sigs = d.on_bar(b)
+    assert [(s.kind, s.side) for s in sigs] == [("liq_cascade", 1)]
+    assert sigs[0].stop < 95
+
+
+def test_book_wall_needs_wall_price():
+    d = C.Detector(1.0, enabled=["book_wall"])
+    for b in _flat():
+        d.on_bar(b)
+    b = mkbar(30 * 300_000, 100, 100.5, 98.2, 99.5, {98: [9.0, 1.0], 99: [5.0, 2.0]})
+    assert d.on_bar(b) == []
+    b2 = mkbar(31 * 300_000, 100, 100.5, 98.2, 99.5, {98: [9.0, 1.0], 99: [5.0, 2.0]})
+    b2.wall_bid = 98.0
+    sigs = d.on_bar(b2)
+    assert sigs and sigs[0].side == 1 and sigs[0].stop <= 96.0

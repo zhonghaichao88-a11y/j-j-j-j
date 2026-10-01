@@ -36,6 +36,7 @@ th{color:var(--mute);font-weight:normal}
   <select id="sym"></select>
   <span id="feed" style="color:var(--mute)"></span>
   <span style="flex:1"></span>
+  <span id="ext" style="color:var(--mute)"></span>
   <span>权益 <b id="eq">-</b> U</span>
   <span>今日 <b id="dpnl">-</b></span>
   <span id="mode" class="badge paper">模拟盘</span>
@@ -62,6 +63,10 @@ th{color:var(--mute);font-weight:normal}
     <table><thead><tr><th>时间</th><th>打法</th><th>方向</th><th>价</th><th>状态</th></tr></thead><tbody id="sigList"></tbody></table>
     <h3>成交记录 <span id="wr" style="color:var(--mute)"></span></h3>
     <table><thead><tr><th>币</th><th>打法</th><th>方向</th><th>原因</th><th>盈亏</th></tr></thead><tbody id="hist"></tbody></table>
+    <h3>爆仓（实时）</h3>
+    <table><thead><tr><th>时间</th><th>类型</th><th>价</th><th>金额</th></tr></thead><tbody id="liqList"></tbody></table>
+    <h3>大单（实时）</h3>
+    <table><thead><tr><th>时间</th><th>方向</th><th>价</th><th>金额</th></tr></thead><tbody id="bigList"></tbody></table>
     <h3>日志</h3>
     <div id="log"></div>
   </div>
@@ -77,6 +82,29 @@ function fmt(v){ if(v==null) return '';
   const a=Math.abs(v); if(a>=1e6) return (v/1e6).toFixed(1)+'M'; if(a>=1e4) return (v/1e3).toFixed(1)+'k';
   if(a>=1000) return v.toFixed(0); if(a>=100) return v.toFixed(0); if(a>=10) return v.toFixed(1); if(a>=1) return v.toFixed(2);
   if(a===0) return '0'; return v.toFixed(3);}
+function heatColor(k, askSide){ // 0..1 → 深蓝→青→黄→白
+  const stops=[[13,16,24],[20,60,120],[0,170,200],[240,200,40],[255,255,255]];
+  const t=Math.min(0.999,k)*(stops.length-1), i=Math.floor(t), f=t-i, a=stops[i], b=stops[i+1];
+  const c=a.map((v,j)=>Math.round(v+(b[j]-v)*f)); return `rgba(${c[0]},${c[1]},${c[2]},${0.25+0.6*k})`; }
+function drawIndicators(bars, plotR, y0, h){
+  ctx.fillStyle='#0d1018'; ctx.fillRect(0,y0,plotR,h); ctx.strokeStyle=C.line; ctx.strokeRect(0,y0,plotR,h);
+  if(!bars.length) return;
+  const real=bars.filter(b=>!b.seeded);
+  const xs=b=>plotR-(bars.length-bars.indexOf(b))*colW+colW/2;
+  // 爆仓柱（上绿=空单爆仓，下红=多单爆仓）
+  let lm=1; for(const b of bars) lm=Math.max(lm,(b.liq_long||0)*b.c,(b.liq_short||0)*b.c);
+  const mid=y0+h/2;
+  for(const b of bars){ const x=xs(b); const s=(b.liq_short||0)*b.c/lm*(h/2-6), l=(b.liq_long||0)*b.c/lm*(h/2-6);
+    ctx.fillStyle='rgba(0,230,118,.6)'; ctx.fillRect(x-colW/4,mid-s,colW/2,s); ctx.fillStyle='rgba(255,23,68,.6)'; ctx.fillRect(x-colW/4,mid,colW/2,l); }
+  // CVD（累计 delta）白线，持仓量 黄线
+  const line=(vals,color,label,ly)=>{ const v=vals.filter(z=>z[1]!=null&&!isNaN(z[1])); if(v.length<2) return;
+    const mn=Math.min(...v.map(z=>z[1])), mx=Math.max(...v.map(z=>z[1])); const sc=val=>y0+h-6-(val-mn)/((mx-mn)||1)*(h-14);
+    ctx.strokeStyle=color; ctx.lineWidth=1.5; ctx.beginPath(); v.forEach(([x,val],i)=>i?ctx.lineTo(x,sc(val)):ctx.moveTo(x,sc(val))); ctx.stroke(); ctx.lineWidth=1;
+    ctx.fillStyle=color; ctx.fillText(label,6,y0+ly); };
+  let cvd=0; line(real.map(b=>[xs(b),cvd+=b.delta]),'#e0e0e0','累计Delta(CVD)',10);
+  line(bars.map(b=>[xs(b),b.oi]),'#f0b90b','持仓量',24);
+  ctx.fillStyle=C.mute; ctx.fillText('爆仓（上=空单 下=多单）',6,y0+h-8);
+}
 function fp(p){ if(p==null) return '-'; const a=Math.abs(p); return a>=1000?p.toFixed(1):a>=10?p.toFixed(2):p.toPrecision(5); }
 
 function resize(){ const w=$('#chartWrap'); cv.width=w.clientWidth*devicePixelRatio; cv.height=w.clientHeight*devicePixelRatio;
@@ -88,10 +116,10 @@ function draw(){
   const V=S.view, W=cv.width/devicePixelRatio, H=cv.height/devicePixelRatio;
   ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
   ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
-  const axisW=78, domW=150, profW=90, footH=44;
+  const axisW=78, domW=150, profW=90, footH=44, indH=120;
   const plotR = W-axisW-domW-profW;           // 足迹区右边界
   const row=V.row, last=V.last ?? (V.bars.length?V.bars[V.bars.length-1].c:0);
-  const plotH = H-footH-20;
+  const plotH = H-footH-indH-20;
   // 默认让屏幕上的K线都能看到：范围放得下就居中显示，放不下就以最新价为中心
   let baseRow = Math.floor(last/row);
   { const nC=Math.floor((W-axisW-domW-profW)/colW), vis=V.bars.slice(Math.max(0,V.bars.length-nC-barOff), V.bars.length-barOff);
@@ -112,12 +140,18 @@ function draw(){
   // 堆叠失衡区
   for(const z of V.zones||[]){ const y1=yOfPx(z.hi), y2=yOfPx(z.lo);
     ctx.fillStyle = z.side>0?'#26a69a22':'#ef535022'; ctx.fillRect(0,y1,plotR,y2-y1); }
+  // 盘口热力图（挂单量，越亮越多，类似 Bookmap）
+  let hmax=1; for(const b of bars) for(const [r,x,y] of (b.heat||[])) hmax=Math.max(hmax,x+y);
+  bars.forEach((b,i)=>{ const x = plotR - (bars.length-i)*colW;
+    for(const [r,bq,aq] of (b.heat||[])){ const y=yOfRow(r); if(y<-cellH||y>plotH) continue;
+      const k=Math.pow((bq+aq)/hmax,0.5); ctx.fillStyle=heatColor(k, aq>bq); ctx.fillRect(x,y,colW,cellH); } });
   bars.forEach((b,i)=>{
     const x = plotR - (bars.length-i)*colW + 4, w=colW-8;
     const rows=b.rows; let mx=1; for(const [r,bi,as] of rows) mx=Math.max(mx,bi+as);
     const bset=new Set(b.buy_imb), sset=new Set(b.sell_imb);
     // K线影线 + 实体（每列左边细条）
-    const yh=yOfPx(b.h), yl=yOfPx(b.l), yo=yOfPx(b.o), yc=yOfPx(b.c);
+    const cy=v=>Math.max(0,Math.min(plotH,v));      // 超出图表区域的部分不画
+    const yh=cy(yOfPx(b.h)), yl=cy(yOfPx(b.l)), yo=cy(yOfPx(b.o)), yc=cy(yOfPx(b.c));
     const up=b.c>=b.o; ctx.strokeStyle=up?C.up:C.dn; ctx.beginPath(); ctx.moveTo(x+3,yh); ctx.lineTo(x+3,yl); ctx.stroke();
     ctx.fillStyle=up?C.up:C.dn; ctx.fillRect(x,Math.min(yo,yc),6,Math.max(1,Math.abs(yc-yo)));
     if(b.seeded){ ctx.fillStyle=C.mute; ctx.fillText('历史',x+12,yh-8); return; }
@@ -134,6 +168,14 @@ function draw(){
       ctx.fillStyle = bset.has(r)? '#b9f6ca':'#e0e0e0'; ctx.font=(bset.has(r)?'bold ':'')+'11px Consolas,monospace';
       ctx.fillText(fmt(as), x+9+(w-9)/2+4, y+cellH/2);
     }
+    // 大单（空心圈：青=买，橙=卖）
+    for(const [p,q,sd] of (b.bigs||[])){ const y=yOfPx(p); if(y<0||y>plotH) continue; const rad=Math.min(16,3+Math.sqrt(q*p/2e5)*3);
+      ctx.strokeStyle= sd>0?'#4dd0e1':'#ffab40'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(x+colW-14,y,rad,0,7); ctx.stroke(); ctx.lineWidth=1; }
+    // 爆仓（实心圈：红=多单爆仓，绿=空单爆仓）
+    for(const [p,q,sd] of (b.liqs||[])){ const y=yOfPx(p); if(y<0||y>plotH) continue; const rad=Math.min(22,3+Math.sqrt(q*p/5e4)*3);
+      ctx.fillStyle= sd<0?'rgba(255,23,68,0.65)':'rgba(0,230,118,0.65)'; ctx.beginPath(); ctx.arc(x+16,y,rad,0,7); ctx.fill(); }
+    // 大单墙
+    for(const [k,c] of [['wall_bid','#00e676'],['wall_ask','#ff5252']]) if(b[k]!=null){ const y=yOfPx(b[k]); ctx.strokeStyle=c; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+w,y); ctx.stroke(); ctx.lineWidth=1; }
     ctx.font='11px Consolas,monospace';
     // 每列下面 Delta / 总计
     const fy=plotH+4; ctx.fillStyle='#eee'; ctx.fillRect(x+9,fy,w-9,footH-6);
@@ -143,6 +185,7 @@ function draw(){
     // 时间
     const d=new Date(b.t); ctx.fillStyle=C.mute; ctx.fillText(d.toTimeString().slice(0,5),x+12,H-8);
   });
+  drawIndicators(bars, plotR, plotH+footH+2, indH-6);
   // 信号标记
   const tmap={}; bars.forEach((b,i)=>tmap[b.t]=plotR-(bars.length-i)*colW+4);
   for(const s of V.signals||[]){ const x=tmap[s.t]; if(x==null) continue; const b=bars.find(q=>q.t===s.t);
@@ -198,7 +241,9 @@ $('#zoomIn').onclick=()=>{colW=Math.min(180,colW+12);cellH=Math.min(30,cellH+2);
 $('#zoomOut').onclick=()=>{colW=Math.max(60,colW-12);cellH=Math.max(10,cellH-2);draw();};
 $('#center').onclick=()=>{priceOff=0;barOff=0;follow=true;draw();};
 
-function btText(k){ const tfm=(S&&S.cfg&&S.cfg.tf)||'5m'; const r=(BT[tfm]||{})[k]; if(!r) return '<small>还没有回测结果</small>';
+function btText(k){ const tfm=(S&&S.cfg&&S.cfg.tf)||'5m'; const r=(BT[tfm]||{})[k];
+  if(((S&&S.live_only)||[]).includes(k)) return '<small style="color:#f0b90b">没有历史数据，无法回测；程序运行时会自动录下数据，录够了再测</small>';
+  if(!r) return '<small>还没有回测结果</small>';
   const good = r.pf>1.1 && r.pf_a>1 && r.pf_b>1;
   return `<small style="color:${good?'#26a69a':'#ef5350'}">${tfm}回测 ${r.n}笔 胜率${(r.win*100).toFixed(0)}% PF ${r.pf.toFixed(2)}（前半${r.pf_a.toFixed(2)} / 后半${r.pf_b.toFixed(2)}）${good?' 过关':' 不过关'}</small>`; }
 let built=false;
@@ -218,7 +263,19 @@ function saveCfg(){ const en=[...$('#sigs').querySelectorAll('input:checked')].m
 $('#saveRisk').onclick=saveCfg;
 $('#closeAll').onclick=()=>{ if(confirm('确定全部平仓？')) post('/api/close_all',{}); };
 
+function usd(v){ return v>=1e6?(v/1e6).toFixed(2)+'M$':(v/1e3).toFixed(0)+'k$'; }
+function sideExt(){
+  const V=S.view; if(!V||!V.ext) return; const e=V.ext;
+  const fr = e.funding!=null? (e.funding*100).toFixed(4)+'%':'-';
+  let cd=''; if(e.next_funding){ const ms=e.next_funding-Date.now(); if(ms>0) cd=` ${Math.floor(ms/3600e3)}时${Math.floor(ms%3600e3/60e3)}分后结算`; }
+  const oi = e.oi_usd!=null? usd(e.oi_usd):'-', oc = V.oi_1h!=null? ((V.oi_1h>=0?'+':'')+(V.oi_1h*100).toFixed(2)+'%/1h'):'';
+  const obi = e.obi!=null? e.obi:0; const ob=`<span style="display:inline-block;width:60px;height:8px;background:#333;position:relative;vertical-align:middle"><span style="position:absolute;left:${obi>=0?50:50+obi*50}%;width:${Math.abs(obi)*50}%;height:8px;background:${obi>=0?'#26a69a':'#ef5350'}"></span></span>`;
+  $('#ext').innerHTML = `资金费率 <b style="color:${(e.funding||0)>=0?'#26a69a':'#ef5350'}">${fr}</b>${cd} ｜ 持仓 <b>${oi}</b> ${oc} ｜ 多空人数比 <b>${e.ls!=null?e.ls.toFixed(2):'-'}</b> 大户 <b>${e.top_ls!=null&&!isNaN(e.top_ls)?e.top_ls.toFixed(2):'-'}</b> ｜ 盘口 ${ob} ${obi>=0?'买强':'卖强'} ${(obi*100).toFixed(0)}%`;
+  $('#liqList').innerHTML = (e.liqs||[]).slice().reverse().slice(0,15).map(l=>`<tr><td>${new Date(l.ts).toTimeString().slice(0,8)}</td><td class="${l.side<0?'neg':'pos'}">${l.side<0?'多单爆仓':'空单爆仓'}</td><td>${fp(l.px)}</td><td>${usd(l.usd)}</td></tr>`).join('') || '<tr><td colspan=4 style="color:var(--mute)">暂无</td></tr>';
+  $('#bigList').innerHTML = (e.bigs||[]).slice().reverse().slice(0,15).map(([p,q,sd,ts])=>`<tr><td>${new Date(ts).toTimeString().slice(0,8)}</td><td class="${sd>0?'pos':'neg'}">${sd>0?'主动买':'主动卖'}</td><td>${fp(p)}</td><td>${usd(p*q)}</td></tr>`).join('') || '<tr><td colspan=4 style="color:var(--mute)">暂无</td></tr>';
+}
 function side(){
+  sideExt();
   const a=S.acct; $('#eq').textContent=a.equity.toFixed(2); const dp=a.day_pnl;
   $('#dpnl').innerHTML=`<span class="${dp>=0?'pos':'neg'}">${dp>=0?'+':''}${dp.toFixed(2)}</span>`;
   $('#mode').className='badge '+(S.live_ok?'live':'paper'); $('#mode').textContent=S.live_ok?'实盘':'模拟盘';

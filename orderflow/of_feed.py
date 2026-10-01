@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import time
 from typing import Callable
 
@@ -38,9 +39,32 @@ class Book:
                     side[p] = s
         self.ts = time.time()
 
+    def full(self, bids, asks):
+        """books-full（上下各 5000 档）：远处的挂单用它，近处以实时推送为准"""
+        self.fbids = {float(p): float(s) for p, s, *_ in bids if float(s) > 0}
+        self.fasks = {float(p): float(s) for p, s, *_ in asks if float(s) > 0}
+        self.fts = time.time()
+
+    def levels(self):
+        fb, fa = getattr(self, "fbids", {}), getattr(self, "fasks", {})
+        if not fb and not fa:
+            return self.bids, self.asks
+        nb_lo = min(self.bids) if self.bids else math.inf
+        na_hi = max(self.asks) if self.asks else -math.inf
+        bids = {p: s for p, s in fb.items() if p < nb_lo}
+        bids.update(self.bids)
+        asks = {p: s for p, s in fa.items() if p > na_hi}
+        asks.update(self.asks)
+        if self.bids and self.asks:          # 去掉已经被吃掉、穿过最优价的旧档位
+            bb, ba = max(self.bids), min(self.asks)
+            bids = {p: s for p, s in bids.items() if p <= bb}
+            asks = {p: s for p, s in asks.items() if p >= ba}
+        return bids, asks
+
     def top(self, n=60):
-        b = sorted(self.bids.items(), key=lambda x: -x[0])[:n]
-        a = sorted(self.asks.items(), key=lambda x: x[0])[:n]
+        bids, asks = self.levels()
+        b = sorted(bids.items(), key=lambda x: -x[0])[:n]
+        a = sorted(asks.items(), key=lambda x: x[0])[:n]
         return b, a
 
 
@@ -125,6 +149,25 @@ class OkxFeed:
                 {"channel": "trades", "instId": self.inst},
                 {"channel": "books", "instId": self.inst}]}))
             self.status, self.using = "已连接（WebSocket 实时）", "ws"
+            full_task = asyncio.create_task(self._full_book_loop())
+            try:
+                await self._ws_loop(ws)
+            finally:
+                full_task.cancel()
+
+    async def _full_book_loop(self):
+        async with httpx.AsyncClient(proxy=self.proxy, timeout=10) as c:
+            while not self._stop:
+                try:
+                    r = await c.get(f"{REST}/api/v5/market/books-full", params={"instId": self.inst, "sz": 5000})
+                    d = r.json().get("data", [])
+                    if d:
+                        self.book.full(d[0]["bids"], d[0]["asks"])
+                except Exception:  # noqa: BLE001
+                    pass
+                await asyncio.sleep(3)
+
+    async def _ws_loop(self, ws):
             while not self._stop:
                 msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=30))
                 arg = msg.get("arg", {})
@@ -155,11 +198,12 @@ class OkxFeed:
                         continue
                     self.last_trade_id = int(t["tradeId"])
                     self.on_trade(float(t["px"]), float(t["sz"]), t["side"] == "buy", int(t["ts"]))
-                if n % 2 == 0:
-                    rb = await c.get(f"{REST}/api/v5/market/books", params={"instId": self.inst, "sz": 400})
+                if n % 4 == 0:
+                    rb = await c.get(f"{REST}/api/v5/market/books-full", params={"instId": self.inst, "sz": 5000})
                     d = rb.json().get("data", [])
                     if d:
-                        self.book.snapshot(d[0]["bids"], d[0]["asks"])
+                        self.book.snapshot(d[0]["bids"][:400], d[0]["asks"][:400])
+                        self.book.full(d[0]["bids"], d[0]["asks"])
                 n += 1
                 await asyncio.sleep(0.5)
 
@@ -177,3 +221,70 @@ class OkxFeed:
             if after <= last_id + 1:
                 break
         return out
+
+
+class OkxExtras:
+    """爆仓、持仓量、资金费率、多空比（REST 轮询，频率很低，不会超限）。"""
+
+    def __init__(self, inst_id: str, proxy: str | None, on_liq, on_oi, on_funding, on_ratio):
+        self.inst = inst_id
+        self.uly = "-".join(inst_id.split("-")[:2])
+        self.proxy = proxy
+        self.on_liq, self.on_oi, self.on_funding, self.on_ratio = on_liq, on_oi, on_funding, on_ratio
+        self.seen: set = set()
+        self.status = ""
+        self._stop = False
+
+    async def _get(self, c, path, **params):
+        r = await c.get(f"{REST}{path}", params=params)
+        j = r.json()
+        if str(j.get("code")) != "0":
+            raise RuntimeError(j.get("msg") or j.get("code"))
+        return j["data"]
+
+    async def run(self):
+        n = 0
+        async with httpx.AsyncClient(proxy=self.proxy, timeout=10) as c:
+            while not self._stop:
+                try:
+                    # 爆仓单：每 2 秒
+                    data = await self._get(c, "/api/v5/public/liquidation-orders", instType="SWAP",
+                                           uly=self.uly, state="filled", limit=100)
+                    fresh = []
+                    for blk in data:
+                        if blk.get("instId") != self.inst:
+                            continue
+                        for d in blk.get("details", []):
+                            key = (d["ts"], d["bkPx"], d["sz"], d["posSide"])
+                            if key in self.seen:
+                                continue
+                            self.seen.add(key)
+                            fresh.append(d)
+                    if len(self.seen) > 5000:
+                        self.seen = set(list(self.seen)[-2000:])
+                    first = n == 0
+                    for d in sorted(fresh, key=lambda x: int(x["ts"])):
+                        # posSide=long 表示多单被强平（强平单是卖出）
+                        self.on_liq(float(d["bkPx"]), float(d["sz"]), -1 if d["posSide"] == "long" else 1,
+                                    int(d["ts"]), history=first)
+                    if n % 3 == 0:
+                        d = (await self._get(c, "/api/v5/public/open-interest", instType="SWAP", instId=self.inst))[0]
+                        self.on_oi(float(d["oiCcy"]), float(d["oiUsd"]), int(d["ts"]))
+                    if n % 15 == 0:
+                        d = (await self._get(c, "/api/v5/public/funding-rate", instId=self.inst))[0]
+                        self.on_funding(float(d["fundingRate"]), int(d["fundingTime"]))
+                    if n % 30 == 0:
+                        acc = await self._get(c, "/api/v5/rubik/stat/contracts/long-short-account-ratio-contract",
+                                              instId=self.inst, period="5m", limit=1)
+                        top = []
+                        try:
+                            top = await self._get(c, "/api/v5/rubik/stat/contracts/long-short-position-ratio-contract-top-trader",
+                                                  instId=self.inst, period="5m", limit=1)
+                        except Exception:  # noqa: BLE001
+                            pass
+                        self.on_ratio(float(acc[0][1]) if acc else math.nan, float(top[0][1]) if top else math.nan)
+                    self.status = "衍生品数据正常"
+                except Exception as e:  # noqa: BLE001
+                    self.status = f"衍生品数据出错：{e}"
+                n += 1
+                await asyncio.sleep(2)

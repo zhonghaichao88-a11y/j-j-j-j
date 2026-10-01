@@ -22,7 +22,9 @@ from of_core import Bar, Detector, SIGNAL_NAMES, auto_row_size  # noqa: E402
 
 FEE = float(os.environ.get("OF_FEE", "0.0005"))     # 吃单 0.05%；挂单可设 0.0002
 SLIP = float(os.environ.get("OF_SLIP", "0.0002"))
-FADE = os.environ.get("OF_FADE") == "1"              # 反着做：信号说多就空（检验是不是方向反了）
+FADE = os.environ.get("OF_FADE") == "1"
+PARAMS = __import__("json").loads(os.environ.get("OF_PARAMS", "{}"))   # 临时改参数，例如 '{"funding_hi":0.0001}'
+KINDS = [k for k in os.environ.get("OF_KINDS", "").split(",") if k] or None              # 反着做：信号说多就空（检验是不是方向反了）
 
 
 def load(dirpath, sym):
@@ -31,9 +33,18 @@ def load(dirpath, sym):
     if not parts:
         return None
     tick = float(parts[0]["tick"])
-    cat = lambda k: np.concatenate([p[k] for p in parts])
-    return {"tick": tick, "m": cat("m"), "b": cat("b"), "bid": cat("bid"), "ask": cat("ask"),
-            "om": cat("om"), "o": cat("o"), "h": cat("h"), "l": cat("l"), "c": cat("c")}
+    cat = lambda k: np.concatenate([p[k] for p in parts if k in p.files]) if any(k in p.files for p in parts) else np.array([])
+    d = {"tick": tick, "m": cat("m"), "b": cat("b"), "bid": cat("bid"), "ask": cat("ask"),
+         "om": cat("om"), "o": cat("o"), "h": cat("h"), "l": cat("l"), "c": cat("c"),
+         "big_m": cat("big_m"), "big_buy": cat("big_buy"), "big_sell": cat("big_sell")}
+    # 币安归档的持仓量 / 多空比 / 资金费率（fetch_metrics.py 下载）
+    import pandas as pd
+    mp, fp_ = f"{dirpath}/{sym}_metrics.csv", f"{dirpath}/{sym}_funding.csv"
+    d["metrics"] = pd.read_csv(mp) if os.path.exists(mp) else None
+    if d["metrics"] is not None and d["metrics"]["t"].max() < 1e12:      # 旧文件是秒，换成毫秒
+        d["metrics"]["t"] = d["metrics"]["t"] * 1000
+    d["funding"] = pd.read_csv(fp_) if os.path.exists(fp_) else None
+    return d
 
 
 def build_bars(d, tf_min):
@@ -63,7 +74,29 @@ def build_bars(d, tf_min):
     for k, r, bid, ask in zip(mb, rows, d["bid"], d["ask"]):
         cell = bars[k].rows.setdefault(int(r), [0.0, 0.0])
         cell[0] += float(bid); cell[1] += float(ask)
+    # 大单
+    for m, bb, bs in zip(d["big_m"], d["big_buy"], d["big_sell"]):
+        b = bars.get(int(m) // tf_min)
+        if b is not None:
+            b.big_buy += float(bb); b.big_sell += float(bs)
     out = [bars[k] for k in sorted(bars)]
+    # 持仓量、多空比、资金费率：只用 K线收盘时刻以前公布的值（不偷看）
+    ends = np.array([b.t + tf_min * 60000 for b in out])
+    if d.get("metrics") is not None:
+        mt = d["metrics"].sort_values("t")
+        tt = mt["t"].to_numpy()
+        idx = np.searchsorted(tt, ends, side="right") - 1
+        oi, ls = mt["oi"].to_numpy(), mt["ls"].to_numpy()
+        for b, e, i in zip(out, ends, idx):
+            if i >= 0 and e - tt[i] <= 3_600_000:          # 超过 1 小时没更新的不用
+                b.oi, b.ls = float(oi[i]), float(ls[i])
+    if d.get("funding") is not None:
+        ft = d["funding"].sort_values("t")
+        tt, fr = ft["t"].to_numpy(), ft["funding"].to_numpy()
+        idx = np.searchsorted(tt, ends, side="right") - 1
+        for b, i in zip(out, idx):
+            if i >= 0:
+                b.funding = float(fr[i])
     for b in out:
         b.closed = True
     return out, row
@@ -140,7 +173,7 @@ if __name__ == "__main__":
             continue
         for tf in tfs:
             bars, row = build_bars(d, tf)
-            tr = simulate(d, bars, row, tf)
+            tr = simulate(d, bars, row, tf, kinds=KINDS, params=PARAMS)
             mid_t = bars[len(bars) // 2].t // 60000
             by = defaultdict(list)
             for t in tr:
