@@ -11,7 +11,7 @@
 - Live 只执行 ALPHA-X 自己登记的仓位，未知仓位绝不接管
 """
 from __future__ import annotations
-import json, math, os, threading, time, traceback
+import json, math, os, threading, time, traceback, uuid
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 import numpy as np
@@ -862,6 +862,22 @@ def _flat_cleanup_or_block(symbol: str, p: dict) -> bool:
         _activity(f'实盘 {symbol}：已平仓，残留单清理未验证，锁定该币并继续重试：{exc}','error')
         _persist()
         return False
+
+def _auto_clear_flat_protection_blocks(max_age=3600.0):
+    """保护锁建立超过 1 小时、本地与交易所都已无该币仓位、也没有残留算法单待清理时自动解除（只解除该币）。"""
+    with LOCK:
+        blocks={s:dict(b) for s,b in (STATE.get("protection_blocks") or {}).items()}
+        held=set((STATE.get("positions") or {}).keys()); cleanup=set((STATE.get("flat_cleanup_pending") or {}).keys())
+    old=[s for s,b in blocks.items() if s not in held and s not in cleanup and time.time()-float(b.get("updated_at") or 0)>=max_age]
+    if not old: return
+    try: real=alpha_live.positions()
+    except Exception: return
+    for s in old:
+        cs=config.trading.get_ccxt_symbol(s)
+        if any(x.get("symbol")==cs and float(x.get("contracts") or 0)>0 for x in real): continue
+        with LOCK: STATE.setdefault("protection_blocks",{}).pop(s,None)
+        _activity(f"实盘 {s}：保护锁已超过1小时且交易所确认无仓位、无残留单，自动解除（原因：{blocks[s].get('reason','')[:80]}）")
+        _persist()
 
 def _retry_flat_cleanup():
     with LOCK: pending={s:dict(p) for s,p in STATE.get('flat_cleanup_pending',{}).items()}
@@ -2860,11 +2876,15 @@ def _reconciliation_check(real_positions):
         local=dict(STATE.get("positions") or {})
     real=list(real_positions or [])
     problems=[]
+    with LOCK:
+        missing_pending=dict(STATE.get("position_missing_counts") or {})
     for symbol,p in local.items():
         cs=config.trading.get_ccxt_symbol(symbol)
         matches=[x for x in real if x.get("symbol")==cs and float(x.get("contracts") or 0)>0]
         side=str(p.get("side") or "")
         if not matches:
+            # 交易所止盈/止损刚成交、持仓管理正在连续确认消失（最多3轮）：本地多出的仓位没有风险，不挡其他币开仓
+            if int(missing_pending.get(symbol) or 0)>0: continue
             problems.append(f"本地持仓{symbol}在交易所不存在")
         elif side:
             # net_mode下单向持仓side可能为None，跳过方向检查；long_short_mode才检查方向
@@ -3276,6 +3296,7 @@ def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
         if _is_fast(pred):
             _fast_detail(symbol,"准备下单",f"所有下单前检查通过；方向={'做多' if side=='long' else '做空'}；计划金额={notional:.2f} USDT；准备向OKX发送{'post-only限价单(maker)' if use_maker else '市价单(taker)'}")
         _activity(f"实盘 {symbol}：开仓链路通过 → 信号={pred.get('signal')} 置信度={float(pred.get('confidence',0))*100:.1f}% → 持仓/冷却/余额/执行检查均通过 → 准备开仓 {side}，计划金额={notional:.2f} USDT")
+        _submits0=int(getattr(alpha_live,"entry_submits",0) or 0)   # 用来判断本次是否真的向交易所发过开仓单
         try:
             if use_maker:
                 _mp=_maker_params(); _mode=_fast_entry_mode()
@@ -3319,7 +3340,11 @@ def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
             if protection_failure:
                 # Never treat a filled entry order as a successful retry when the executor
                 # has already rejected/closed it because native protection was not verified.
-                _block_protection_failure(symbol, side, err_text)
+                if getattr(submit_exc,"flat_terminal",False):
+                    # 执行层已强平且交易所确认归零、订单已终态：只记这一单失败，不建需要人工解除的保护锁
+                    _activity(f"实盘 {symbol}：成交后保护未验证，已强平并确认归零；本单放弃，不锁定该币","warning")
+                else:
+                    _block_protection_failure(symbol, side, err_text)
                 try:
                     real_now=alpha_live.positions()
                     cs_now=config.trading.get_ccxt_symbol(symbol)
@@ -3361,7 +3386,8 @@ def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
             except Exception as close_exc:
                 ops_open_breaker(f"PROTECTION_CLOSE_FAILED:{symbol}")
                 raise RuntimeError(f"OKX 原生 TP/SL 未验证，保护性平仓失败或未确认归零: {close_exc}")
-            raise RuntimeError(f"OKX 原生 TP/SL 未验证，已保护性平仓并确认仓位归零: {protection.get('error') or protection.get('count',0)}")
+            _err=RuntimeError(f"OKX 原生 TP/SL 未验证，已保护性平仓并确认仓位归零: {protection.get('error') or protection.get('count',0)}")
+            _err.flat_terminal=True; raise _err
         ops_record(r["order_id"],"PROTECTED",protection)
         if _is_fast(pred):
             _fast_detail(symbol,"TP/SL保护",f"OKX原生保护已验证；TP={float(r.get('tp') or 0):.8g}；SL={float(r.get('sl') or 0):.8g}；保护数量={int(protection.get('count',0))}")
@@ -3417,7 +3443,9 @@ def _live_step(symbol,pred,cfg,allocation_multiplier=1.0):
             message="已确认当前无仓位，原订单仍需对账" if confirmed_flat else "持仓状态未确认，已停止新开仓并等待对账"
             # An empty position snapshot does not prove an ambiguous pending order was canceled.
             # 订单已到终态、仓位已强平且交易所确认归零（flat_terminal）：没有待对账的东西，不开熔断，只记这一单失败。
-            if recovery_clid and not (confirmed_flat and getattr(exc,"flat_terminal",False)): ops_open_breaker(f"ENTRY_ORDER_RECONCILE:{symbol}")
+            _sent=locals().get("_submits0") is None or int(getattr(alpha_live,"entry_submits",0) or 0)!=int(locals().get("_submits0") or 0)
+            _nothing_pending=confirmed_flat and (getattr(exc,"flat_terminal",False) or not _sent)   # 已终态归零，或开仓单根本没发出去
+            if recovery_clid and not _nothing_pending: ops_open_breaker(f"ENTRY_ORDER_RECONCILE:{symbol}")
             with LOCK:
                 STATE["live_error"]=f"{symbol}: {message}: {exc}"
                 STATE["last_open_error"]={"symbol":symbol,"error":str(exc)[:300],"trace_tail":traceback.format_exc()[-700:],"ts":time.time()}
@@ -3522,6 +3550,29 @@ def _reconcile_native_partial(symbol: str, p: dict, current_contracts: float):
     _persist()
 
 
+def _scheme3_repair_protection(symbol,p,contracts):
+    """方案三：重启时止盈/止损没对上（被撤、过期或 ID 对不上），按原价格和交易所实际持仓数量重新挂一对并验证。"""
+    side=str(p.get("side") or ""); tp=float(p.get("original_tp_price") or p.get("tp") or 0); sl=float(p.get("original_sl_price") or p.get("sl") or 0)
+    if contracts<=0 or tp<=0 or sl<=0: return {"verified":False}
+    old=[p.get("tp_attach_clordid"),p.get("sl_attach_clordid")]
+    tp_cid=alpha_live.PREFIX+uuid.uuid4().hex[:24]; sl_cid=alpha_live.PREFIX+uuid.uuid4().hex[:24]
+    try:
+        alpha_live.place_native_sl(symbol,side,contracts,sl,client_id=sl_cid,trigger_type="mark")
+        alpha_live.place_native_tp(symbol,side,contracts,tp,client_id=tp_cid)
+    except Exception as exc:
+        _activity(f"实盘 {symbol}：方案三重启补挂止盈止损失败：{exc}","error")
+        return {"verified":False}
+    for cid in [x for x in old if x]:
+        try: alpha_live.cancel_algo(symbol,algo_cl_ord_id=cid)
+        except Exception: pass
+    with LOCK:
+        lp=STATE["positions"].get(symbol)
+        if lp: lp["tp_attach_clordid"]=tp_cid; lp["sl_attach_clordid"]=sl_cid
+    _persist()
+    _activity(f"实盘 {symbol}：方案三重启时止盈止损未对上，已按原价重新挂好并验证（TP={tp:.8g}，SL={sl:.8g}）","warning")
+    return alpha_live.protection_status(symbol,side,expected_ids=[tp_cid,sl_cid],wait_timeout=5.0)
+
+
 def _reconcile_live(cfg):
     """Crash recovery: reconcile local ALPHA-X intents with real positions and pending orders."""
     try:
@@ -3571,6 +3622,8 @@ def _reconcile_live(cfg):
                         _reconcile_native_partial(s,p,float(rp.get("contracts") or 0))
                     else:
                         prot=alpha_live.protection_status(s,side_r,expected_ids=[p.get("tp_attach_clordid"),p.get("sl_attach_clordid")],wait_timeout=5.0)
+                        if not prot.get("verified") and p.get("v7_scheme3"):
+                            prot=_scheme3_repair_protection(s,p,float(rp.get("contracts") or 0))
                         if not prot.get("verified"):
                             raise RuntimeError("TP+固定SL未验证")
                     # (2) 叠加移动单：armed则检查是否仍active；若已失效(被撤/触发异常)，固定SL
@@ -4392,6 +4445,7 @@ def _loop(cfg):
             if STATE["mode"]=="live":
                 _retry_flat_cleanup()
                 _retry_flat_fills()
+                _auto_clear_flat_protection_blocks()
                 try:
                     equity,_=_live_account_snapshot()
                     with LOCK:
@@ -4575,7 +4629,9 @@ def recovery_health():
     """Recovery gate only: pending close/protection recovery, independent of WS health."""
     with LOCK:
         close_pending=bool(STATE.get("close_recovery") or {})
-        protection_pending=bool(STATE.get("protection_blocks") or {})
+        held=set((STATE.get("positions") or {}).keys())
+        # 已平仓币种的保护锁只锁该币（_live_step 开头单独检查），不再挡全部币开仓
+        protection_pending=any(s in held for s in (STATE.get("protection_blocks") or {}))
     return {"healthy": not (close_pending or protection_pending),
             "close_recovery_pending": close_pending,
             "protection_blocks_pending": protection_pending}

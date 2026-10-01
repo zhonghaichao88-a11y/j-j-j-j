@@ -21,7 +21,7 @@ import numpy as np
 from alpha_v7_analysis import STRATEGIES, analyze
 from alpha_v7_feed import tf_ms, higher_tfs
 
-VERSION = '7.8.4-SCHEME3'
+VERSION = '7.8.5-SCHEME3'
 
 PARAMS = dict(
     strategy='ema_cross',

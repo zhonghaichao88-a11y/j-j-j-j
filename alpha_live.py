@@ -494,6 +494,7 @@ class AlphaLiveExecutor:
                 "attachAlgoOrds":[{"attachAlgoClOrdId":tp_id,"tpTriggerPx":str(tp),"tpOrdPx":"-1","tpTriggerPxType":"last"},
                                   {"attachAlgoClOrdId":sl_id,"slTriggerPx":str(sl),"slOrdPx":"-1","slTriggerPxType":"last" if protection else "mark"}]}
         logger.warning(f"[ALPHA-X LIVE] {symbol} {side} {amount}张 ≈ {notional_usdt:.2f}U TP={tp} SL={sl} clOrdId={clid}")
+        self.entry_submits=getattr(self,"entry_submits",0)+1      # 开仓单发出计数（引擎据此判断失败是否发生在下单之前）
         order=ex.create_order(cs,"market",entry_side,amount,None,params); oid=order.get("id")
         if not oid: raise RuntimeError(f"OKX 下单返回无 ordId: {order}")
         detail=self.wait_order_terminal(symbol,oid,timeout=8); state=str(detail.get("status") or order.get("status") or "").lower()
@@ -603,6 +604,7 @@ class AlphaLiveExecutor:
                                       {"attachAlgoClOrdId":sl_id,"slTriggerPx":str(sl),"slOrdPx":"-1","slTriggerPxType":"last" if protection else "mark"}]}
             logger.warning(f"[ALPHA-X MAKER] {symbol} {side} post-only {amount}张 @ {lim} (bid={bid}/ask={ask}) ttl={ttl:.0f}s 第{attempt+1}次 clOrdId={clid}")
             try:
+                self.entry_submits=getattr(self,"entry_submits",0)+1
                 order=ex.create_order(cs,"post_only",entry_side,amount,lim,params)
             except Exception as submit_exc:
                 last_reject=submit_exc

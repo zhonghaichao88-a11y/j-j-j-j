@@ -200,3 +200,55 @@ class ProtectionFallbackTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             a.open_maker('BTC-USDT-SWAP', 'long', 100, .012, .25, 3, client_order_id='AXtest', ttl=30, fallback_to_market=True)
         a.place_native_sl.assert_not_called(); a.close.assert_called_once()
+
+
+class LiveRobustnessTests(unittest.TestCase):
+    """V7.8.5：止盈成交后的对账、已平仓币的保护锁、旧锁自动解除、重启补挂、下单前失败不熔断。"""
+    def setUp(self):
+        self._keep = {k: ae.STATE.get(k) for k in ('positions', 'position_missing_counts', 'protection_blocks', 'close_recovery', 'flat_cleanup_pending')}
+        ae.STATE.update(positions={}, position_missing_counts={}, protection_blocks={}, close_recovery={}, flat_cleanup_pending={})
+
+    def tearDown(self):
+        ae.STATE.update(self._keep)
+
+    def test_reconciliation_ignores_position_being_confirmed_gone(self):
+        ae.STATE['positions'] = {'A-USDT-SWAP': {'side': 'long'}}
+        with patch.object(ae.alpha_live, 'pos_mode', return_value='long_short_mode'):
+            self.assertFalse(ae._reconciliation_check([])['ok'])
+            ae.STATE['position_missing_counts'] = {'A-USDT-SWAP': 1}
+            self.assertTrue(ae._reconciliation_check([])['ok'])
+
+    def test_protection_block_of_flat_symbol_does_not_block_everything(self):
+        ae.STATE['protection_blocks'] = {'B-USDT-SWAP': {'manual_clear_required': True, 'updated_at': 0}}
+        self.assertTrue(ae.recovery_health()['healthy'])
+        ae.STATE['positions'] = {'B-USDT-SWAP': {'side': 'long'}}
+        self.assertFalse(ae.recovery_health()['healthy'])
+
+    def test_old_block_auto_cleared_only_when_exchange_flat(self):
+        import time as _t
+        ae.STATE['protection_blocks'] = {'B-USDT-SWAP': {'updated_at': _t.time() - 7200}, 'C-USDT-SWAP': {'updated_at': _t.time() - 60}}
+        with patch.object(ae.alpha_live, 'positions', return_value=[]), patch.object(ae, '_persist'):
+            ae._auto_clear_flat_protection_blocks()
+        self.assertEqual(set(ae.STATE['protection_blocks']), {'C-USDT-SWAP'})          # 不到 1 小时的不动
+        ae.STATE['protection_blocks'] = {'B-USDT-SWAP': {'updated_at': _t.time() - 7200}}
+        with patch.object(ae.alpha_live, 'positions', return_value=[{'symbol': 'B/USDT:USDT', 'contracts': 1}]), patch.object(ae, '_persist'):
+            ae._auto_clear_flat_protection_blocks()
+        self.assertIn('B-USDT-SWAP', ae.STATE['protection_blocks'])                      # 交易所还有仓位就不解
+
+    def test_restart_repairs_missing_scheme3_protection(self):
+        from unittest.mock import Mock
+        ae.STATE['positions'] = {'D-USDT-SWAP': {'side': 'long', 'tp': 1.012, 'sl': .75, 'tp_attach_clordid': 'AXold1', 'sl_attach_clordid': 'AXold2', 'v7_scheme3': True}}
+        with patch.object(ae.alpha_live, 'place_native_sl', Mock()) as sl, patch.object(ae.alpha_live, 'place_native_tp', Mock()) as tp, \
+             patch.object(ae.alpha_live, 'cancel_algo', Mock()), patch.object(ae, '_persist'), \
+             patch.object(ae.alpha_live, 'protection_status', return_value={'verified': True}):
+            r = ae._scheme3_repair_protection('D-USDT-SWAP', ae.STATE['positions']['D-USDT-SWAP'], 5.0)
+        self.assertTrue(r['verified']); self.assertEqual(sl.call_args.args[2], 5.0); self.assertAlmostEqual(tp.call_args.args[3], 1.012)
+        self.assertNotEqual(ae.STATE['positions']['D-USDT-SWAP']['tp_attach_clordid'], 'AXold1')
+
+    def test_entry_submit_counter_increments_only_when_order_sent(self):
+        import inspect
+        src = inspect.getsource(type(ae.alpha_live).open) + inspect.getsource(type(ae.alpha_live).open_maker)
+        self.assertEqual(src.count('self.entry_submits=getattr(self,"entry_submits",0)+1'), 2)
+        for line in src.splitlines():
+            if 'create_order(cs,"market",entry_side' in line or 'create_order(cs,"post_only"' in line:
+                self.assertIn('entry_submits', src[:src.index(line)].splitlines()[-1])
