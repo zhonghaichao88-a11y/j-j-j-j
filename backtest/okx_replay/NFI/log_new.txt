@@ -1,0 +1,851 @@
+2026-10-01 16:12:44,387 - freqtrade - INFO - freqtrade 2026.9
+2026-10-01 16:12:44,675 - numexpr.utils - INFO - NumExpr defaulting to 4 threads.
+2026-10-01 16:12:46,950 - freqtrade.configuration.load_config - INFO - Using config: nfi/config_new.json ...
+2026-10-01 16:12:46,953 - freqtrade.loggers - INFO - Enabling colorized output.
+2026-10-01 16:12:46,954 - freqtrade.loggers - INFO - Logfile configured
+2026-10-01 16:12:46,954 - freqtrade.loggers - INFO - Verbosity set to 0
+2026-10-01 16:12:46,955 - freqtrade.configuration.configuration - INFO - Using max_open_trades: -1 ...
+2026-10-01 16:12:46,955 - freqtrade.configuration.configuration - INFO - Parameter --timerange detected: 20251101-20260929 ...
+2026-10-01 16:12:46,956 - freqtrade.configuration.configuration - INFO - Using user-data directory: ft ...
+2026-10-01 16:12:46,957 - freqtrade.configuration.configuration - INFO - Using data directory: ft/data_new/okx ...
+2026-10-01 16:12:46,957 - freqtrade.configuration.configuration - INFO - Using nfi/new_20251101-20260929 as backtest directory ...
+2026-10-01 16:12:46,958 - freqtrade.configuration.configuration - INFO - Parameter --export detected: trades ...
+2026-10-01 16:12:46,958 - freqtrade.configuration.configuration - INFO - Parameter --cache=day detected ...
+2026-10-01 16:12:46,958 - freqtrade.configuration.configuration - INFO - Filter trades by timerange: 20251101-20260929
+2026-10-01 16:12:46,959 - freqtrade.exchange.check_exchange - INFO - Checking exchange...
+2026-10-01 16:12:46,966 - freqtrade.exchange.check_exchange - INFO - Exchange "okx" is officially supported by the Freqtrade development team.
+2026-10-01 16:12:46,967 - freqtrade.configuration.configuration - INFO - Using pairlist from configuration.
+2026-10-01 16:12:46,967 - freqtrade.configuration.config_validation - INFO - Validating configuration ...
+2026-10-01 16:12:46,969 - freqtrade.commands.optimize_commands - INFO - Starting freqtrade in Backtesting mode
+2026-10-01 16:12:46,970 - freqtrade.exchange.exchange - INFO - Instance is running with dry_run enabled
+2026-10-01 16:12:46,971 - freqtrade.exchange.exchange - INFO - Using CCXT 4.5.84
+2026-10-01 16:12:46,971 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'options': {'defaultType': 'swap'}, 'httpsProxy': 'http://127.0.0.1:39397'}
+2026-10-01 16:12:46,975 - freqtrade.exchange.exchange - INFO - Applying additional ccxt config: {'options': {'defaultType': 'swap'}, 'httpsProxy': 'http://127.0.0.1:39397'}
+2026-10-01 16:12:46,979 - freqtrade.exchange.exchange - INFO - Using Exchange "OKX"
+2026-10-01 16:12:48,140 - freqtrade.exchange.exchange - INFO - Initializing leverage_tiers for 480 markets. This will take about a minute.
+2026-10-01 16:14:34,733 - freqtrade.misc - INFO - dumping json to "ft/data_new/okx/futures/leverage_tiers_USDT.json"
+2026-10-01 16:14:34,970 - freqtrade.exchange.exchange - INFO - Done initializing 480 markets.
+2026-10-01 16:14:35,053 - freqtrade.resolvers.exchange_resolver - INFO - Using resolved exchange class 'Okx' ...
+2026-10-01 16:14:35,254 - freqtrade.resolvers.iresolver - INFO - Using resolved strategy NostalgiaForInfinityX7 from '/home/user/ext/ft/strategies/NostalgiaForInfinityX7.py'...
+2026-10-01 16:14:35,255 - freqtrade.strategy.hyper - INFO - Found no parameter file.
+2026-10-01 16:14:35,260 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_currency' with value from the configuration: USDT.
+2026-10-01 16:14:35,261 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'stake_amount' with value from the configuration: 100.
+2026-10-01 16:14:35,261 - freqtrade.resolvers.strategy_resolver - INFO - Override strategy 'max_open_trades' with value from the configuration: inf.
+2026-10-01 16:14:35,262 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using minimal_roi: {}
+2026-10-01 16:14:35,262 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using timeframe: 5m
+2026-10-01 16:14:35,262 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stoploss: -0.99
+2026-10-01 16:14:35,263 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop: False
+2026-10-01 16:14:35,264 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive: 0.01
+2026-10-01 16:14:35,264 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_stop_positive_offset: 0.03
+2026-10-01 16:14:35,264 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using trailing_only_offset_is_reached: True
+2026-10-01 16:14:35,265 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_custom_stoploss: False
+2026-10-01 16:14:35,265 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using process_only_new_candles: True
+2026-10-01 16:14:35,265 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_types: {'entry': 'limit', 'exit': 'limit', 'stoploss': 'limit', 'stoploss_on_exchange': False, 
+'stoploss_on_exchange_interval': 60}
+2026-10-01 16:14:35,266 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using order_time_in_force: {'entry': 'GTC', 'exit': 'GTC'}
+2026-10-01 16:14:35,266 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_currency: USDT
+2026-10-01 16:14:35,266 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using stake_amount: 100
+2026-10-01 16:14:35,267 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using startup_candle_count: 480
+2026-10-01 16:14:35,267 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using use_exit_signal: True
+2026-10-01 16:14:35,267 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_only: False
+2026-10-01 16:14:35,268 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_roi_if_entry_signal: True
+2026-10-01 16:14:35,268 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using exit_profit_offset: 0.0
+2026-10-01 16:14:35,269 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using disable_dataframe_checks: False
+2026-10-01 16:14:35,269 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using ignore_buying_expired_candle_after: 0
+2026-10-01 16:14:35,269 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using position_adjustment_enable: True
+2026-10-01 16:14:35,270 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_entry_position_adjustment: -1
+2026-10-01 16:14:35,270 - freqtrade.resolvers.strategy_resolver - INFO - Strategy using max_open_trades: inf
+2026-10-01 16:14:35,271 - freqtrade.configuration.config_validation - INFO - Validating configuration ...
+2026-10-01 16:14:35,281 - freqtrade.resolvers.iresolver - INFO - Using resolved pairlist StaticPairList from 
+'/home/user/ext/ftvenv/lib/python3.11/site-packages/freqtrade/plugins/pairlist/StaticPairList.py'...
+2026-10-01 16:14:35,291 - freqtrade.optimize.backtesting - INFO - Using fee 0.1000% from config.
+2026-10-01 16:14:35,292 - freqtrade.exchange.exchange - WARNING - Using 2 calls to get OHLCV. This can result in slower operations for the bot. Please check if you really need 480 candles for your 
+strategy.
+2026-10-01 16:14:38,366 - freqtrade.optimize.backtesting - INFO - Loading data from 2025-10-30 08:00:00 up to 2026-09-29 00:00:00 (333 days).
+2026-10-01 16:14:38,367 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for AERO/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,368 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for APT/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,371 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for BERA/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,372 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for BONK/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,373 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for CELO/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,375 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for DOT/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,376 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ETC/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,377 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ETHFI/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,379 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for FARTCOIN/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,380 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ICP/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,382 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for INIT/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,383 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for INJ/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,384 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for JTO/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,385 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for JUP/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,386 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for LDO/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,387 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for MEW/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,388 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ONE/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,390 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for OP/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,391 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for PENGU/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,392 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for POL/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,393 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for RAY/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,394 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for SHIB/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,396 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for STRK/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,397 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for TIA/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,398 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for TRB/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,399 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for TRX/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,400 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for VIRTUAL/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,401 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for WIF/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,402 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for WLFI/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,403 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ZRO/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,404 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for BTC/USDT:USDT, funding_rate, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,405 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for AERO/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,406 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for APT/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,407 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for BERA/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,408 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for BONK/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,409 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for CELO/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,410 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for DOT/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,411 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ETC/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,411 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ETHFI/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,412 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for FARTCOIN/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,413 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ICP/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,414 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for INIT/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,415 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for INJ/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,415 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for JTO/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,416 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for JUP/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,417 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for LDO/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,418 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for MEW/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,419 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ONE/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,420 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for OP/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,421 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for PENGU/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,421 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for POL/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,422 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for RAY/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,423 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for SHIB/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,424 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for STRK/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,424 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for TIA/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,425 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for TRB/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,426 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for TRX/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,426 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for VIRTUAL/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,427 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for WIF/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,428 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for WLFI/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:14:38,429 - freqtrade.data.history.datahandlers.idatahandler - WARNING - No history for ZRO/USDT:USDT, mark, 1h found. Use `freqtrade download-data` to download the data
+2026-10-01 16:15:00,123 - freqtrade.optimize.backtesting - INFO - Dataload complete. Calculating indicators
+2026-10-01 16:15:00,140 - freqtrade.optimize.backtesting - INFO - Running backtesting for Strategy NostalgiaForInfinityX7
+2026-10-01 16:15:00,229 - freqtrade.data.dataprovider - INFO - Loading data for BTC/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:00,262 - freqtrade.data.dataprovider - INFO - Loading data for AERO/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:00,339 - freqtrade.data.dataprovider - INFO - Loading data for AERO/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:00,395 - freqtrade.data.dataprovider - INFO - Loading data for AERO/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:00,417 - freqtrade.data.history.datahandlers.idatahandler - WARNING - AERO/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:00,438 - freqtrade.data.dataprovider - INFO - Loading data for AERO/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:00,447 - freqtrade.data.history.datahandlers.idatahandler - WARNING - AERO/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:05,101 - freqtrade.data.dataprovider - INFO - Loading data for APT/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:05,144 - freqtrade.data.dataprovider - INFO - Loading data for APT/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:05,184 - freqtrade.data.dataprovider - INFO - Loading data for APT/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:05,191 - freqtrade.data.history.datahandlers.idatahandler - WARNING - APT/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:05,206 - freqtrade.data.dataprovider - INFO - Loading data for APT/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:05,213 - freqtrade.data.history.datahandlers.idatahandler - WARNING - APT/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:08,740 - freqtrade.data.dataprovider - INFO - Loading data for BERA/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:08,778 - freqtrade.data.dataprovider - INFO - Loading data for BERA/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:08,799 - freqtrade.data.dataprovider - INFO - Loading data for BERA/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:08,805 - freqtrade.data.history.datahandlers.idatahandler - WARNING - BERA/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:08,818 - freqtrade.data.dataprovider - INFO - Loading data for BERA/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:08,825 - freqtrade.data.history.datahandlers.idatahandler - WARNING - BERA/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:11,016 - freqtrade.data.dataprovider - INFO - Loading data for BONK/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:11,063 - freqtrade.data.dataprovider - INFO - Loading data for BONK/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:11,099 - freqtrade.data.dataprovider - INFO - Loading data for BONK/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:11,107 - freqtrade.data.history.datahandlers.idatahandler - WARNING - BONK/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:11,124 - freqtrade.data.dataprovider - INFO - Loading data for BONK/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:11,131 - freqtrade.data.history.datahandlers.idatahandler - WARNING - BONK/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:13,995 - freqtrade.data.dataprovider - INFO - Loading data for CELO/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:14,048 - freqtrade.data.dataprovider - INFO - Loading data for CELO/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:14,075 - freqtrade.data.dataprovider - INFO - Loading data for CELO/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:14,081 - freqtrade.data.history.datahandlers.idatahandler - WARNING - CELO/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:14,096 - freqtrade.data.dataprovider - INFO - Loading data for CELO/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:14,102 - freqtrade.data.history.datahandlers.idatahandler - WARNING - CELO/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:16,211 - freqtrade.data.dataprovider - INFO - Loading data for DOT/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:16,264 - freqtrade.data.dataprovider - INFO - Loading data for DOT/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:16,293 - freqtrade.data.dataprovider - INFO - Loading data for DOT/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:16,300 - freqtrade.data.history.datahandlers.idatahandler - WARNING - DOT/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:16,316 - freqtrade.data.dataprovider - INFO - Loading data for DOT/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:16,323 - freqtrade.data.history.datahandlers.idatahandler - WARNING - DOT/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:18,465 - freqtrade.data.dataprovider - INFO - Loading data for ETC/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:18,508 - freqtrade.data.dataprovider - INFO - Loading data for ETC/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:18,533 - freqtrade.data.dataprovider - INFO - Loading data for ETC/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:18,541 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ETC/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:18,557 - freqtrade.data.dataprovider - INFO - Loading data for ETC/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:18,563 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ETC/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:20,609 - freqtrade.data.dataprovider - INFO - Loading data for ETHFI/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:20,655 - freqtrade.data.dataprovider - INFO - Loading data for ETHFI/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:20,684 - freqtrade.data.dataprovider - INFO - Loading data for ETHFI/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:20,690 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ETHFI/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:20,705 - freqtrade.data.dataprovider - INFO - Loading data for ETHFI/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:20,712 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ETHFI/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:22,598 - freqtrade.data.dataprovider - INFO - Loading data for FARTCOIN/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:22,643 - freqtrade.data.dataprovider - INFO - Loading data for FARTCOIN/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:22,694 - freqtrade.data.dataprovider - INFO - Loading data for FARTCOIN/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:22,707 - freqtrade.data.history.datahandlers.idatahandler - WARNING - FARTCOIN/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:22,725 - freqtrade.data.dataprovider - INFO - Loading data for FARTCOIN/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:22,732 - freqtrade.data.history.datahandlers.idatahandler - WARNING - FARTCOIN/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:25,684 - freqtrade.data.dataprovider - INFO - Loading data for ICP/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:25,738 - freqtrade.data.dataprovider - INFO - Loading data for ICP/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:25,764 - freqtrade.data.dataprovider - INFO - Loading data for ICP/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:25,771 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ICP/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:25,786 - freqtrade.data.dataprovider - INFO - Loading data for ICP/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:25,792 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ICP/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:27,802 - freqtrade.data.dataprovider - INFO - Loading data for INIT/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:27,845 - freqtrade.data.dataprovider - INFO - Loading data for INIT/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:27,878 - freqtrade.data.dataprovider - INFO - Loading data for INIT/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:27,885 - freqtrade.data.history.datahandlers.idatahandler - WARNING - INIT/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:27,899 - freqtrade.data.dataprovider - INFO - Loading data for INIT/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:27,905 - freqtrade.data.history.datahandlers.idatahandler - WARNING - INIT/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:29,751 - freqtrade.data.dataprovider - INFO - Loading data for INJ/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:29,796 - freqtrade.data.dataprovider - INFO - Loading data for INJ/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:29,850 - freqtrade.data.dataprovider - INFO - Loading data for INJ/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:29,862 - freqtrade.data.history.datahandlers.idatahandler - WARNING - INJ/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:29,883 - freqtrade.data.dataprovider - INFO - Loading data for INJ/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:29,890 - freqtrade.data.history.datahandlers.idatahandler - WARNING - INJ/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:33,102 - freqtrade.data.dataprovider - INFO - Loading data for JTO/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:33,149 - freqtrade.data.dataprovider - INFO - Loading data for JTO/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:33,176 - freqtrade.data.dataprovider - INFO - Loading data for JTO/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:33,183 - freqtrade.data.history.datahandlers.idatahandler - WARNING - JTO/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:33,197 - freqtrade.data.dataprovider - INFO - Loading data for JTO/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:33,207 - freqtrade.data.history.datahandlers.idatahandler - WARNING - JTO/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:35,538 - freqtrade.data.dataprovider - INFO - Loading data for JUP/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:35,585 - freqtrade.data.dataprovider - INFO - Loading data for JUP/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:35,614 - freqtrade.data.dataprovider - INFO - Loading data for JUP/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:35,621 - freqtrade.data.history.datahandlers.idatahandler - WARNING - JUP/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:35,639 - freqtrade.data.dataprovider - INFO - Loading data for JUP/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:35,646 - freqtrade.data.history.datahandlers.idatahandler - WARNING - JUP/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:37,934 - freqtrade.data.dataprovider - INFO - Loading data for LDO/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:37,977 - freqtrade.data.dataprovider - INFO - Loading data for LDO/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:38,002 - freqtrade.data.dataprovider - INFO - Loading data for LDO/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:38,010 - freqtrade.data.history.datahandlers.idatahandler - WARNING - LDO/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:38,025 - freqtrade.data.dataprovider - INFO - Loading data for LDO/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:38,032 - freqtrade.data.history.datahandlers.idatahandler - WARNING - LDO/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:40,969 - freqtrade.data.dataprovider - INFO - Loading data for MEW/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:41,017 - freqtrade.data.dataprovider - INFO - Loading data for MEW/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:41,049 - freqtrade.data.dataprovider - INFO - Loading data for MEW/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:41,057 - freqtrade.data.history.datahandlers.idatahandler - WARNING - MEW/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:41,072 - freqtrade.data.dataprovider - INFO - Loading data for MEW/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:41,077 - freqtrade.data.history.datahandlers.idatahandler - WARNING - MEW/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:44,501 - freqtrade.data.dataprovider - INFO - Loading data for ONE/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:44,543 - freqtrade.data.dataprovider - INFO - Loading data for ONE/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:44,571 - freqtrade.data.dataprovider - INFO - Loading data for ONE/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:44,578 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ONE/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:44,595 - freqtrade.data.dataprovider - INFO - Loading data for ONE/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:44,602 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ONE/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:46,802 - freqtrade.data.dataprovider - INFO - Loading data for OP/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:46,846 - freqtrade.data.dataprovider - INFO - Loading data for OP/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:46,875 - freqtrade.data.dataprovider - INFO - Loading data for OP/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:46,882 - freqtrade.data.history.datahandlers.idatahandler - WARNING - OP/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:46,895 - freqtrade.data.dataprovider - INFO - Loading data for OP/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:46,901 - freqtrade.data.history.datahandlers.idatahandler - WARNING - OP/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:48,683 - freqtrade.data.dataprovider - INFO - Loading data for PENGU/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:48,727 - freqtrade.data.dataprovider - INFO - Loading data for PENGU/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:48,757 - freqtrade.data.dataprovider - INFO - Loading data for PENGU/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:48,765 - freqtrade.data.history.datahandlers.idatahandler - WARNING - PENGU/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:48,781 - freqtrade.data.dataprovider - INFO - Loading data for PENGU/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:48,788 - freqtrade.data.history.datahandlers.idatahandler - WARNING - PENGU/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:50,891 - freqtrade.data.dataprovider - INFO - Loading data for POL/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:50,934 - freqtrade.data.dataprovider - INFO - Loading data for POL/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:50,958 - freqtrade.data.dataprovider - INFO - Loading data for POL/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:50,964 - freqtrade.data.history.datahandlers.idatahandler - WARNING - POL/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:50,978 - freqtrade.data.dataprovider - INFO - Loading data for POL/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:50,984 - freqtrade.data.history.datahandlers.idatahandler - WARNING - POL/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:52,997 - freqtrade.data.dataprovider - INFO - Loading data for RAY/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:53,046 - freqtrade.data.dataprovider - INFO - Loading data for RAY/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:53,076 - freqtrade.data.dataprovider - INFO - Loading data for RAY/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:53,085 - freqtrade.data.history.datahandlers.idatahandler - WARNING - RAY/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:53,101 - freqtrade.data.dataprovider - INFO - Loading data for RAY/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:53,108 - freqtrade.data.history.datahandlers.idatahandler - WARNING - RAY/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:55,233 - freqtrade.data.dataprovider - INFO - Loading data for SHIB/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:55,278 - freqtrade.data.dataprovider - INFO - Loading data for SHIB/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:55,301 - freqtrade.data.dataprovider - INFO - Loading data for SHIB/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:55,307 - freqtrade.data.history.datahandlers.idatahandler - WARNING - SHIB/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:55,320 - freqtrade.data.dataprovider - INFO - Loading data for SHIB/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:55,326 - freqtrade.data.history.datahandlers.idatahandler - WARNING - SHIB/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:57,346 - freqtrade.data.dataprovider - INFO - Loading data for STRK/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:57,388 - freqtrade.data.dataprovider - INFO - Loading data for STRK/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:57,414 - freqtrade.data.dataprovider - INFO - Loading data for STRK/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:57,421 - freqtrade.data.history.datahandlers.idatahandler - WARNING - STRK/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:57,442 - freqtrade.data.dataprovider - INFO - Loading data for STRK/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:57,448 - freqtrade.data.history.datahandlers.idatahandler - WARNING - STRK/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:15:59,465 - freqtrade.data.dataprovider - INFO - Loading data for TIA/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:59,509 - freqtrade.data.dataprovider - INFO - Loading data for TIA/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:59,532 - freqtrade.data.dataprovider - INFO - Loading data for TIA/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:59,539 - freqtrade.data.history.datahandlers.idatahandler - WARNING - TIA/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:15:59,559 - freqtrade.data.dataprovider - INFO - Loading data for TIA/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:15:59,567 - freqtrade.data.history.datahandlers.idatahandler - WARNING - TIA/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:16:02,176 - freqtrade.data.dataprovider - INFO - Loading data for TRB/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:02,224 - freqtrade.data.dataprovider - INFO - Loading data for TRB/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:02,262 - freqtrade.data.dataprovider - INFO - Loading data for TRB/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:02,268 - freqtrade.data.history.datahandlers.idatahandler - WARNING - TRB/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:16:02,282 - freqtrade.data.dataprovider - INFO - Loading data for TRB/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:02,289 - freqtrade.data.history.datahandlers.idatahandler - WARNING - TRB/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:16:04,805 - freqtrade.data.dataprovider - INFO - Loading data for TRX/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:04,854 - freqtrade.data.dataprovider - INFO - Loading data for TRX/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:04,884 - freqtrade.data.dataprovider - INFO - Loading data for TRX/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:04,892 - freqtrade.data.history.datahandlers.idatahandler - WARNING - TRX/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:16:04,911 - freqtrade.data.dataprovider - INFO - Loading data for TRX/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:04,918 - freqtrade.data.history.datahandlers.idatahandler - WARNING - TRX/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:16:06,859 - freqtrade.data.dataprovider - INFO - Loading data for VIRTUAL/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:06,907 - freqtrade.data.dataprovider - INFO - Loading data for VIRTUAL/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:06,942 - freqtrade.data.dataprovider - INFO - Loading data for VIRTUAL/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:06,950 - freqtrade.data.history.datahandlers.idatahandler - WARNING - VIRTUAL/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:16:06,967 - freqtrade.data.dataprovider - INFO - Loading data for VIRTUAL/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:06,975 - freqtrade.data.history.datahandlers.idatahandler - WARNING - VIRTUAL/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:16:09,262 - freqtrade.data.dataprovider - INFO - Loading data for WIF/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:09,308 - freqtrade.data.dataprovider - INFO - Loading data for WIF/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:09,333 - freqtrade.data.dataprovider - INFO - Loading data for WIF/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:09,339 - freqtrade.data.history.datahandlers.idatahandler - WARNING - WIF/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:16:09,358 - freqtrade.data.dataprovider - INFO - Loading data for WIF/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:09,369 - freqtrade.data.history.datahandlers.idatahandler - WARNING - WIF/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:16:11,484 - freqtrade.data.dataprovider - INFO - Loading data for WLFI/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:11,528 - freqtrade.data.dataprovider - INFO - Loading data for WLFI/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:11,553 - freqtrade.data.dataprovider - INFO - Loading data for WLFI/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:11,560 - freqtrade.data.history.datahandlers.idatahandler - WARNING - WLFI/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:16:11,576 - freqtrade.data.dataprovider - INFO - Loading data for WLFI/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:11,582 - freqtrade.data.history.datahandlers.idatahandler - WARNING - WLFI/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:16:13,676 - freqtrade.data.dataprovider - INFO - Loading data for ZRO/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:13,730 - freqtrade.data.dataprovider - INFO - Loading data for ZRO/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:13,758 - freqtrade.data.dataprovider - INFO - Loading data for ZRO/USDT:USDT 4h from 2025-08-13 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:13,768 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ZRO/USDT:USDT, futures, 4h, data starts at 2025-09-30 04:00:00
+2026-10-01 16:16:13,791 - freqtrade.data.dataprovider - INFO - Loading data for ZRO/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:13,801 - freqtrade.data.history.datahandlers.idatahandler - WARNING - ZRO/USDT:USDT, futures, 1d, data starts at 2025-09-30 00:00:00
+2026-10-01 16:16:15,987 - freqtrade.data.dataprovider - INFO - Loading data for BTC/USDT:USDT 15m from 2025-10-27 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:16,038 - freqtrade.data.dataprovider - INFO - Loading data for BTC/USDT:USDT 1h from 2025-10-12 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:16,069 - freqtrade.data.dataprovider - INFO - Loading data for BTC/USDT:USDT 1d from 2024-07-09 00:00:00 to 2026-09-29 00:00:00
+2026-10-01 16:16:16,075 - freqtrade.data.history.datahandlers.idatahandler - WARNING - BTC/USDT:USDT, futures, 1d, data starts at 2024-09-29 00:00:00
+2026-10-01 16:16:19,368 - freqtrade.optimize.backtesting - INFO - Backtesting with data from 2025-11-01 00:00:00 up to 2026-09-29 00:00:00 (332 days).
+2026-10-01 16:16:45,802 - NostalgiaForInfinityX7 - INFO - Grinding exit (gm0) [LDO/USDT:USDT] | Rate: 0.7214 | Stake amount: 19.266 | Coin amount: 26.705833333333334 | Profit (stake): 1.605 | Profit: 
+2.69% | Grind profit: 2.90% (1.673 USDT)
+2026-10-01 16:16:49,249 - NostalgiaForInfinityX7 - INFO - [2025-11-09 02:35:00+00:00] Cancelling entry for TIA/USDT:USDT due to grind mode slots limit reached.
+2026-10-01 16:16:49,449 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2025-11-09 09:20:00+00:00] [LDO/USDT:USDT] | Rate: 0.8024 | Stake amount: 23.837 | Profit (stake): 2.009 | Profit: 3.37%
+| Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:16:49,592 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2025-11-09 14:30:00+00:00] [LDO/USDT:USDT] | Rate: 0.8358 | Stake amount: 24.795 | Coin amount: 89.0 | Profit (stake): 
+5.003 | Profit: 3.81% | Grind profit: 4.16% (3.096 USDT)
+2026-10-01 16:16:50,569 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2025-11-10 23:00:00+00:00] [LDO/USDT:USDT] | Rate: 0.8968 | Stake amount: 23.837 | Profit (stake): 5.368 | Profit: 4.09%
+| Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:16:53,287 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2025-11-14 04:40:00+00:00] [LDO/USDT:USDT] | Rate: 0.7363 | Stake amount: 25.824 | Profit (stake): -8.402 | Profit: 
+-4.16% | Grind profit: -17.90% (-12.738 USDT)
+2026-10-01 16:16:53,295 - NostalgiaForInfinityX7 - INFO - [2025-11-14 04:40:00+00:00] Cancelling entry for APT/USDT:USDT due to grind mode slots limit reached.
+2026-10-01 16:16:53,297 - NostalgiaForInfinityX7 - INFO - [2025-11-14 04:40:00+00:00] Cancelling entry for INJ/USDT:USDT due to grind mode slots limit reached.
+2026-10-01 16:16:53,298 - NostalgiaForInfinityX7 - INFO - [2025-11-14 04:40:00+00:00] Cancelling entry for OP/USDT:USDT due to grind mode slots limit reached.
+2026-10-01 16:16:54,135 - NostalgiaForInfinityX7 - INFO - [2025-11-14 23:05:00+00:00] Cancelling entry for TIA/USDT:USDT due to grind mode slots limit reached.
+2026-10-01 16:16:54,147 - NostalgiaForInfinityX7 - INFO - [2025-11-14 23:10:00+00:00] Cancelling entry for OP/USDT:USDT due to grind mode slots limit reached.
+2026-10-01 16:16:54,148 - NostalgiaForInfinityX7 - INFO - [2025-11-14 23:10:00+00:00] Cancelling entry for TIA/USDT:USDT due to grind mode slots limit reached.
+2026-10-01 16:16:56,786 - NostalgiaForInfinityX7 - INFO - Grinding stop exit (dd1) [2025-11-17 17:55:00+00:00] [LDO/USDT:USDT] | Rate: 0.7082 | Stake amount: 43.436 | Coin amount: 184.0 | Profit 
+(stake): -13.890 | Profit: -4.97% | Grind profit: -12.05%
+2026-10-01 16:17:00,181 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd5) [2025-11-21 07:35:00+00:00] [LDO/USDT:USDT] | Rate: 0.6188 | Stake amount: 19.864 | Profit (stake): -14.426 | Profit: 
+-5.16% | Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:17:03,896 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd5) [2025-11-24 17:20:00+00:00] [LDO/USDT:USDT] | Rate: 0.65 | Stake amount: 20.800 | Coin amount: 96.0 | Profit (stake): 
+-11.366 | Profit: -3.35% | Grind profit: 5.04% (3.146 USDT)
+2026-10-01 16:17:05,402 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2025-11-25 22:40:00+00:00] [LDO/USDT:USDT] | Rate: 0.6706 | Stake amount: 23.837 | Profit (stake): -11.242 | Profit: 
+-3.32% | Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:17:14,459 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd2) [2025-12-02 22:00:00+00:00] [LDO/USDT:USDT] | Rate: 0.6144 | Stake amount: 19.864 | Profit (stake): -17.673 | Profit: 
+-4.31% | Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:17:14,726 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd2) [2025-12-03 04:55:00+00:00] [LDO/USDT:USDT] | Rate: 0.6309 | Stake amount: 20.189 | Coin amount: 96.0 | Profit (stake): 
+-14.362 | Profit: -3.06% | Grind profit: 2.69% (1.627 USDT)
+2026-10-01 16:17:32,717 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2025-12-17 19:20:00+00:00] [LDO/USDT:USDT] | Rate: 0.5151 | Stake amount: 25.824 | Profit (stake): -27.434 | Profit: 
+-5.85% | Grind profit: -23.19% (-16.538 USDT)
+2026-10-01 16:17:32,923 - NostalgiaForInfinityX7 - INFO - Grinding stop exit (dd1) [2025-12-17 23:10:00+00:00] [LDO/USDT:USDT] | Rate: 0.51 | Stake amount: 43.520 | Coin amount: 256.0 | Profit 
+(stake): -28.929 | Profit: -5.29% | Grind profit: -11.99%
+2026-10-01 16:17:34,310 - NostalgiaForInfinityX7 - INFO - [2025-12-18 17:10:00+00:00] Cancelling entry for ETC/USDT:USDT due to grind mode slots limit reached.
+2026-10-01 16:17:36,248 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2025-12-20 01:00:00+00:00] [LDO/USDT:USDT] | Rate: 0.5526 | Stake amount: 23.837 | Profit (stake): -28.631 | Profit: 
+-5.24% | Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:17:44,667 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2025-12-25 06:50:00+00:00] [LDO/USDT:USDT] | Rate: 0.5638 | Stake amount: 24.243 | Coin amount: 129.0 | Profit (stake): 
+-27.252 | Profit: -4.41% | Grind profit: 2.03% (1.474 USDT)
+2026-10-01 16:18:02,720 - NostalgiaForInfinityX7 - INFO - Rebuy (r) [2026-01-02 00:30:00+00:00] [ETHFI/USDT:USDT] | Rate: 0.7381 | Stake amount: 24.838 | Profit (stake): -6.833 | Profit: -9.18%
+2026-10-01 16:18:04,057 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2026-01-02 15:15:00+00:00] [LDO/USDT:USDT] | Rate: 0.6113 | Stake amount: 23.837 | Profit (stake): -26.920 | Profit: 
+-4.36% | Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:18:04,247 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2026-01-02 16:35:00+00:00] [LDO/USDT:USDT] | Rate: 0.6281 | Stake amount: 24.287 | Coin amount: 116.0 | Profit (stake): 
+-24.997 | Profit: -3.63% | Grind profit: 2.75% (2.002 USDT)
+2026-10-01 16:18:07,960 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2026-01-04 12:00:00+00:00] [LDO/USDT:USDT] | Rate: 0.6266 | Stake amount: 23.837 | Profit (stake): -25.008 | Profit: 
+-3.63% | Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:18:08,350 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2026-01-04 16:05:00+00:00] [LDO/USDT:USDT] | Rate: 0.6392 | Stake amount: 24.290 | Coin amount: 114.0 | Profit (stake): 
+-23.627 | Profit: -3.11% | Grind profit: 2.01% (1.465 USDT)
+2026-10-01 16:18:12,817 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2026-01-07 03:00:00+00:00] [LDO/USDT:USDT] | Rate: 0.6507 | Stake amount: 23.837 | Profit (stake): -23.536 | Profit: 
+-3.10% | Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:18:16,862 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd2) [2026-01-09 04:00:00+00:00] [LDO/USDT:USDT] | Rate: 0.6353 | Stake amount: 19.864 | Profit (stake): -25.477 | Profit: 
+-3.06% | Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:18:17,837 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd2) [2026-01-09 16:15:00+00:00] [LDO/USDT:USDT] | Rate: 0.6503 | Stake amount: 20.159 | Coin amount: 93.0 | Profit (stake): 
+-22.449 | Profit: -2.52% | Grind profit: 2.36% (1.428 USDT)
+2026-10-01 16:18:21,729 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd2) [2026-01-11 15:00:00+00:00] [LDO/USDT:USDT] | Rate: 0.6425 | Stake amount: 19.864 | Profit (stake): -23.360 | Profit: 
+-2.62% | Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:18:26,770 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd3) [2026-01-13 22:00:00+00:00] [LDO/USDT:USDT] | Rate: 0.6384 | Stake amount: 19.864 | Profit (stake): -24.335 | Profit: 
+-2.56% | Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:18:26,791 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd3) [2026-01-13 22:10:00+00:00] [LDO/USDT:USDT] | Rate: 0.6542 | Stake amount: 20.280 | Coin amount: 93.0 | Profit (stake): 
+-19.687 | Profit: -1.95% | Grind profit: 2.47% (1.506 USDT)
+2026-10-01 16:18:26,804 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd2) [2026-01-13 22:15:00+00:00] [LDO/USDT:USDT] | Rate: 0.6577 | Stake amount: 20.169 | Coin amount: 92.0 | Profit (stake): 
+-18.956 | Profit: -1.88% | Grind profit: 2.37% (1.431 USDT)
+2026-10-01 16:18:26,829 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2026-01-13 22:25:00+00:00] [LDO/USDT:USDT] | Rate: 0.6641 | Stake amount: 24.129 | Coin amount: 109.0 | Profit (stake): 
+-18.208 | Profit: -1.80% | Grind profit: 2.06% (1.491 USDT)
+2026-10-01 16:18:29,318 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2026-01-14 23:15:00+00:00] [LDO/USDT:USDT] | Rate: 0.6489 | Stake amount: 23.837 | Profit (stake): -18.344 | Profit: 
+-1.82% | Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:18:40,415 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2026-01-19 13:05:00+00:00] [LDO/USDT:USDT] | Rate: 0.5448 | Stake amount: 25.824 | Profit (stake): -30.863 | Profit: 
+-2.86% | Grind profit: -16.04% (-11.511 USDT)
+2026-10-01 16:18:43,633 - NostalgiaForInfinityX7 - INFO - Grinding stop exit (dd1) [2026-01-20 22:35:00+00:00] [LDO/USDT:USDT] | Rate: 0.5152 | Stake amount: 43.277 | Coin amount: 252.0 | Profit 
+(stake): -38.735 | Profit: -3.35% | Grind profit: -12.71%
+2026-10-01 16:19:10,953 - NostalgiaForInfinityX7 - INFO - [2026-02-26 16:55:00+00:00] Cancelling entry for OP/USDT:USDT due to grind mode slots limit reached.
+2026-10-01 16:19:11,007 - NostalgiaForInfinityX7 - INFO - Grinding exit (gm0) [LDO/USDT:USDT] | Rate: 0.3147 | Stake amount: 20.048 | Coin amount: 63.705833333333324 | Profit (stake): 1.584 | Profit: 
+2.64% | Grind profit: 2.84% (1.710 USDT)
+2026-10-01 16:19:15,558 - NostalgiaForInfinityX7 - INFO - [2026-03-05 16:10:00+00:00] Cancelling entry for OP/USDT:USDT due to grind mode slots limit reached.
+2026-10-01 16:19:32,064 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2026-03-28 08:10:00+00:00] [LDO/USDT:USDT] | Rate: 0.3034 | Stake amount: 23.990 | Profit (stake): 1.527 | Profit: 2.54%
+| Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:19:32,230 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2026-03-28 13:45:00+00:00] [LDO/USDT:USDT] | Rate: 0.3101 | Stake amount: 24.498 | Coin amount: 237.0 | Profit (stake): 
+3.003 | Profit: 2.27% | Grind profit: 2.21% (1.623 USDT)
+2026-10-01 16:19:34,139 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2026-03-31 00:00:00+00:00] [LDO/USDT:USDT] | Rate: 0.3179 | Stake amount: 23.990 | Profit (stake): 3.042 | Profit: 2.30%
+| Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:19:34,183 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2026-03-31 01:25:00+00:00] [LDO/USDT:USDT] | Rate: 0.3248 | Stake amount: 24.468 | Coin amount: 226.0 | Profit (stake): 
+4.491 | Profit: 2.20% | Grind profit: 2.17% (1.593 USDT)
+2026-10-01 16:19:35,134 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2026-04-01 03:00:00+00:00] [LDO/USDT:USDT] | Rate: 0.33 | Stake amount: 23.990 | Profit (stake): 4.517 | Profit: 2.21% |
+Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:19:35,301 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2026-04-01 07:10:00+00:00] [LDO/USDT:USDT] | Rate: 0.3375 | Stake amount: 24.525 | Coin amount: 218.0 | Profit (stake): 
+6.044 | Profit: 2.19% | Grind profit: 2.27% (1.672 USDT)
+2026-10-01 16:19:37,644 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2026-04-03 18:50:00+00:00] [LDO/USDT:USDT] | Rate: 0.316 | Stake amount: 23.990 | Profit (stake): 5.936 | Profit: 2.15% 
+| Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:19:38,618 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd2) [2026-04-04 19:05:00+00:00] [LDO/USDT:USDT] | Rate: 0.3154 | Stake amount: 19.992 | Profit (stake): 5.654 | Profit: 1.63%
+| Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:19:39,796 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd2) [2026-04-06 02:15:00+00:00] [LDO/USDT:USDT] | Rate: 0.3223 | Stake amount: 20.412 | Coin amount: 190.0 | Profit (stake): 
+8.443 | Profit: 2.07% | Grind profit: 2.19% (1.340 USDT)
+2026-10-01 16:19:39,804 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2026-04-06 02:20:00+00:00] [LDO/USDT:USDT] | Rate: 0.3231 | Stake amount: 24.448 | Coin amount: 227.0 | Profit (stake): 
+8.628 | Profit: 2.12% | Grind profit: 2.25% (1.648 USDT)
+2026-10-01 16:19:42,047 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2026-04-08 04:00:00+00:00] [LDO/USDT:USDT] | Rate: 0.3276 | Stake amount: 23.990 | Profit (stake): 8.651 | Profit: 2.12%
+| Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:19:43,444 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd2) [2026-04-09 07:00:00+00:00] [LDO/USDT:USDT] | Rate: 0.316 | Stake amount: 19.992 | Profit (stake): 5.911 | Profit: 1.23% 
+| Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:19:44,106 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd2) [2026-04-09 22:15:00+00:00] [LDO/USDT:USDT] | Rate: 0.3227 | Stake amount: 20.330 | Coin amount: 189.0 | Profit (stake): 
+8.556 | Profit: 1.59% | Grind profit: 2.12% (1.293 USDT)
+2026-10-01 16:19:44,946 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2026-04-10 15:05:00+00:00] [LDO/USDT:USDT] | Rate: 0.335 | Stake amount: 24.455 | Coin amount: 219.0 | Profit (stake): 
+11.309 | Profit: 2.10% | Grind profit: 2.26% (1.657 USDT)
+2026-10-01 16:19:46,220 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2026-04-11 15:10:00+00:00] [LDO/USDT:USDT] | Rate: 0.3291 | Stake amount: 23.990 | Profit (stake): 11.279 | Profit: 
+2.09% | Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:19:46,380 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2026-04-11 18:35:00+00:00] [LDO/USDT:USDT] | Rate: 0.3361 | Stake amount: 24.423 | Coin amount: 218.0 | Profit (stake): 
+12.695 | Profit: 2.08% | Grind profit: 2.13% (1.558 USDT)
+2026-10-01 16:19:52,075 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2026-04-15 01:45:00+00:00] [LDO/USDT:USDT] | Rate: 0.3517 | Stake amount: 23.990 | Profit (stake): 12.773 | Profit: 
+2.09% | Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:19:52,693 - NostalgiaForInfinityX7 - INFO - Grinding exit (gd1) [2026-04-15 11:50:00+00:00] [LDO/USDT:USDT] | Rate: 0.3604 | Stake amount: 24.507 | Coin amount: 204.0 | Profit (stake): 
+14.446 | Profit: 2.12% | Grind profit: 2.47% (1.819 USDT)
+2026-10-01 16:19:55,977 - NostalgiaForInfinityX7 - INFO - Grinding entry (gd1) [2026-04-17 16:00:00+00:00] [LDO/USDT:USDT] | Rate: 0.4303 | Stake amount: 23.990 | Profit (stake): 14.795 | Profit: 
+2.17% | Grind profit: 0.00% (0.000 USDT)
+2026-10-01 16:19:57,178 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_1_entry) [2026-04-27 16:00:00+00:00] [LDO/USDT:USDT] | Rate: 0.3874 | Stake amount: 19.996 | Profit (stake): -11.913 | 
+Profit: -3.97% | Tag: g24
+2026-10-01 16:19:57,286 - NostalgiaForInfinityX7 - INFO - Grinding exit (grind_1_exit) [2026-04-27 17:45:00+00:00] [LDO/USDT:USDT] | Rate: 0.3979 | Stake amount: 20.426 | Coin amount: 154.0 | Profit 
+(stake): -2.602 | Profit: -0.72% | Grind profit: 2.71% (1.556 USDT)
+2026-10-01 16:20:06,545 - NostalgiaForInfinityX7 - INFO - Rebuy (r) [2026-08-19 22:15:00+00:00] [OP/USDT:USDT] | Rate: 0.09043 | Stake amount: 24.992 | Profit (stake): -8.017 | Profit: -10.70%
+2026-10-01 16:20:07,610 - NostalgiaForInfinityX7 - INFO - Rebuy (r) [2026-08-21 12:45:00+00:00] [OP/USDT:USDT] | Rate: 0.10273 | Stake amount: 24.992 | Profit (stake): -29.652 | Profit: -19.80%
+2026-10-01 16:20:07,691 - NostalgiaForInfinityX7 - INFO - Rebuy De-risk Level 3 [2026-08-21 15:10:00+00:00] [OP/USDT:USDT] | Rate: 0.10513 | Stake amount: 86.526 | Profit (stake): -35.745 | Profit: 
+-15.91%
+2026-10-01 16:20:08,144 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_4_entry) [2026-08-22 03:05:00+00:00] [OP/USDT:USDT] | Rate: 0.11314 | Stake amount: 4.998 | Profit (stake): -35.785 | 
+Profit: -15.93% | Tag: 
+2026-10-01 16:20:08,273 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_4_entry) [2026-08-22 05:00:00+00:00] [OP/USDT:USDT] | Rate: 0.12196 | Stake amount: 5.998 | Profit (stake): -37.025 | 
+Profit: -15.46% | Tag: 
+2026-10-01 16:20:08,294 - NostalgiaForInfinityX7 - INFO - Grinding exit (grind_4_exit) [2026-08-22 05:15:00+00:00] [OP/USDT:USDT] | Rate: 0.1097 | Stake amount: 10.202 | Coin amount: 279.0 | Profit 
+(stake): -33.575 | Profit: -13.04% | Grind profit: 6.87% (2.287 USDT)
+2026-10-01 16:20:14,367 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_1_entry) [2026-08-28 03:05:00+00:00] [OP/USDT:USDT] | Rate: 0.09322 | Stake amount: 19.993 | Profit (stake): -33.476 | 
+Profit: -13.00% | Tag: g23
+2026-10-01 16:20:14,918 - NostalgiaForInfinityX7 - INFO - Grinding exit (grind_1_exit) [2026-08-28 16:00:00+00:00] [OP/USDT:USDT] | Rate: 0.09057 | Stake amount: 19.412 | Coin amount: 643.0 | Profit 
+(stake): -31.875 | Profit: -10.05% | Grind profit: 2.84% (1.762 USDT)
+2026-10-01 16:20:14,931 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_1_entry) [2026-08-28 16:15:00+00:00] [OP/USDT:USDT] | Rate: 0.08981 | Stake amount: 19.993 | Profit (stake): -31.870 | 
+Profit: -10.04% | Tag: g23
+2026-10-01 16:20:14,940 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_2_entry) [2026-08-28 16:25:00+00:00] [OP/USDT:USDT] | Rate: 0.08935 | Stake amount: 9.997 | Profit (stake): -31.680 | 
+Profit: -8.40% | Tag: g23
+2026-10-01 16:20:16,279 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_3_entry) [2026-08-29 23:15:00+00:00] [OP/USDT:USDT] | Rate: 0.08884 | Stake amount: 9.997 | Profit (stake): -31.225 | 
+Profit: -7.67% | Tag: g24
+2026-10-01 16:20:16,289 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_4_entry) [2026-08-29 23:25:00+00:00] [OP/USDT:USDT] | Rate: 0.08869 | Stake amount: 4.998 | Profit (stake): -31.083 | 
+Profit: -7.11% | Tag: g24
+2026-10-01 16:20:16,300 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_5_entry) [2026-08-29 23:35:00+00:00] [OP/USDT:USDT] | Rate: 0.08856 | Stake amount: 4.998 | Profit (stake): -30.916 | 
+Profit: -6.84% | Tag: g24
+2026-10-01 16:20:17,418 - NostalgiaForInfinityX7 - INFO - Grinding exit (grind_1_exit) [2026-08-30 23:30:00+00:00] [OP/USDT:USDT] | Rate: 0.08615 | Stake amount: 19.154 | Coin amount: 667.0 | Profit 
+(stake): -26.886 | Profit: -5.76% | Grind profit: 4.08% (2.499 USDT)
+2026-10-01 16:20:17,428 - NostalgiaForInfinityX7 - INFO - Grinding exit (grind_2_exit) [2026-08-30 23:40:00+00:00] [OP/USDT:USDT] | Rate: 0.08574 | Stake amount: 9.574 | Coin amount: 335.0 | Profit 
+(stake): -26.469 | Profit: -5.67% | Grind profit: 4.04% (1.238 USDT)
+2026-10-01 16:20:17,494 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_1_entry) [2026-08-31 00:50:00+00:00] [OP/USDT:USDT] | Rate: 0.08755 | Stake amount: 19.993 | Profit (stake): -27.705 | 
+Profit: -5.93% | Tag: g24
+2026-10-01 16:20:17,564 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_2_entry) [2026-08-31 02:00:00+00:00] [OP/USDT:USDT] | Rate: 0.08647 | Stake amount: 9.997 | Profit (stake): -26.347 | 
+Profit: -5.00% | Tag: g24
+2026-10-01 16:20:18,878 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_4_entry) [2026-09-01 01:15:00+00:00] [OP/USDT:USDT] | Rate: 0.097 | Stake amount: 5.998 | Profit (stake): -44.463 | 
+Profit: -7.99% | Tag: 
+2026-10-01 16:20:22,544 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_5_entry) [2026-09-03 17:00:00+00:00] [OP/USDT:USDT] | Rate: 0.10364 | Stake amount: 5.998 | Profit (stake): -57.114 | 
+Profit: -9.94% | Tag: 
+2026-10-01 16:20:25,625 - NostalgiaForInfinityX7 - INFO - Grinding de-risk (grind_2_derisk) [2026-09-05 20:15:00+00:00] [OP/USDT:USDT] | Rate: 0.10582 | Stake amount: 12.205 | Coin amount: 346.0 | 
+Profit (stake): -61.669 | Profit: -10.41% | Grind profit: -22.38% (-6.658 USDT)
+2026-10-01 16:20:25,735 - NostalgiaForInfinityX7 - INFO - Grinding de-risk (grind_1_derisk) [2026-09-05 21:30:00+00:00] [OP/USDT:USDT] | Rate: 0.1077 | Stake amount: 24.591 | Coin amount: 685.0 | 
+Profit (stake): -64.915 | Profit: -10.96% | Grind profit: -23.02% (-13.729 USDT)
+2026-10-01 16:20:25,751 - NostalgiaForInfinityX7 - INFO - Grinding de-risk (grind_3_derisk) [2026-09-05 21:35:00+00:00] [OP/USDT:USDT] | Rate: 0.10857 | Stake amount: 12.196 | Coin amount: 337.0 | 
+Profit (stake): -65.822 | Profit: -11.11% | Grind profit: -11.11% (-6.612 USDT)
+2026-10-01 16:20:25,834 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_4_entry) [2026-09-05 22:15:00+00:00] [OP/USDT:USDT] | Rate: 0.10988 | Stake amount: 6.998 | Profit (stake): -66.745 | 
+Profit: -11.26% | Tag: 
+2026-10-01 16:20:33,191 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_1_entry) [2026-09-09 15:25:00+00:00] [OP/USDT:USDT] | Rate: 0.10031 | Stake amount: 19.993 | Profit (stake): -58.213 | 
+Profit: -9.49% | Tag: g23
+2026-10-01 16:20:34,497 - NostalgiaForInfinityX7 - INFO - Grinding exit (grind_1_exit) [2026-09-10 01:35:00+00:00] [OP/USDT:USDT] | Rate: 0.09738 | Stake amount: 19.379 | Coin amount: 597.0 | Profit 
+(stake): -53.957 | Profit: -8.01% | Grind profit: 2.92% (1.807 USDT)
+2026-10-01 16:20:36,953 - NostalgiaForInfinityX7 - INFO - Grinding exit (grind_4_exit) [2026-09-10 23:55:00+00:00] [OP/USDT:USDT] | Rate: 0.09367 | Stake amount: 17.017 | Coin amount: 545.0 | Profit 
+(stake): -50.633 | Profit: -7.52% | Grind profit: 5.32% (2.922 USDT)
+2026-10-01 16:20:37,845 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_1_entry) [2026-09-11 12:00:00+00:00] [OP/USDT:USDT] | Rate: 0.09372 | Stake amount: 19.993 | Profit (stake): -50.651 | 
+Profit: -7.52% | Tag: g24
+2026-10-01 16:20:37,859 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_2_entry) [2026-09-11 12:10:00+00:00] [OP/USDT:USDT] | Rate: 0.09334 | Stake amount: 9.997 | Profit (stake): -50.394 | 
+Profit: -6.87% | Tag: g24
+2026-10-01 16:20:37,872 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_3_entry) [2026-09-11 12:20:00+00:00] [OP/USDT:USDT] | Rate: 0.09317 | Stake amount: 9.997 | Profit (stake): -50.231 | 
+Profit: -6.58% | Tag: g24
+2026-10-01 16:20:37,891 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_4_entry) [2026-09-11 12:30:00+00:00] [OP/USDT:USDT] | Rate: 0.0937 | Stake amount: 4.998 | Profit (stake): -51.156 | 
+Profit: -6.45% | Tag: g24
+2026-10-01 16:20:43,957 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_4_entry) [2026-09-14 16:40:00+00:00] [OP/USDT:USDT] | Rate: 0.10042 | Stake amount: 5.998 | Profit (stake): -63.234 | 
+Profit: -7.83% | Tag: 
+2026-10-01 16:20:47,517 - NostalgiaForInfinityX7 - INFO - Grinding exit (grind_4_exit) [2026-09-16 15:35:00+00:00] [OP/USDT:USDT] | Rate: 0.09194 | Stake amount: 10.389 | Coin amount: 339.0 | Profit 
+(stake): -46.548 | Profit: -5.64% | Grind profit: 5.46% (1.831 USDT)
+2026-10-01 16:20:47,535 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_4_entry) [2026-09-16 15:40:00+00:00] [OP/USDT:USDT] | Rate: 0.09207 | Stake amount: 4.998 | Profit (stake): -46.760 | 
+Profit: -5.66% | Tag: g24
+2026-10-01 16:20:47,752 - NostalgiaForInfinityX7 - INFO - Grinding exit (grind_1_exit) [2026-09-16 17:50:00+00:00] [OP/USDT:USDT] | Rate: 0.09075 | Stake amount: 19.330 | Coin amount: 639.0 | Profit 
+(stake): -44.419 | Profit: -5.28% | Grind profit: 3.17% (1.956 USDT)
+2026-10-01 16:20:47,789 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_1_entry) [2026-09-16 18:15:00+00:00] [OP/USDT:USDT] | Rate: 0.09274 | Stake amount: 19.993 | Profit (stake): -46.720 | 
+Profit: -5.56% | Tag: g24
+2026-10-01 16:20:49,649 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_4_entry) [2026-09-17 14:15:00+00:00] [OP/USDT:USDT] | Rate: 0.09965 | Stake amount: 5.998 | Profit (stake): -59.297 | 
+Profit: -6.58% | Tag: 
+2026-10-01 16:20:50,781 - NostalgiaForInfinityX7 - INFO - Grinding de-risk (grind_1_derisk) [2026-09-18 03:30:00+00:00] [OP/USDT:USDT] | Rate: 0.11505 | Stake amount: 24.774 | Coin amount: 646.0 | 
+Profit (stake): -89.871 | Profit: -9.78% | Grind profit: -24.06% (-14.338 USDT)
+2026-10-01 16:20:50,794 - NostalgiaForInfinityX7 - INFO - Grinding de-risk (grind_3_derisk) [2026-09-18 03:35:00+00:00] [OP/USDT:USDT] | Rate: 0.11383 | Stake amount: 12.180 | Coin amount: 321.0 | 
+Profit (stake): -88.241 | Profit: -9.61% | Grind profit: -22.17% (-6.595 USDT)
+2026-10-01 16:20:50,815 - NostalgiaForInfinityX7 - INFO - Grinding de-risk (grind_2_derisk) [2026-09-18 03:45:00+00:00] [OP/USDT:USDT] | Rate: 0.1141 | Stake amount: 12.209 | Coin amount: 321.0 | 
+Profit (stake): -88.515 | Profit: -9.64% | Grind profit: -22.24% (-6.627 USDT)
+2026-10-01 16:20:50,828 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_4_entry) [2026-09-18 03:50:00+00:00] [OP/USDT:USDT] | Rate: 0.11346 | Stake amount: 6.998 | Profit (stake): -88.071 | 
+Profit: -9.59% | Tag: 
+2026-10-01 16:20:52,780 - NostalgiaForInfinityX7 - INFO - Grinding de-risk (grind_5_derisk) [2026-09-18 19:55:00+00:00] [OP/USDT:USDT] | Rate: 0.11781 | Stake amount: 13.430 | Coin amount: 342.0 | 
+Profit (stake): -91.936 | Profit: -9.79% | Grind profit: -9.79% (-7.354 USDT)
+2026-10-01 16:20:53,307 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_5_entry) [2026-09-19 00:30:00+00:00] [OP/USDT:USDT] | Rate: 0.12044 | Stake amount: 4.998 | Profit (stake): -93.350 | 
+Profit: -9.94% | Tag: 
+2026-10-01 16:20:53,910 - NostalgiaForInfinityX7 - INFO - Grinding de-risk (grind_4_derisk) [2026-09-19 03:45:00+00:00] [OP/USDT:USDT] | Rate: 0.12466 | Stake amount: 21.899 | Coin amount: 527.0 | 
+Profit (stake): -96.172 | Profit: -10.08% | Grind profit: -22.01% (-11.788 USDT)
+2026-10-01 16:20:53,925 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_4_entry) [2026-09-19 03:50:00+00:00] [OP/USDT:USDT] | Rate: 0.12578 | Stake amount: 4.998 | Profit (stake): -96.323 | 
+Profit: -10.09% | Tag: 
+2026-10-01 16:20:56,328 - NostalgiaForInfinityX7 - INFO - Grinding exit (grind_4_exit) [2026-09-19 21:35:00+00:00] [OP/USDT:USDT] | Rate: 0.11908 | Stake amount: 4.724 | Coin amount: 119.0 | Profit 
+(stake): -94.650 | Profit: -9.76% | Grind profit: 5.33% (0.811 USDT)
+2026-10-01 16:20:58,900 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_4_entry) [2026-09-20 17:35:00+00:00] [OP/USDT:USDT] | Rate: 0.13101 | Stake amount: 4.998 | Profit (stake): -96.274 | 
+Profit: -9.93% | Tag: 
+2026-10-01 16:21:00,112 - NostalgiaForInfinityX7 - INFO - Grinding exit (grind_4_exit) [2026-09-21 01:55:00+00:00] [OP/USDT:USDT] | Rate: 0.12386 | Stake amount: 4.707 | Coin amount: 114.0 | Profit 
+(stake): -94.514 | Profit: -9.60% | Grind profit: 5.46% (0.829 USDT)
+2026-10-01 16:21:06,911 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_4_entry) [2026-09-22 23:30:00+00:00] [OP/USDT:USDT] | Rate: 0.13679 | Stake amount: 4.998 | Profit (stake): -96.287 | 
+Profit: -9.78% | Tag: 
+2026-10-01 16:21:09,161 - NostalgiaForInfinityX7 - INFO - Grinding exit (grind_4_exit) [2026-09-23 14:15:00+00:00] [OP/USDT:USDT] | Rate: 0.1274 | Stake amount: 4.629 | Coin amount: 109.0 | Profit 
+(stake): -94.005 | Profit: -9.41% | Grind profit: 6.86% (1.037 USDT)
+2026-10-01 16:21:18,228 - NostalgiaForInfinityX7 - INFO - Grinding entry (grind_4_entry) [2026-09-25 20:20:00+00:00] [OP/USDT:USDT] | Rate: 0.14414 | Stake amount: 4.998 | Profit (stake): -96.301 | 
+Profit: -9.64% | Tag: 
+2026-10-01 16:21:18,845 - NostalgiaForInfinityX7 - INFO - Grinding de-risk (grind_5_derisk) [2026-09-25 23:15:00+00:00] [OP/USDT:USDT] | Rate: 0.14828 | Stake amount: 6.129 | Coin amount: 124.0 | 
+Profit (stake): -97.329 | Profit: -9.60% | Grind profit: -23.12% (-3.434 USDT)
+2026-10-01 16:21:29,262 - NostalgiaForInfinityX7 - INFO - Grinding exit (grind_4_exit) [2026-09-28 19:05:00+00:00] [OP/USDT:USDT] | Rate: 0.13558 | Stake amount: 4.700 | Coin amount: 104.0 | Profit 
+(stake): -95.842 | Profit: -9.45% | Grind profit: 5.94% (0.904 USDT)
+backtest ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4/4         100% • 0:02:10 • 0:00:00
+backtest ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 95616/95616 100% • 0:06:54 • 0:00:00
+2026-10-01 16:21:35,029 - freqtrade.misc - INFO - dumping json to "nfi/new_20251101-20260929-2026-10-01_16-21-34.meta.json"
+Result for strategy NostalgiaForInfinityX7
+                                                    BACKTESTING REPORT                                                     
+┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃               Pair ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃     Avg Duration ┃  Win  Draw  Loss  Win% ┃
+┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│      TIA/USDT:USDT │      5 │         7.33 │          36.666 │          0.0 │          0:54:00 │    5     0     0   100 │
+│      INJ/USDT:USDT │      7 │         5.64 │          35.529 │          0.0 │         13:24:00 │    7     0     0   100 │
+│      ICP/USDT:USDT │      7 │         9.74 │          33.821 │          0.0 │          4:34:00 │    7     0     0   100 │
+│      JTO/USDT:USDT │      3 │        13.76 │          30.234 │          0.0 │          5:47:00 │    3     0     0   100 │
+│      APT/USDT:USDT │      5 │         5.61 │          28.031 │          0.0 │         10:30:00 │    5     0     0   100 │
+│      RAY/USDT:USDT │      4 │         9.87 │          20.740 │          0.0 │         18:48:00 │    4     0     0   100 │
+│      TRB/USDT:USDT │      2 │         9.64 │          19.215 │          0.0 │          0:55:00 │    2     0     0   100 │
+│      ONE/USDT:USDT │      2 │         9.45 │          18.912 │          0.0 │          0:18:00 │    2     0     0   100 │
+│     STRK/USDT:USDT │      2 │        16.24 │          17.680 │          0.0 │          1:40:00 │    2     0     0   100 │
+│  VIRTUAL/USDT:USDT │      3 │         6.52 │          17.072 │          0.0 │          0:35:00 │    3     0     0   100 │
+│      ETC/USDT:USDT │      3 │         7.08 │          16.443 │          0.0 │          3:48:00 │    3     0     0   100 │
+│      ZRO/USDT:USDT │      2 │          7.8 │          14.880 │          0.0 │          7:30:00 │    2     0     0   100 │
+│    ETHFI/USDT:USDT │      5 │         5.09 │          13.704 │          0.0 │ 5 days, 15:15:00 │    5     0     0   100 │
+│      MEW/USDT:USDT │      1 │        12.79 │          12.794 │          0.0 │          0:20:00 │    1     0     0   100 │
+│      DOT/USDT:USDT │      1 │        12.73 │          12.708 │          0.0 │          0:20:00 │    1     0     0   100 │
+│ FARTCOIN/USDT:USDT │      3 │         4.15 │          12.443 │          0.0 │          5:37:00 │    3     0     0   100 │
+│     BERA/USDT:USDT │      2 │         5.96 │          11.923 │          0.0 │          3:48:00 │    2     0     0   100 │
+│      JUP/USDT:USDT │      2 │         4.32 │           8.613 │          0.0 │          0:15:00 │    2     0     0   100 │
+│     INIT/USDT:USDT │      2 │         5.92 │           7.051 │          0.0 │          2:45:00 │    2     0     0   100 │
+│    PENGU/USDT:USDT │      2 │        10.28 │           5.117 │          0.0 │          2:22:00 │    2     0     0   100 │
+│     BONK/USDT:USDT │      1 │          4.5 │           4.497 │          0.0 │          0:05:00 │    1     0     0   100 │
+│     WLFI/USDT:USDT │      1 │        17.53 │           4.313 │          0.0 │         19:10:00 │    1     0     0   100 │
+│     AERO/USDT:USDT │      2 │         5.23 │           2.566 │          0.0 │          9:52:00 │    2     0     0   100 │
+│     SHIB/USDT:USDT │      1 │         3.78 │           0.940 │          0.0 │          1:50:00 │    1     0     0   100 │
+│     CELO/USDT:USDT │      0 │          0.0 │           0.000 │          0.0 │             0:00 │    0     0     0     0 │
+│      POL/USDT:USDT │      0 │          0.0 │           0.000 │          0.0 │             0:00 │    0     0     0     0 │
+│      TRX/USDT:USDT │      0 │          0.0 │           0.000 │          0.0 │             0:00 │    0     0     0     0 │
+│      WIF/USDT:USDT │      0 │          0.0 │           0.000 │          0.0 │             0:00 │    0     0     0     0 │
+│      BTC/USDT:USDT │      0 │          0.0 │           0.000 │          0.0 │             0:00 │    0     0     0     0 │
+│      LDO/USDT:USDT │      6 │         2.05 │          -7.253 │         -0.0 │ 23 days, 3:12:00 │    5     0     1  83.3 │
+│       OP/USDT:USDT │      4 │        -2.61 │         -77.922 │        -0.01 │ 10 days, 9:59:00 │    3     0     1  75.0 │
+│              TOTAL │     78 │         6.86 │         300.716 │         0.03 │ 2 days, 21:09:00 │   76     0     2  97.4 │
+└────────────────────┴────────┴──────────────┴─────────────────┴──────────────┴──────────────────┴────────────────────────┘
+                                               LEFT OPEN TRADES REPORT                                                
+┏━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃         Pair ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃      Avg Duration ┃  Win  Draw  Loss  Win% ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ OP/USDT:USDT │      1 │       -28.34 │         -95.823 │        -0.01 │ 41 days, 10:05:00 │    0     0     1     0 │
+│        TOTAL │      1 │       -28.34 │         -95.823 │        -0.01 │ 41 days, 10:05:00 │    0     0     1     0 │
+└──────────────┴────────┴──────────────┴─────────────────┴──────────────┴───────────────────┴────────────────────────┘
+                                                    ENTER TAG STATS                                                    
+┏━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃    Enter Tag ┃ Entries ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃      Avg Duration ┃  Win  Draw  Loss  Win% ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│           64 │      17 │         9.87 │          41.815 │          0.0 │          15:45:00 │   17     0     0   100 │
+│            2 │       6 │         6.52 │          39.109 │          0.0 │           0:11:00 │    6     0     0   100 │
+│          145 │       5 │          7.1 │          35.529 │          0.0 │           5:24:00 │    5     0     0   100 │
+│          141 │       5 │         6.69 │          34.326 │          0.0 │           9:59:00 │    5     0     0   100 │
+│          102 │       1 │        26.55 │          26.558 │          0.0 │           1:15:00 │    1     0     0   100 │
+│          142 │       6 │         4.09 │          24.499 │          0.0 │           4:18:00 │    6     0     0   100 │
+│            4 │       2 │         9.64 │          19.215 │          0.0 │           0:55:00 │    2     0     0   100 │
+│          161 │       2 │         9.58 │          19.120 │          0.0 │           1:12:00 │    2     0     0   100 │
+│    2 101 141 │       1 │        17.19 │          17.183 │          0.0 │           0:45:00 │    1     0     0   100 │
+│          2 5 │       1 │         14.7 │          14.711 │          0.0 │           0:20:00 │    1     0     0   100 │
+│      2 6 142 │       1 │        14.49 │          14.482 │          0.0 │           0:20:00 │    1     0     0   100 │
+│          143 │       2 │         6.49 │          12.996 │          0.0 │           0:42:00 │    2     0     0   100 │
+│          144 │       4 │          3.2 │          12.796 │          0.0 │           7:25:00 │    4     0     0   100 │
+│        2 101 │       1 │        12.79 │          12.794 │          0.0 │           0:20:00 │    1     0     0   100 │
+│            5 │       2 │          6.0 │          12.007 │          0.0 │           1:48:00 │    2     0     0   100 │
+│       62 144 │       1 │        10.07 │          10.078 │          0.0 │           0:55:00 │    1     0     0   100 │
+│          101 │       1 │         9.68 │           9.668 │          0.0 │           0:15:00 │    1     0     0   100 │
+│          2 4 │       1 │         7.43 │           7.437 │          0.0 │           0:05:00 │    1     0     0   100 │
+│        4 141 │       1 │         6.72 │           6.721 │          0.0 │           0:05:00 │    1     0     0   100 │
+│  2 4 143 144 │       1 │         5.79 │           5.792 │          0.0 │           0:05:00 │    1     0     0   100 │
+│        2 4 6 │       1 │         5.45 │           5.449 │          0.0 │           0:05:00 │    1     0     0   100 │
+│           43 │       1 │         4.86 │           4.850 │          0.0 │           4:55:00 │    1     0     0   100 │
+│        2 102 │       1 │          4.5 │           4.497 │          0.0 │           0:05:00 │    1     0     0   100 │
+│            6 │       1 │         4.18 │           4.181 │          0.0 │          16:25:00 │    1     0     0   100 │
+│        41 61 │       1 │         4.11 │           4.117 │          0.0 │           4:15:00 │    1     0     0   100 │
+│        2 141 │       1 │         3.88 │           3.880 │          0.0 │           0:05:00 │    1     0     0   100 │
+│      141 142 │       1 │         3.86 │           3.862 │          0.0 │           0:35:00 │    1     0     0   100 │
+│          163 │       1 │         3.74 │           3.747 │          0.0 │           0:15:00 │    1     0     0   100 │
+│           62 │       1 │        11.26 │           2.814 │          0.0 │           2:50:00 │    1     0     0   100 │
+│      102 142 │       1 │         2.03 │           2.031 │          0.0 │           4:50:00 │    1     0     0   100 │
+│          120 │       2 │        -2.18 │         -24.824 │         -0.0 │ 68 days, 23:12:00 │    1     0     1  50.0 │
+│          562 │       5 │        -2.17 │         -90.722 │        -0.01 │ 13 days, 14:41:00 │    4     0     1  80.0 │
+│        TOTAL │      78 │         6.86 │         300.716 │         0.03 │  2 days, 21:09:00 │   76     0     2  97.4 │
+└──────────────┴─────────┴──────────────┴─────────────────┴──────────────┴───────────────────┴────────────────────────┘
+                                                               EXIT REASON STATS                                                                
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                             Exit Reason ┃ Exits ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃      Avg Duration ┃  Win  Draw  Loss  Win% ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│           exit_long_rapid_rpd_2 ( 102 ) │     1 │        26.55 │          26.558 │          0.0 │           1:15:00 │    1     0     0   100 │
+│              exit_long_normal_u_1 ( 2 ) │     4 │          4.4 │          17.561 │          0.0 │           0:06:00 │    4     0     0   100 │
+│   exit_long_normal_d_5_95 ( 2 101 141 ) │     1 │        17.19 │          17.183 │          0.0 │           0:45:00 │    1     0     0   100 │
+│               exit_long_grind_g ( 120 ) │     1 │         5.96 │          14.995 │          0.0 │ 49 days, 23:15:00 │    1     0     0   100 │
+│         exit_long_normal_d_4_70 ( 2 5 ) │     1 │         14.7 │          14.711 │          0.0 │           0:20:00 │    1     0     0   100 │
+│         exit_long_scalp_d_4_100 ( 161 ) │     1 │        14.71 │          14.659 │          0.0 │           0:15:00 │    1     0     0   100 │
+│     exit_long_normal_d_4_27 ( 2 6 142 ) │     1 │        14.49 │          14.482 │          0.0 │           0:20:00 │    1     0     0   100 │
+│           exit_long_normal_d_4_65 ( 4 ) │     1 │        13.23 │          13.195 │          0.0 │           0:20:00 │    1     0     0   100 │
+│       exit_long_normal_d_4_70 ( 2 101 ) │     1 │        12.79 │          12.794 │          0.0 │           0:20:00 │    1     0     0   100 │
+│           exit_long_normal_d_4_70 ( 2 ) │     1 │        12.73 │          12.742 │          0.0 │           0:20:00 │    1     0     0   100 │
+│             exit_long_tc_d_4_70 ( 141 ) │     1 │        12.73 │          12.708 │          0.0 │           0:20:00 │    1     0     0   100 │
+│             exit_long_tc_d_3_87 ( 141 ) │     1 │        10.98 │          10.995 │          0.0 │           0:20:00 │    1     0     0   100 │
+│            exit_long_tc_d_3_114 ( 145 ) │     1 │        10.84 │          10.841 │          0.0 │           0:25:00 │    1     0     0   100 │
+│         exit_long_tc_d_3_127 ( 62 144 ) │     1 │        10.07 │          10.078 │          0.0 │           0:55:00 │    1     0     0   100 │
+│         exit_long_rapid_d_3_120 ( 101 ) │     1 │         9.68 │           9.668 │          0.0 │           0:15:00 │    1     0     0   100 │
+│            exit_long_tc_d_3_119 ( 145 ) │     1 │         9.36 │           9.369 │          0.0 │           2:00:00 │    1     0     0   100 │
+│             exit_long_tc_w_3_17 ( 142 ) │     1 │         9.15 │           9.136 │          0.0 │           1:25:00 │    1     0     0   100 │
+│             exit_long_tc_d_3_40 ( 143 ) │     1 │         9.04 │           9.052 │          0.0 │           0:50:00 │    1     0     0   100 │
+│           exit_long_normal_d_2_71 ( 2 ) │     1 │         8.81 │           8.807 │          0.0 │           0:20:00 │    1     0     0   100 │
+│   exit_profit_long_normal_t_2_1_m ( 5 ) │     1 │          7.8 │           7.805 │          0.0 │           3:20:00 │    1     0     0   100 │
+│            exit_long_normal_u_2 ( 2 4 ) │     1 │         7.43 │           7.437 │          0.0 │           0:05:00 │    1     0     0   100 │
+│          exit_long_normal_u_2 ( 4 141 ) │     1 │         6.72 │           6.721 │          0.0 │           0:05:00 │    1     0     0   100 │
+│           exit_long_rebuy_w_7_10 ( 64 ) │     1 │        25.43 │           6.362 │          0.0 │           0:50:00 │    1     0     0   100 │
+│           exit_long_normal_d_2_27 ( 4 ) │     1 │         6.05 │           6.021 │          0.0 │           1:30:00 │    1     0     0   100 │
+│             exit_long_tc_w_2_17 ( 145 ) │     1 │         6.01 │           6.019 │          0.0 │           1:40:00 │    1     0     0   100 │
+│    exit_long_normal_u_1 ( 2 4 143 144 ) │     1 │         5.79 │           5.792 │          0.0 │           0:05:00 │    1     0     0   100 │
+│                exit_long_tc_u_1 ( 144 ) │     1 │         5.64 │           5.624 │          0.0 │           0:05:00 │    1     0     0   100 │
+│          exit_long_normal_u_1 ( 2 4 6 ) │     1 │         5.45 │           5.449 │          0.0 │           0:05:00 │    1     0     0   100 │
+│              exit_long_tc_w_1_7 ( 145 ) │     1 │         5.37 │           5.373 │          0.0 │           2:10:00 │    1     0     0   100 │
+│            exit_long_tc_d_1_100 ( 141 ) │     1 │         4.41 │           5.287 │          0.0 │          17:55:00 │    1     0     0   100 │
+│          exit_long_rebuy_d_3_100 ( 64 ) │     2 │        10.34 │           5.155 │          0.0 │   1 day, 10:08:00 │    2     0     0   100 │
+│            exit_long_rebuy_w_6_4 ( 64 ) │     1 │        19.75 │           4.938 │          0.0 │           3:00:00 │    1     0     0   100 │
+│           exit_long_quick_d_1_39 ( 43 ) │     1 │         4.86 │           4.850 │          0.0 │           4:55:00 │    1     0     0   100 │
+│             exit_long_tc_d_1_71 ( 142 ) │     1 │         4.59 │           4.595 │          0.0 │           0:25:00 │    1     0     0   100 │
+│             exit_long_tc_d_1_66 ( 141 ) │     1 │         4.52 │           4.521 │          0.0 │           0:50:00 │    1     0     0   100 │
+│          exit_long_normal_u_1 ( 2 102 ) │     1 │          4.5 │           4.497 │          0.0 │           0:05:00 │    1     0     0   100 │
+│  exit_profit_long_scalp_t_1_1_m ( 161 ) │     1 │         4.46 │           4.460 │          0.0 │           2:10:00 │    1     0     0   100 │
+│          exit_long_rebuy_d_5_130 ( 64 ) │     1 │        17.53 │           4.313 │          0.0 │          19:10:00 │    1     0     0   100 │
+│            exit_long_tc_d_1_119 ( 142 ) │     1 │         4.28 │           4.288 │          0.0 │          22:30:00 │    1     0     0   100 │
+│           exit_long_normal_d_1_48 ( 5 ) │     1 │          4.2 │           4.201 │          0.0 │           0:15:00 │    1     0     0   100 │
+│          exit_long_normal_d_1_100 ( 6 ) │     1 │         4.18 │           4.181 │          0.0 │          16:25:00 │    1     0     0   100 │
+│        exit_long_quick_d_1_18 ( 41 61 ) │     1 │         4.11 │           4.117 │          0.0 │           4:15:00 │    1     0     0   100 │
+│             exit_long_tc_d_1_60 ( 143 ) │     1 │         3.94 │           3.944 │          0.0 │           0:35:00 │    1     0     0   100 │
+│            exit_long_tc_d_1_119 ( 145 ) │     1 │         3.93 │           3.927 │          0.0 │          20:45:00 │    1     0     0   100 │
+│          exit_long_normal_u_1 ( 2 141 ) │     1 │         3.88 │           3.880 │          0.0 │           0:05:00 │    1     0     0   100 │
+│         exit_long_tc_d_1_65 ( 141 142 ) │     1 │         3.86 │           3.862 │          0.0 │           0:35:00 │    1     0     0   100 │
+│          exit_long_rebuy_d_4_100 ( 64 ) │     1 │        15.31 │           3.832 │          0.0 │           3:40:00 │    1     0     0   100 │
+│         exit_long_scalp_d_1_122 ( 163 ) │     1 │         3.74 │           3.747 │          0.0 │           0:15:00 │    1     0     0   100 │
+│             exit_long_tc_d_1_27 ( 144 ) │     1 │         3.29 │           3.296 │          0.0 │           0:30:00 │    1     0     0   100 │
+│            exit_long_tc_d_1_120 ( 144 ) │     1 │          3.0 │           3.000 │          0.0 │           1:05:00 │    1     0     0   100 │
+│            exit_long_tc_d_0_131 ( 142 ) │     1 │         2.99 │           2.991 │          0.0 │           0:35:00 │    1     0     0   100 │
+│            exit_long_tc_d_1_120 ( 142 ) │     1 │         3.01 │           2.989 │          0.0 │           0:25:00 │    1     0     0   100 │
+│           exit_long_rebuy_w_3_11 ( 62 ) │     1 │        11.26 │           2.814 │          0.0 │           2:50:00 │    1     0     0   100 │
+│   exit_profit_long_rebuy_t_3_1_m ( 64 ) │     1 │         9.34 │           2.336 │          0.0 │           3:05:00 │    1     0     0   100 │
+│           exit_long_rebuy_w_3_10 ( 64 ) │     1 │          9.3 │           2.304 │          0.0 │           1:55:00 │    1     0     0   100 │
+│           exit_long_rebuy_d_2_41 ( 64 ) │     1 │         8.24 │           2.058 │          0.0 │           4:00:00 │    1     0     0   100 │
+│ exit_profit_long_tc_t_0_1_m ( 102 142 ) │     1 │         2.03 │           2.031 │          0.0 │           4:50:00 │    1     0     0   100 │
+│          exit_long_rebuy_d_2_119 ( 64 ) │     1 │         7.13 │           1.781 │          0.0 │          14:20:00 │    1     0     0   100 │
+│          exit_long_rebuy_d_2_108 ( 64 ) │     1 │         6.49 │           1.618 │          0.0 │          12:05:00 │    1     0     0   100 │
+│          exit_short_rebuy_w_2_1 ( 562 ) │     1 │         6.51 │           1.617 │          0.0 │           5:35:00 │    1     0     0   100 │
+│          exit_short_rebuy_3_1_1 ( 562 ) │     1 │         3.23 │           1.596 │          0.0 │ 25 days, 17:45:00 │    1     0     0   100 │
+│          exit_long_rebuy_d_2_100 ( 64 ) │     1 │         6.38 │           1.590 │          0.0 │           5:25:00 │    1     0     0   100 │
+│           exit_long_rebuy_w_2_10 ( 64 ) │     1 │         6.39 │           1.587 │          0.0 │          10:30:00 │    1     0     0   100 │
+│            exit_long_rebuy_w_2_2 ( 64 ) │     1 │         6.35 │           1.578 │          0.0 │   1 day, 20:00:00 │    1     0     0   100 │
+│          exit_long_rebuy_d_1_100 ( 64 ) │     1 │         5.26 │           1.313 │          0.0 │  2 days, 13:25:00 │    1     0     0   100 │
+│          exit_short_rebuy_1_1_1 ( 562 ) │     1 │         3.95 │           0.949 │          0.0 │          14:10:00 │    1     0     0   100 │
+│        exit_short_rebuy_d_1_130 ( 562 ) │     1 │         3.78 │           0.940 │          0.0 │           1:50:00 │    1     0     0   100 │
+│             exit_long_tc_d_0_50 ( 144 ) │     1 │         0.88 │           0.876 │          0.0 │    1 day, 4:00:00 │    1     0     0   100 │
+│           exit_long_rebuy_w_1_17 ( 64 ) │     1 │         3.33 │           0.829 │          0.0 │           1:20:00 │    1     0     0   100 │
+│             exit_long_tc_d_0_52 ( 141 ) │     1 │         0.82 │           0.814 │          0.0 │    1 day, 6:30:00 │    1     0     0   100 │
+│             exit_long_tc_d_0_48 ( 142 ) │     1 │          0.5 │           0.500 │          0.0 │           0:30:00 │    1     0     0   100 │
+│          exit_long_rebuy_d_0_100 ( 64 ) │     1 │         0.89 │           0.221 │          0.0 │          14:45:00 │    1     0     0   100 │
+│                      trailing_stop_loss │     1 │       -10.32 │         -39.819 │         -0.0 │ 87 days, 23:10:00 │    0     0     1     0 │
+│                              force_exit │     1 │       -28.34 │         -95.823 │        -0.01 │ 41 days, 10:05:00 │    0     0     1     0 │
+│                                   TOTAL │    78 │         6.86 │         300.716 │         0.03 │  2 days, 21:09:00 │   76     0     2  97.4 │
+└─────────────────────────────────────────┴───────┴──────────────┴─────────────────┴──────────────┴───────────────────┴────────────────────────┘
+                                                                        MIXED TAG STATS                                                                         
+┏━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃    Enter Tag ┃                             Exit Reason ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃      Avg Duration ┃  Win  Draw  Loss  Win% ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│          102 │           exit_long_rapid_rpd_2 ( 102 ) │      1 │        26.55 │          26.558 │          0.0 │           1:15:00 │    1     0     0   100 │
+│            2 │              exit_long_normal_u_1 ( 2 ) │      4 │          4.4 │          17.561 │          0.0 │           0:06:00 │    4     0     0   100 │
+│    2 101 141 │   exit_long_normal_d_5_95 ( 2 101 141 ) │      1 │        17.19 │          17.183 │          0.0 │           0:45:00 │    1     0     0   100 │
+│          120 │               exit_long_grind_g ( 120 ) │      1 │         5.96 │          14.995 │          0.0 │ 49 days, 23:15:00 │    1     0     0   100 │
+│          2 5 │         exit_long_normal_d_4_70 ( 2 5 ) │      1 │         14.7 │          14.711 │          0.0 │           0:20:00 │    1     0     0   100 │
+│          161 │         exit_long_scalp_d_4_100 ( 161 ) │      1 │        14.71 │          14.659 │          0.0 │           0:15:00 │    1     0     0   100 │
+│      2 6 142 │     exit_long_normal_d_4_27 ( 2 6 142 ) │      1 │        14.49 │          14.482 │          0.0 │           0:20:00 │    1     0     0   100 │
+│            4 │           exit_long_normal_d_4_65 ( 4 ) │      1 │        13.23 │          13.195 │          0.0 │           0:20:00 │    1     0     0   100 │
+│        2 101 │       exit_long_normal_d_4_70 ( 2 101 ) │      1 │        12.79 │          12.794 │          0.0 │           0:20:00 │    1     0     0   100 │
+│            2 │           exit_long_normal_d_4_70 ( 2 ) │      1 │        12.73 │          12.742 │          0.0 │           0:20:00 │    1     0     0   100 │
+│          141 │             exit_long_tc_d_4_70 ( 141 ) │      1 │        12.73 │          12.708 │          0.0 │           0:20:00 │    1     0     0   100 │
+│          141 │             exit_long_tc_d_3_87 ( 141 ) │      1 │        10.98 │          10.995 │          0.0 │           0:20:00 │    1     0     0   100 │
+│          145 │            exit_long_tc_d_3_114 ( 145 ) │      1 │        10.84 │          10.841 │          0.0 │           0:25:00 │    1     0     0   100 │
+│       62 144 │         exit_long_tc_d_3_127 ( 62 144 ) │      1 │        10.07 │          10.078 │          0.0 │           0:55:00 │    1     0     0   100 │
+│          101 │         exit_long_rapid_d_3_120 ( 101 ) │      1 │         9.68 │           9.668 │          0.0 │           0:15:00 │    1     0     0   100 │
+│          145 │            exit_long_tc_d_3_119 ( 145 ) │      1 │         9.36 │           9.369 │          0.0 │           2:00:00 │    1     0     0   100 │
+│          142 │             exit_long_tc_w_3_17 ( 142 ) │      1 │         9.15 │           9.136 │          0.0 │           1:25:00 │    1     0     0   100 │
+│          143 │             exit_long_tc_d_3_40 ( 143 ) │      1 │         9.04 │           9.052 │          0.0 │           0:50:00 │    1     0     0   100 │
+│            2 │           exit_long_normal_d_2_71 ( 2 ) │      1 │         8.81 │           8.807 │          0.0 │           0:20:00 │    1     0     0   100 │
+│            5 │   exit_profit_long_normal_t_2_1_m ( 5 ) │      1 │          7.8 │           7.805 │          0.0 │           3:20:00 │    1     0     0   100 │
+│          2 4 │            exit_long_normal_u_2 ( 2 4 ) │      1 │         7.43 │           7.437 │          0.0 │           0:05:00 │    1     0     0   100 │
+│        4 141 │          exit_long_normal_u_2 ( 4 141 ) │      1 │         6.72 │           6.721 │          0.0 │           0:05:00 │    1     0     0   100 │
+│           64 │           exit_long_rebuy_w_7_10 ( 64 ) │      1 │        25.43 │           6.362 │          0.0 │           0:50:00 │    1     0     0   100 │
+│            4 │           exit_long_normal_d_2_27 ( 4 ) │      1 │         6.05 │           6.021 │          0.0 │           1:30:00 │    1     0     0   100 │
+│          145 │             exit_long_tc_w_2_17 ( 145 ) │      1 │         6.01 │           6.019 │          0.0 │           1:40:00 │    1     0     0   100 │
+│  2 4 143 144 │    exit_long_normal_u_1 ( 2 4 143 144 ) │      1 │         5.79 │           5.792 │          0.0 │           0:05:00 │    1     0     0   100 │
+│          144 │                exit_long_tc_u_1 ( 144 ) │      1 │         5.64 │           5.624 │          0.0 │           0:05:00 │    1     0     0   100 │
+│        2 4 6 │          exit_long_normal_u_1 ( 2 4 6 ) │      1 │         5.45 │           5.449 │          0.0 │           0:05:00 │    1     0     0   100 │
+│          145 │              exit_long_tc_w_1_7 ( 145 ) │      1 │         5.37 │           5.373 │          0.0 │           2:10:00 │    1     0     0   100 │
+│          141 │            exit_long_tc_d_1_100 ( 141 ) │      1 │         4.41 │           5.287 │          0.0 │          17:55:00 │    1     0     0   100 │
+│           64 │          exit_long_rebuy_d_3_100 ( 64 ) │      2 │        10.34 │           5.155 │          0.0 │   1 day, 10:08:00 │    2     0     0   100 │
+│           64 │            exit_long_rebuy_w_6_4 ( 64 ) │      1 │        19.75 │           4.938 │          0.0 │           3:00:00 │    1     0     0   100 │
+│           43 │           exit_long_quick_d_1_39 ( 43 ) │      1 │         4.86 │           4.850 │          0.0 │           4:55:00 │    1     0     0   100 │
+│          142 │             exit_long_tc_d_1_71 ( 142 ) │      1 │         4.59 │           4.595 │          0.0 │           0:25:00 │    1     0     0   100 │
+│          141 │             exit_long_tc_d_1_66 ( 141 ) │      1 │         4.52 │           4.521 │          0.0 │           0:50:00 │    1     0     0   100 │
+│        2 102 │          exit_long_normal_u_1 ( 2 102 ) │      1 │          4.5 │           4.497 │          0.0 │           0:05:00 │    1     0     0   100 │
+│          161 │  exit_profit_long_scalp_t_1_1_m ( 161 ) │      1 │         4.46 │           4.460 │          0.0 │           2:10:00 │    1     0     0   100 │
+│           64 │          exit_long_rebuy_d_5_130 ( 64 ) │      1 │        17.53 │           4.313 │          0.0 │          19:10:00 │    1     0     0   100 │
+│          142 │            exit_long_tc_d_1_119 ( 142 ) │      1 │         4.28 │           4.288 │          0.0 │          22:30:00 │    1     0     0   100 │
+│            5 │           exit_long_normal_d_1_48 ( 5 ) │      1 │          4.2 │           4.201 │          0.0 │           0:15:00 │    1     0     0   100 │
+│            6 │          exit_long_normal_d_1_100 ( 6 ) │      1 │         4.18 │           4.181 │          0.0 │          16:25:00 │    1     0     0   100 │
+│        41 61 │        exit_long_quick_d_1_18 ( 41 61 ) │      1 │         4.11 │           4.117 │          0.0 │           4:15:00 │    1     0     0   100 │
+│          143 │             exit_long_tc_d_1_60 ( 143 ) │      1 │         3.94 │           3.944 │          0.0 │           0:35:00 │    1     0     0   100 │
+│          145 │            exit_long_tc_d_1_119 ( 145 ) │      1 │         3.93 │           3.927 │          0.0 │          20:45:00 │    1     0     0   100 │
+│        2 141 │          exit_long_normal_u_1 ( 2 141 ) │      1 │         3.88 │           3.880 │          0.0 │           0:05:00 │    1     0     0   100 │
+│      141 142 │         exit_long_tc_d_1_65 ( 141 142 ) │      1 │         3.86 │           3.862 │          0.0 │           0:35:00 │    1     0     0   100 │
+│           64 │          exit_long_rebuy_d_4_100 ( 64 ) │      1 │        15.31 │           3.832 │          0.0 │           3:40:00 │    1     0     0   100 │
+│          163 │         exit_long_scalp_d_1_122 ( 163 ) │      1 │         3.74 │           3.747 │          0.0 │           0:15:00 │    1     0     0   100 │
+│          144 │             exit_long_tc_d_1_27 ( 144 ) │      1 │         3.29 │           3.296 │          0.0 │           0:30:00 │    1     0     0   100 │
+│          144 │            exit_long_tc_d_1_120 ( 144 ) │      1 │          3.0 │           3.000 │          0.0 │           1:05:00 │    1     0     0   100 │
+│          142 │            exit_long_tc_d_0_131 ( 142 ) │      1 │         2.99 │           2.991 │          0.0 │           0:35:00 │    1     0     0   100 │
+│          142 │            exit_long_tc_d_1_120 ( 142 ) │      1 │         3.01 │           2.989 │          0.0 │           0:25:00 │    1     0     0   100 │
+│           62 │           exit_long_rebuy_w_3_11 ( 62 ) │      1 │        11.26 │           2.814 │          0.0 │           2:50:00 │    1     0     0   100 │
+│           64 │   exit_profit_long_rebuy_t_3_1_m ( 64 ) │      1 │         9.34 │           2.336 │          0.0 │           3:05:00 │    1     0     0   100 │
+│           64 │           exit_long_rebuy_w_3_10 ( 64 ) │      1 │          9.3 │           2.304 │          0.0 │           1:55:00 │    1     0     0   100 │
+│           64 │           exit_long_rebuy_d_2_41 ( 64 ) │      1 │         8.24 │           2.058 │          0.0 │           4:00:00 │    1     0     0   100 │
+│      102 142 │ exit_profit_long_tc_t_0_1_m ( 102 142 ) │      1 │         2.03 │           2.031 │          0.0 │           4:50:00 │    1     0     0   100 │
+│           64 │          exit_long_rebuy_d_2_119 ( 64 ) │      1 │         7.13 │           1.781 │          0.0 │          14:20:00 │    1     0     0   100 │
+│           64 │          exit_long_rebuy_d_2_108 ( 64 ) │      1 │         6.49 │           1.618 │          0.0 │          12:05:00 │    1     0     0   100 │
+│          562 │          exit_short_rebuy_w_2_1 ( 562 ) │      1 │         6.51 │           1.617 │          0.0 │           5:35:00 │    1     0     0   100 │
+│          562 │          exit_short_rebuy_3_1_1 ( 562 ) │      1 │         3.23 │           1.596 │          0.0 │ 25 days, 17:45:00 │    1     0     0   100 │
+│           64 │          exit_long_rebuy_d_2_100 ( 64 ) │      1 │         6.38 │           1.590 │          0.0 │           5:25:00 │    1     0     0   100 │
+│           64 │           exit_long_rebuy_w_2_10 ( 64 ) │      1 │         6.39 │           1.587 │          0.0 │          10:30:00 │    1     0     0   100 │
+│           64 │            exit_long_rebuy_w_2_2 ( 64 ) │      1 │         6.35 │           1.578 │          0.0 │   1 day, 20:00:00 │    1     0     0   100 │
+│           64 │          exit_long_rebuy_d_1_100 ( 64 ) │      1 │         5.26 │           1.313 │          0.0 │  2 days, 13:25:00 │    1     0     0   100 │
+│          562 │          exit_short_rebuy_1_1_1 ( 562 ) │      1 │         3.95 │           0.949 │          0.0 │          14:10:00 │    1     0     0   100 │
+│          562 │        exit_short_rebuy_d_1_130 ( 562 ) │      1 │         3.78 │           0.940 │          0.0 │           1:50:00 │    1     0     0   100 │
+│          144 │             exit_long_tc_d_0_50 ( 144 ) │      1 │         0.88 │           0.876 │          0.0 │    1 day, 4:00:00 │    1     0     0   100 │
+│           64 │           exit_long_rebuy_w_1_17 ( 64 ) │      1 │         3.33 │           0.829 │          0.0 │           1:20:00 │    1     0     0   100 │
+│          141 │             exit_long_tc_d_0_52 ( 141 ) │      1 │         0.82 │           0.814 │          0.0 │    1 day, 6:30:00 │    1     0     0   100 │
+│          142 │             exit_long_tc_d_0_48 ( 142 ) │      1 │          0.5 │           0.500 │          0.0 │           0:30:00 │    1     0     0   100 │
+│           64 │          exit_long_rebuy_d_0_100 ( 64 ) │      1 │         0.89 │           0.221 │          0.0 │          14:45:00 │    1     0     0   100 │
+│          120 │                      trailing_stop_loss │      1 │       -10.32 │         -39.819 │         -0.0 │ 87 days, 23:10:00 │    0     0     1     0 │
+│          562 │                              force_exit │      1 │       -28.34 │         -95.823 │        -0.01 │ 41 days, 10:05:00 │    0     0     1     0 │
+│        TOTAL │                                         │     78 │         6.86 │         300.716 │         0.03 │  2 days, 21:09:00 │   76     0     2  97.4 │
+└──────────────┴─────────────────────────────────────────┴────────┴──────────────┴─────────────────┴──────────────┴───────────────────┴────────────────────────┘
+                                   SUMMARY METRICS                                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Metric                                 ┃ Value                                     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ Backtesting from                       │ 2025-11-01 00:00:00                       │
+│ Backtesting to                         │ 2026-09-29 00:00:00                       │
+│ Trading Mode                           │ Isolated Futures                          │
+│ Max open trades                        │ 31                                        │
+│                                        │                                           │
+│ Total/Daily Avg Trades                 │ 78 / 0.23                                 │
+│ Starting balance                       │ 1000000 USDT                              │
+│ Final balance                          │ 1000300.716 USDT                          │
+│ Absolute profit                        │ 300.716 USDT                              │
+│ Total profit %                         │ 0.03%                                     │
+│ CAGR %                                 │ 0.03%                                     │
+│ Sharpe (closed trades)                 │ 1.30                                      │
+│ Sortino (closed trades)                │ 0.62                                      │
+│ Calmar (closed trades)                 │ 18.07                                     │
+│ SQN                                    │ 2.54                                      │
+│ Mean profit p-value                    │ 0.01304                                   │
+│ Profit factor                          │ 3.22                                      │
+│ Expectancy (Ratio)                     │ 3.86 (0.06)                               │
+│ Avg. daily profit                      │ 0.906 USDT                                │
+│ Avg. stake amount                      │ 75.525 USDT                               │
+│ Market change                          │ -39.49%                                   │
+│ Total trade volume                     │ 41717.915 USDT                            │
+│                                        │                                           │
+│ Long / Short trades                    │ 73 / 5                                    │
+│ Long / Short profit %                  │ 0.04% / -0.01%                            │
+│ Long / Short profit USDT               │ 391.438 / -90.722                         │
+│                                        │                                           │
+│ Best Pair                              │ TIA/USDT:USDT 0.00%                       │
+│ Worst Pair                             │ OP/USDT:USDT -0.01%                       │
+│ Best trade                             │ JTO/USDT:USDT 26.55%                      │
+│ Worst trade                            │ OP/USDT:USDT -28.34%                      │
+│ Best day                               │ 174.838 USDT                              │
+│ Worst day                              │ -95.823 USDT                              │
+│ Days win/draw/lose                     │ 43 / 286 / 2                              │
+│ Min/Max/Avg. Duration Winners          │ 0d 00:05 / 49d 23:15 / 1d 06:06           │
+│ Min/Max/Avg. Duration Losers           │ 41d 10:05 / 87d 23:10 / 64d 16:38         │
+│ Max Consecutive Wins / Loss            │ 52 / 1                                    │
+│ Rejected Entry signals                 │ 0                                         │
+│ Entry/Exit Timeouts                    │ 0 / 0                                     │
+│                                        │                                           │
+│ Min/Max balance (closed trades)        │ 1000003 USDT / 1000396.539 USDT           │
+│ Max % of account underwater            │ 0.01%                                     │
+│ Absolute drawdown                      │ 95.823 USDT (0.01%)                       │
+│ Drawdown duration                      │ 4 days 11:10:00                           │
+│ Profit at drawdown start               │ 396.539 USDT                              │
+│ Profit at drawdown end                 │ 300.716 USDT                              │
+│ Drawdown start                         │ 2026-09-24 12:50:00                       │
+│ Drawdown end                           │ 2026-09-29 00:00:00                       │
+│                                        │                                           │
+│ Wallet based Metrics                   │                                           │
+│ Min/Max balance (wallet balance)       │ 1000000 USDT / 1000373.996 USDT           │
+│ Min/Max balance dates (wallet balance) │ 2025-11-01 00:05:00 / 2026-08-12 08:15:00 │
+│ Max % of account underwater (balance)  │ 0.01%                                     │
+│ Absolute drawdown (wallet balance)     │ 76.722 USDT (0.01%)                       │
+│ Drawdown duration                      │ 39 days 17:45:00                          │
+│ Profit at drawdown start               │ 373.996 USDT                              │
+│ Profit at drawdown end                 │ 297.274 USDT                              │
+│ Drawdown start                         │ 2026-08-12 08:15:00                       │
+│ Drawdown end                           │ 2026-09-21 02:00:00                       │
+│ Sharpe (daily wallet balance)          │ 1.63                                      │
+│ Sortino (daily wallet balance)         │ 1.39                                      │
+│ Calmar (daily wallet balance)          │ 22.63                                     │
+└────────────────────────────────────────┴───────────────────────────────────────────┘
+
+Backtested 2025-11-01 00:00:00 -> 2026-09-29 00:00:00 | Max open trades : 31
+                                                                  STRATEGY SUMMARY                                                                  
+┏━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┓
+┃               Strategy ┃ Trades ┃ Avg Profit % ┃ Tot Profit USDT ┃ Tot Profit % ┃     Avg Duration ┃  Win  Draw  Loss  Win% ┃           Drawdown ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━┩
+│ NostalgiaForInfinityX7 │     78 │         6.86 │         300.716 │         0.03 │ 2 days, 21:09:00 │   76     0     2  97.4 │ 95.823 USDT  0.01% │
+└────────────────────────┴────────┴──────────────┴─────────────────┴──────────────┴──────────────────┴────────────────────────┴────────────────────┘
