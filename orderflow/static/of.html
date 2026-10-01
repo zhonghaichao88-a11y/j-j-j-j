@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>订单流看盘</title>
+<style>
+:root{--bg:#131722;--panel:#1b2030;--line:#2a2f3d;--text:#d1d4dc;--mute:#7c8293;--up:#26a69a;--dn:#ef5350;--poc:#5b2bd6;--warn:#f0b90b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.4 -apple-system,"Microsoft YaHei",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;gap:10px;align-items:center;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header select,header button,.side button,.side input{background:#252b3b;color:var(--text);border:1px solid var(--line);border-radius:4px;padding:4px 8px;font:inherit}
+button{cursor:pointer}
+.badge{padding:2px 8px;border-radius:10px;font-size:12px}
+.paper{background:#2b3a55;color:#9cc0ff}.live{background:#5a1f1f;color:#ff8a80}
+#main{flex:1;display:flex;min-height:0}
+#chartWrap{flex:1;position:relative;min-width:0}
+canvas{display:block}
+.side{width:340px;background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:10px;font-size:12px}
+.side h3{margin:12px 0 6px;font-size:13px;color:#fff}
+.sig{display:flex;align-items:flex-start;gap:6px;padding:4px 0;border-bottom:1px dashed var(--line)}
+.sig small{color:var(--mute);display:block}
+table{width:100%;border-collapse:collapse}td,th{padding:3px 4px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{color:var(--mute);font-weight:normal}
+.pos{color:var(--up)}.neg{color:var(--dn)}
+#log{font-family:Consolas,monospace;font-size:11px;color:var(--mute);white-space:pre-wrap;max-height:180px;overflow:auto}
+.row{display:flex;gap:6px;align-items:center;margin:4px 0}
+.row input{width:70px}
+.warnbox{background:#3a2f12;border:1px solid #6b5416;color:#f3d27a;padding:6px;border-radius:4px;margin:6px 0}
+#tip{position:absolute;pointer-events:none;background:#000c;padding:4px 6px;border-radius:4px;font-size:12px;display:none}
+</style>
+</head>
+<body>
+<header>
+  <b>订单流</b>
+  <select id="sym"></select>
+  <span id="feed" style="color:var(--mute)"></span>
+  <span style="flex:1"></span>
+  <span>权益 <b id="eq">-</b> U</span>
+  <span>今日 <b id="dpnl">-</b></span>
+  <span id="mode" class="badge paper">模拟盘</span>
+  <button id="zoomOut">−</button><button id="zoomIn">＋</button><button id="center">回到最新</button>
+</header>
+<div id="main">
+  <div id="chartWrap"><canvas id="cv"></canvas><div id="tip"></div></div>
+  <div class="side">
+    <h3>自动交易</h3>
+    <div class="row"><label><input type="checkbox" id="auto"> 开启自动交易</label></div>
+    <div class="warnbox" id="btwarn">打法后面是回测成绩（欧易逐笔成交，扣手续费）。PF 大于 1 才是赚钱。没过关的建议别勾。</div>
+    <div id="sigs"></div>
+    <h3>风控</h3>
+    <div class="row">每单最多亏权益 <input id="risk_pct" type="number" step="0.1"> %</div>
+    <div class="row">最大杠杆 <input id="max_leverage" type="number" step="1"> 倍</div>
+    <div class="row">最多同时持仓 <input id="max_positions" type="number" step="1"> 个</div>
+    <div class="row">单日最多亏 <input id="daily_loss_pct" type="number" step="0.5"> % 停止开新单</div>
+    <div class="row"><button id="saveRisk">保存设置</button><button id="closeAll">全部平仓</button></div>
+    <h3>实盘开关</h3>
+    <div id="liveBox"></div>
+    <h3>持仓</h3>
+    <table><thead><tr><th>币</th><th>方向</th><th>打法</th><th>开仓</th><th>止损</th><th>止盈</th><th>浮盈</th></tr></thead><tbody id="pos"></tbody></table>
+    <h3>最近信号</h3>
+    <table><thead><tr><th>时间</th><th>打法</th><th>方向</th><th>价</th><th>状态</th></tr></thead><tbody id="sigList"></tbody></table>
+    <h3>成交记录 <span id="wr" style="color:var(--mute)"></span></h3>
+    <table><thead><tr><th>币</th><th>打法</th><th>方向</th><th>原因</th><th>盈亏</th></tr></thead><tbody id="hist"></tbody></table>
+    <h3>日志</h3>
+    <div id="log"></div>
+  </div>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const cv = $('#cv'), ctx = cv.getContext('2d');
+let S = null, BT = {}, inst = null, colW = 104, cellH = 18, priceOff = 0, barOff = 0, follow = true, mouse = null;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const C = {bg:css('--bg'),line:css('--line'),text:css('--text'),mute:css('--mute'),up:css('--up'),dn:css('--dn'),poc:css('--poc'),warn:css('--warn')};
+
+function fmt(v){ if(v==null) return '';
+  const a=Math.abs(v); if(a>=1e6) return (v/1e6).toFixed(1)+'M'; if(a>=1e4) return (v/1e3).toFixed(1)+'k';
+  if(a>=1000) return v.toFixed(0); if(a>=100) return v.toFixed(0); if(a>=10) return v.toFixed(1); if(a>=1) return v.toFixed(2);
+  if(a===0) return '0'; return v.toFixed(3);}
+function fp(p){ if(p==null) return '-'; const a=Math.abs(p); return a>=1000?p.toFixed(1):a>=10?p.toFixed(2):p.toPrecision(5); }
+
+function resize(){ const w=$('#chartWrap'); cv.width=w.clientWidth*devicePixelRatio; cv.height=w.clientHeight*devicePixelRatio;
+  cv.style.width=w.clientWidth+'px'; cv.style.height=w.clientHeight+'px'; draw(); }
+addEventListener('resize', resize);
+
+function draw(){
+  if(!S||!S.view) return;
+  const V=S.view, W=cv.width/devicePixelRatio, H=cv.height/devicePixelRatio;
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  const axisW=78, domW=150, profW=90, footH=44;
+  const plotR = W-axisW-domW-profW;           // 足迹区右边界
+  const row=V.row, last=V.last ?? (V.bars.length?V.bars[V.bars.length-1].c:0);
+  const plotH = H-footH-20;
+  // 默认让屏幕上的K线都能看到：范围放得下就居中显示，放不下就以最新价为中心
+  let baseRow = Math.floor(last/row);
+  { const nC=Math.floor((W-axisW-domW-profW)/colW), vis=V.bars.slice(Math.max(0,V.bars.length-nC-barOff), V.bars.length-barOff);
+    if(vis.length){ const hi=Math.max(...vis.map(b=>b.h)), lo=Math.min(...vis.map(b=>b.l));
+      const span=(hi-lo)/row; if(span*cellH < plotH-40) baseRow=Math.floor((hi+lo)/2/row);
+      else baseRow=Math.min(Math.max(baseRow, Math.floor(lo/row)+Math.floor(plotH/2/cellH)), Math.floor(hi/row)-Math.floor(plotH/2/cellH)); } }
+  const centerRow = baseRow + priceOff;
+  const yOfRow = r => plotH/2 - (r-centerRow)*cellH;          // 行 r 的上边
+  const yOfPx = p => plotH/2 - (p/row-centerRow-1)*cellH;
+  // 网格
+  ctx.font='11px Consolas,monospace'; ctx.textBaseline='middle';
+  const nCols = Math.floor(plotR/colW);
+  const bars = V.bars.slice(Math.max(0,V.bars.length-nCols-barOff), V.bars.length-barOff);
+  // 前一日价值区、本段成交量分布
+  if(V.prev_day){ for(const [k,c] of [['vah','#8888'],['val','#8888'],['poc','#d4a01788']]){ const y=yOfPx(V.prev_day[k]);
+      ctx.strokeStyle=c; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(plotR,y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle=c; ctx.fillText('昨日'+k.toUpperCase(),4,y-7);} }
+  // 堆叠失衡区
+  for(const z of V.zones||[]){ const y1=yOfPx(z.hi), y2=yOfPx(z.lo);
+    ctx.fillStyle = z.side>0?'#26a69a22':'#ef535022'; ctx.fillRect(0,y1,plotR,y2-y1); }
+  bars.forEach((b,i)=>{
+    const x = plotR - (bars.length-i)*colW + 4, w=colW-8;
+    const rows=b.rows; let mx=1; for(const [r,bi,as] of rows) mx=Math.max(mx,bi+as);
+    const bset=new Set(b.buy_imb), sset=new Set(b.sell_imb);
+    // K线影线 + 实体（每列左边细条）
+    const yh=yOfPx(b.h), yl=yOfPx(b.l), yo=yOfPx(b.o), yc=yOfPx(b.c);
+    const up=b.c>=b.o; ctx.strokeStyle=up?C.up:C.dn; ctx.beginPath(); ctx.moveTo(x+3,yh); ctx.lineTo(x+3,yl); ctx.stroke();
+    ctx.fillStyle=up?C.up:C.dn; ctx.fillRect(x,Math.min(yo,yc),6,Math.max(1,Math.abs(yc-yo)));
+    if(b.seeded){ ctx.fillStyle=C.mute; ctx.fillText('历史',x+12,yh-8); return; }
+    for(const [r,bi,as] of rows){
+      const y=yOfRow(r); if(y<-cellH||y>plotH) continue;
+      const v=bi+as, k=Math.min(1,v/mx);
+      let bg = as>=bi? `rgba(38,166,154,${0.15+0.6*k})` : `rgba(239,83,80,${0.15+0.6*k})`;
+      if(r===b.poc) bg=C.poc;
+      ctx.fillStyle=bg; ctx.fillRect(x+9,y+1,w-9,cellH-2);
+      ctx.textAlign='right';
+      ctx.fillStyle = sset.has(r)? '#ffb4b4':'#e0e0e0'; ctx.font=(sset.has(r)?'bold ':'')+'11px Consolas,monospace';
+      ctx.fillText(fmt(bi), x+9+(w-9)/2-4, y+cellH/2);
+      ctx.textAlign='left';
+      ctx.fillStyle = bset.has(r)? '#b9f6ca':'#e0e0e0'; ctx.font=(bset.has(r)?'bold ':'')+'11px Consolas,monospace';
+      ctx.fillText(fmt(as), x+9+(w-9)/2+4, y+cellH/2);
+    }
+    ctx.font='11px Consolas,monospace';
+    // 每列下面 Delta / 总计
+    const fy=plotH+4; ctx.fillStyle='#eee'; ctx.fillRect(x+9,fy,w-9,footH-6);
+    ctx.textAlign='left'; ctx.fillStyle='#222'; ctx.fillText('Delta ',x+12,fy+10);
+    ctx.fillStyle=b.delta>=0?'#0a8a7e':'#d32f2f'; ctx.fillText(fmt(b.delta),x+52,fy+10);
+    ctx.fillStyle='#222'; ctx.fillText('总计 '+fmt(b.vol),x+12,fy+27);
+    // 时间
+    const d=new Date(b.t); ctx.fillStyle=C.mute; ctx.fillText(d.toTimeString().slice(0,5),x+12,H-8);
+  });
+  // 信号标记
+  const tmap={}; bars.forEach((b,i)=>tmap[b.t]=plotR-(bars.length-i)*colW+4);
+  for(const s of V.signals||[]){ const x=tmap[s.t]; if(x==null) continue; const b=bars.find(q=>q.t===s.t);
+    const y = s.side>0? yOfPx(b.l)+14 : yOfPx(b.h)-14;
+    ctx.fillStyle = s.side>0?'#00e676':'#ff5252'; ctx.beginPath();
+    if(s.side>0){ctx.moveTo(x+colW/2,y-8);ctx.lineTo(x+colW/2-7,y+4);ctx.lineTo(x+colW/2+7,y+4);}else{ctx.moveTo(x+colW/2,y+8);ctx.lineTo(x+colW/2-7,y-4);ctx.lineTo(x+colW/2+7,y-4);}
+    ctx.fill(); ctx.font='bold 11px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(s.name+(s.traded?' ✔':''), x+colW/2, s.side>0? y+14 : y-14); ctx.textAlign='left'; ctx.font='11px Consolas,monospace'; }
+  // 成交量分布（右侧）
+  const px0 = plotR;
+  ctx.fillStyle='#0d1018'; ctx.fillRect(px0,0,profW,plotH);
+  if(V.profile){ const rows=V.profile.rows; let mx=1; for(const [r,v] of rows) mx=Math.max(mx,v);
+    for(const [r,v] of rows){ const y=yOfRow(r); if(y<-cellH||y>plotH) continue;
+      const inVA = (r+0.5)*row<=V.profile.vah && (r+0.5)*row>=V.profile.val;
+      ctx.fillStyle = Math.abs((r+0.5)*row-V.profile.poc)<row/2? '#d4a017' : inVA? '#4a6fa5':'#34405a';
+      ctx.fillRect(px0+2, y+2, (profW-6)*v/mx, cellH-4); }
+    ctx.fillStyle=C.mute; ctx.fillText('成交量分布',px0+4,10); }
+  // 价格轴
+  const ax0=px0+profW; ctx.fillStyle=C.bg; ctx.fillRect(ax0,0,axisW,H);
+  ctx.strokeStyle=C.line; ctx.beginPath(); ctx.moveTo(ax0,0); ctx.lineTo(ax0,H); ctx.stroke();
+  ctx.fillStyle=C.mute; ctx.textAlign='left';
+  const step=Math.max(1,Math.round(40/cellH));
+  for(let k=-60;k<=60;k+=step){ const r=centerRow+k, y=yOfRow(r); if(y<0||y>plotH) continue; ctx.fillText(fp(r*row),ax0+6,y+cellH); }
+  const ly=yOfPx(last); ctx.fillStyle=C.warn; ctx.fillRect(ax0,ly-9,axisW,18); ctx.fillStyle='#000'; ctx.fillText(fp(last),ax0+6,ly);
+  ctx.strokeStyle=C.warn+'88'; ctx.setLineDash([2,3]); ctx.beginPath(); ctx.moveTo(0,ly); ctx.lineTo(ax0,ly); ctx.stroke(); ctx.setLineDash([]);
+  // 挂单深度 DOM（按格子合并）
+  const d0=ax0+axisW; ctx.fillStyle='#0d1018'; ctx.fillRect(d0,0,domW,H);
+  ctx.fillStyle=C.mute; ctx.fillText('挂单深度',d0+6,10);
+  const agg=(lv)=>{const m={}; for(const [p,s] of lv){const r=Math.floor(p/row); m[r]=(m[r]||0)+s;} return m;};
+  const B=agg(V.dom.bids), A=agg(V.dom.asks); const all=[...Object.values(B),...Object.values(A)];
+  const avg = all.length? all.reduce((a,b)=>a+b,0)/all.length : 1; const mxd=Math.max(1,...all);
+  // 买单画左半、卖单画右半；挂单量 ≥ 平均 3 倍的标黄（大单墙）
+  const half=(domW-8)/2;
+  for(const [m,col,isBid] of [[B,C.up,true],[A,C.dn,false]]) for(const [r,s] of Object.entries(m)){ const y=yOfRow(+r); if(y<0||y>plotH) continue;
+    const big = s>=3*avg, len=half*s/mxd; ctx.fillStyle = big? C.warn : col+'aa';
+    if(isBid) ctx.fillRect(d0+4+half-len, y+2, len, cellH-4); else ctx.fillRect(d0+4+half, y+2, len, cellH-4);
+    ctx.fillStyle = big? '#000' : C.text; ctx.textAlign = isBid? 'left':'right';
+    ctx.fillText(fmt(s), isBid? d0+6 : d0+domW-6, y+cellH/2); ctx.textAlign='left'; }
+  ctx.fillStyle=C.mute; ctx.fillText('买单',d0+6,24); ctx.textAlign='right'; ctx.fillText('卖单',d0+domW-6,24); ctx.textAlign='left';
+  // 鼠标提示
+  if(mouse && mouse.x<plotR && mouse.y<plotH){ const r=Math.floor(centerRow - (mouse.y-plotH/2)/cellH)+1;
+    $('#tip').style.display='block'; $('#tip').style.left=(mouse.x+12)+'px'; $('#tip').style.top=(mouse.y+12)+'px';
+    $('#tip').textContent = fp(r*row)+' ~ '+fp((r+1)*row);} else $('#tip').style.display='none';
+}
+
+cv.addEventListener('wheel',e=>{ e.preventDefault(); if(e.shiftKey){ barOff=Math.max(0,barOff+(e.deltaY>0?-1:1)); } else { priceOff+= e.deltaY>0?-2:2; follow=false;} draw(); },{passive:false});
+cv.addEventListener('mousemove',e=>{ const r=cv.getBoundingClientRect(); mouse={x:e.clientX-r.left,y:e.clientY-r.top}; draw();});
+cv.addEventListener('mouseleave',()=>{mouse=null;draw();});
+let drag=null; cv.addEventListener('mousedown',e=>drag={x:e.clientX,y:e.clientY,b:barOff,p:priceOff});
+addEventListener('mouseup',()=>drag=null);
+addEventListener('mousemove',e=>{ if(!drag) return; barOff=Math.max(0,drag.b+Math.round((e.clientX-drag.x)/colW)); priceOff=drag.p+Math.round((e.clientY-drag.y)/cellH); follow=false; draw();});
+$('#zoomIn').onclick=()=>{colW=Math.min(180,colW+12);cellH=Math.min(30,cellH+2);draw();};
+$('#zoomOut').onclick=()=>{colW=Math.max(60,colW-12);cellH=Math.max(10,cellH-2);draw();};
+$('#center').onclick=()=>{priceOff=0;barOff=0;follow=true;draw();};
+
+function btText(k){ const tfm=(S&&S.cfg&&S.cfg.tf)||'5m'; const r=(BT[tfm]||{})[k]; if(!r) return '<small>还没有回测结果</small>';
+  const good = r.pf>1.1 && r.pf_a>1 && r.pf_b>1;
+  return `<small style="color:${good?'#26a69a':'#ef5350'}">${tfm}回测 ${r.n}笔 胜率${(r.win*100).toFixed(0)}% PF ${r.pf.toFixed(2)}（前半${r.pf_a.toFixed(2)} / 后半${r.pf_b.toFixed(2)}）${good?' 过关':' 不过关'}</small>`; }
+let built=false;
+function buildSide(){
+  if(built||!S) return; built=true;
+  $('#sigs').innerHTML = Object.entries(S.signal_names).map(([k,n])=>
+    `<label class="sig"><input type="checkbox" data-k="${k}" ${S.cfg.enabled.includes(k)?'checked':''}><span><b>${n}</b>${btText(k)}</span></label>`).join('');
+  $('#sigs').querySelectorAll('input').forEach(i=>i.onchange=saveCfg);
+  $('#auto').checked=S.cfg.auto; $('#auto').onchange=saveCfg;
+  for(const k of ['risk_pct','max_leverage','max_positions','daily_loss_pct']) $('#'+k).value=S.cfg[k];
+}
+async function post(u,b){ const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}); return r.json(); }
+function saveCfg(){ const en=[...$('#sigs').querySelectorAll('input:checked')].map(i=>i.dataset.k);
+  const b={enabled:en,auto:$('#auto').checked}; for(const k of ['risk_pct','max_leverage','max_positions','daily_loss_pct']) b[k]=+$('#'+k).value;
+  if(b.auto && en.length===0){ alert('先勾选至少一种打法'); $('#auto').checked=false; b.auto=false; }
+  post('/api/cfg',b); }
+$('#saveRisk').onclick=saveCfg;
+$('#closeAll').onclick=()=>{ if(confirm('确定全部平仓？')) post('/api/close_all',{}); };
+
+function side(){
+  const a=S.acct; $('#eq').textContent=a.equity.toFixed(2); const dp=a.day_pnl;
+  $('#dpnl').innerHTML=`<span class="${dp>=0?'pos':'neg'}">${dp>=0?'+':''}${dp.toFixed(2)}</span>`;
+  $('#mode').className='badge '+(S.live_ok?'live':'paper'); $('#mode').textContent=S.live_ok?'实盘':'模拟盘';
+  $('#feed').textContent = S.feed[inst]||'';
+  $('#liveBox').innerHTML = S.live_ok ? `<button id="liveOff">切回模拟盘</button>`
+    : (S.allow_live ? `<div class="warnbox">实盘会用你的欧易账户真实下单。先用模拟盘跑够时间再开。</div><button id="liveOn">切换到实盘…</button>`
+       : `<small style="color:var(--mute)">实盘未开启（.env 里加 OF_ALLOW_LIVE=1 并重启才能用）。现在是模拟盘，不会动你的钱。</small>`);
+  const on=$('#liveOn'); if(on) on.onclick=async()=>{ const p=prompt('确认用真钱自动交易？请输入：我确认实盘'); if(!p) return; const r=await post('/api/live',{on:true,phrase:p}); alert(r.msg); };
+  const off=$('#liveOff'); if(off) off.onclick=()=>post('/api/live',{on:false});
+  $('#pos').innerHTML = a.positions.map(p=>{ const l=S.last[p.sym]; const pnl=l? p.side*(l-p.entry)*p.qty : 0;
+    return `<tr><td>${p.sym.split('-')[0]}</td><td class="${p.side>0?'pos':'neg'}">${p.side>0?'多':'空'}</td><td>${S.signal_names[p.kind]}</td><td>${fp(p.entry)}</td><td>${fp(p.stop)}</td><td>${fp(p.target)}</td><td class="${pnl>=0?'pos':'neg'}">${pnl.toFixed(2)}</td></tr>`;}).join('') || '<tr><td colspan=7 style="color:var(--mute)">没有持仓</td></tr>';
+  const sg=(S.view?.signals||[]).slice().reverse().slice(0,15);
+  $('#sigList').innerHTML = sg.map(s=>`<tr><td>${new Date(s.t).toTimeString().slice(0,5)}</td><td>${s.name}</td><td class="${s.side>0?'pos':'neg'}">${s.side>0?'多':'空'}</td><td>${fp(s.price)}</td><td>${s.traded?'已下单':(s.skip||'只提示')}</td></tr>`).join('') || '<tr><td colspan=5 style="color:var(--mute)">还没有信号（要等K线收盘）</td></tr>';
+  const h=S.history.slice().reverse(); const w=S.acct.closed? (S.acct.wins/S.acct.closed*100).toFixed(0):'-';
+  $('#wr').textContent = `共${S.acct.closed}笔 胜率${w}%`;
+  $('#hist').innerHTML = h.map(t=>`<tr><td>${t.sym.split('-')[0]}</td><td>${t.kind}</td><td>${t.side>0?'多':'空'}</td><td>${t.why}</td><td class="${t.pnl>=0?'pos':'neg'}">${t.pnl.toFixed(2)}</td></tr>`).join('');
+  $('#log').textContent = S.log.slice().reverse().join('\n');
+}
+function connect(){
+  const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
+  ws.onopen=()=>{ if(inst) ws.send(JSON.stringify({inst})); };
+  ws.onmessage=e=>{ S=JSON.parse(e.data);
+    if(!inst && S.symbols.length){ inst=S.symbols[0]; }
+    const sel=$('#sym'); if(sel.options.length!==S.symbols.length){ sel.innerHTML=S.symbols.map(s=>`<option>${s}</option>`).join(''); sel.value=inst; }
+    if(S.view && S.view.inst!==inst) ws.send(JSON.stringify({inst}));
+    buildSide(); side(); draw(); };
+  ws.onclose=()=>setTimeout(connect,1500);
+  $('#sym').onchange=()=>{ inst=$('#sym').value; priceOff=0; barOff=0; ws.send(JSON.stringify({inst})); };
+}
+fetch('/api/bt').then(r=>r.json()).then(j=>{BT=j; built=false; buildSide();});
+resize(); connect();
+</script>
+</body>
+</html>
