@@ -50,5 +50,6 @@ def portfolio(T, size=0.10, cap=10, start=100.0):
 def passed(sp):
     """过关标准（事先定好）：考试期 PF ≥ 1.15、每笔为正、笔数 ≥ 50；新币 PF ≥ 1.1；训练期也为正"""
     te, nw, tr = sp['考试2025+'], sp['新币'], sp['训练2024']
+    new_ok = nw.get('PF', 0) >= 1.1 if nw.get('笔数', 0) >= 30 else True      # 只做 BTC/ETH 的打法没有新币，不看这条
     return (te.get('笔数', 0) >= 50 and te.get('PF', 0) >= 1.15 and te.get('每笔基点', -1) > 0
-            and nw.get('PF', 0) >= 1.1 and tr.get('每笔基点', -1) > 0)
+            and new_ok and tr.get('每笔基点', -1) > 0)

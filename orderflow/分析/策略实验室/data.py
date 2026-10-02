@@ -8,8 +8,14 @@ NEW = set(l.split()[0] for l in open(f'{ROOT}/syms_new.txt'))
 TRAIN_END = 1735689600000            # 2025-01-01：之前是训练，之后是考试
 
 
+import json as _json
+_CAT = _json.load(open(os.path.join(os.path.dirname(__file__), 'okx_category.json'))) if os.path.exists(
+    os.path.join(os.path.dirname(__file__), 'okx_category.json')) else {}
+
+
 def coins():
-    return sorted(c for c in SYMS if os.path.exists(f'{ROOT}/k/{c}.parquet'))
+    """只要加密币（欧易 instCategory=1）；股票、黄金白银合约不测（程序里也不做）"""
+    return sorted(c for c in SYMS if os.path.exists(f'{ROOT}/k/{c}.parquet') and _CAT.get(c, '1') == '1')
 
 
 def _mult(sym):

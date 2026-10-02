@@ -65,6 +65,11 @@ def show(mod, res, errs, secs, pick_min=50):
         pt = report.portfolio(best['T'])
         lines.append(f'- 组合（100U，每笔 10%，最多 10 单，滚利）：{pt}')
         lines.append(f'- 过关：{"是" if report.passed(best["sp"]) else "否"}')
+        with open('/home/user/ext/long/lab/results/summary.jsonl', 'a') as f:
+            f.write(json.dumps({'mod': mod, 'name': getattr(S, 'NAME', mod), 'p': best['p'], 'train': best['sp']['训练2024'],
+                                'test': best['sp']['考试2025+'], 'new': best['sp']['新币'], 'all': best['sp']['全部'],
+                                'pf': pt, 'pass': report.passed(best['sp']),
+                                'any_pass': sum(report.passed(r['sp']) for r in res), 'grid': len(res)}, ensure_ascii=False, default=str) + '\n')
         tp = [r['sp']['训练2024'].get('PF', np.nan) for r in res]
         te = [r['sp']['考试2025+'].get('PF', np.nan) for r in res]
         ok = [(a, b) for a, b in zip(tp, te) if np.isfinite(a) and np.isfinite(b)]

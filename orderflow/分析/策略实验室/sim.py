@@ -13,10 +13,11 @@ def run(df, sig, side, sd, td=None, hold=144, entry='market', lpx=None, lbars=1,
     T = df.index.values
     fts, frate = df.attrs.get('fts', np.array([])), df.attrs.get('frate', np.array([]))
     n = len(O)
-    cooldown = hold if cooldown is None else cooldown
     sig = np.asarray(sig)
     k = len(sig)
     arr = lambda x: np.full(k, x, dtype=float) if np.isscalar(x) or x is None else np.asarray(x, dtype=float)
+    holds = arr(hold).astype(int)                    # 每笔可以有自己的持有根数（比如拿到当天结束）
+    cools = holds if cooldown is None else arr(cooldown).astype(int)
     side, sd = arr(side), arr(sd)
     td = arr(np.inf if td is None else td)
     lpx = arr(np.nan if lpx is None else lpx)
@@ -26,7 +27,7 @@ def run(df, sig, side, sd, td=None, hold=144, entry='market', lpx=None, lbars=1,
     for m, i in enumerate(sig):
         if i <= nxt or i <= busy or i + 1 >= n:
             continue
-        nxt = i + cooldown - 1
+        nxt = i + cools[m] - 1
         s = side[m]
         if entry == 'market':
             j0, e, fee_in = i + 1, O[i + 1] * (1 + s * SLIP), TAKER
@@ -43,7 +44,7 @@ def run(df, sig, side, sd, td=None, hold=144, entry='market', lpx=None, lbars=1,
             continue
         st = e * (1 - s * sd[m])
         tg = e * (1 + s * td[m]) if np.isfinite(td[m]) else None
-        end = min(j0 + hold - 1, n - 1)
+        end = min(j0 + holds[m] - 1, n - 1)
         ex, why, fee_out, j = None, '到时间', TAKER, j0
         for j in range(j0, end + 1):
             if (L[j] <= st) if s > 0 else (H[j] >= st):
