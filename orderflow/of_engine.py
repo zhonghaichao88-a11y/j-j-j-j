@@ -197,6 +197,7 @@ class SymbolEngine:
         self.big_usd = BIG_USD.get(inst.split("-")[0], 50_000)   # 先用默认值，攒够成交后按这个币自己的分布算
         self._sizes: list = []        # 最近合并后每笔成交的金额，用来算"大单"标准（最大的 0.5%）
         self._agg = None              # 正在合并的一笔（同毫秒、同方向）
+        self._n_agg = 0               # 合并后的成交笔数（每 300 笔重算一次大单标准）
         self.ext = {"funding": math.nan, "next_funding": 0, "oi": math.nan, "oi_usd": math.nan,
                     "oi_hist": [], "ls": math.nan, "top_ls": math.nan, "liqs": [], "bigs": [], "obi": math.nan}
         self.wall_seen: dict = {}     # (方向, 行) -> 第一次看到的时间；挂够 30 秒才算真墙（防假挂单）
@@ -304,9 +305,10 @@ class SymbolEngine:
         if not a:
             return
         self._sizes.append(a["usd"])
-        if len(self._sizes) >= 3000:
-            self._sizes = self._sizes[-3000:]
-        if len(self._sizes) % 300 == 0 and len(self._sizes) >= 600:
+        self._n_agg += 1
+        if len(self._sizes) > 3000:
+            del self._sizes[:-3000]
+        if self._n_agg % 300 == 0 and len(self._sizes) >= 600:      # 每 300 笔重算一次（不能用列表长度判断：满 3000 后会每笔都算）
             # 大单标准跟着这个币走：最近成交里金额最大的 0.5%，至少 1 万美元
             self.big_usd = max(10_000.0, sorted(self._sizes)[int(len(self._sizes) * 0.995)])
         if a["usd"] < self.big_usd:

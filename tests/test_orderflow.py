@@ -408,3 +408,23 @@ def test_flush_limit_order_expires(tmp_path, monkeypatch):
     assert len(sig) == 1
     eng.on_trade(sig[0]["price"] + 1, 1, True, t0 + 13 * 300_000 + 11 * 60_000)   # 超过 5 分钟还没回来 → 撤单
     assert app.acct.positions == [] and sig[0].get("skip") == "限价没成交，已撤"
+
+
+def test_big_trade_threshold_not_recomputed_every_trade(tmp_path, monkeypatch):
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    app = E.OrderFlowApp({"auto": False, "enabled": []}, None, None, False)
+    eng = E.SymbolEngine(app, "BTC-USDT-SWAP", "5m", {t: 1.0 for t in E.VIEW_TFS}, 0.01)
+    calls = {"n": 0}
+    real_sorted = sorted
+
+    def counting_sorted(x, *a, **k):
+        calls["n"] += 1
+        return real_sorted(x, *a, **k)
+    import builtins
+    monkeypatch.setattr(builtins, "sorted", counting_sorted)
+    for i in range(6000):                   # 每笔不同毫秒 → 6000 笔合并后的成交
+        eng.on_trade(100.0, 1, i % 2 == 0, 1_000 + i)
+    monkeypatch.setattr(builtins, "sorted", real_sorted)
+    assert len(eng._sizes) == 3000
+    assert calls["n"] <= 6000 // 300 + 50   # 大约每 300 笔一次，而不是每笔一次
