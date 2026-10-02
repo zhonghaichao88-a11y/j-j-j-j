@@ -478,3 +478,31 @@ def test_squeeze_long_signal_market_entry(tmp_path, monkeypatch):
     rise = sig[0]["price"] / 0.100 - 1
     assert abs(pos[0].stop - sig[0]["price"] * (1 - rise)) < 1e-9         # 止损 = 涨幅那么远
     assert abs(pos[0].qty * pos[0].entry - 1000 * 0.10) < 1.0             # 每笔 10%
+
+
+def test_live_position_due_while_live_off_is_not_fake_closed(tmp_path, monkeypatch):
+    app = _live_app(tmp_path, monkeypatch)
+    eng = FakeEng()
+    app.engines[eng.inst] = eng
+
+    async def go():
+        app.try_open(eng, C.Signal("absorption", 1, 99.0, 102.0, 0), {}, 100.0, 0)
+        await asyncio.sleep(0.05)
+        pos = app.acct.positions[0]
+        app.live_confirmed = False                    # 像重启后还没重新打开实盘
+        app.check_exits(eng, 100.5, pos.max_until + 1)
+        await asyncio.sleep(0.1)
+        assert app.acct.positions == [pos]            # 没有在本地假装平掉
+        assert "close" not in [c[0] for c in app.live.calls]
+        assert any("实盘还没打开" in l for l in app.log)
+    _run(go)
+
+
+def test_heartbeat_line(tmp_path, monkeypatch):
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = E.OrderFlowApp({"auto": False, "enabled": []}, None, None, False)
+    app.heartbeat()
+    assert "运行中" in app.log[-1] and "持仓 0 单" in app.log[-1]
+    assert "运行中" in open(tmp_path / "log.txt", encoding="utf-8").read()

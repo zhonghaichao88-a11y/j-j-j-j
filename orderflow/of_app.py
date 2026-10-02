@@ -187,7 +187,17 @@ def v7_load():
 
 
 async def pick_symbols():
-    """配置 symbols="auto"：按欧易 24 小时成交额自动选 top_n 个；否则用配置里的列表"""
+    """配置 symbols="auto"：按欧易 24 小时成交额自动选 top_n 个；否则用配置里的列表。
+    有持仓的币一定带上（不然重启后掉出前几名，这笔单到时间不会平仓）"""
+    held = [p.sym for p in core.acct.positions]
+    out = await _pick_symbols()
+    extra = [s for s in held if s not in out and s in INSTS]
+    if extra:
+        core.say(f"有持仓的币也一起接入：{', '.join(x.split('-')[0] for x in extra)}")
+    return out + extra
+
+
+async def _pick_symbols():
     syms = core.cfg.get("symbols")
     if isinstance(syms, list) and syms and syms != ["auto"]:
         return [s for s in syms if s in INSTS]
@@ -237,6 +247,17 @@ async def book_sampler():
                 core.say(f"{eng.inst} 盘口采样出错：{e}")
 
 
+async def heartbeat():
+    """黑窗口里每 5 分钟一行运行状态（启动 1 分钟后先打一行）"""
+    await asyncio.sleep(60)
+    while True:
+        try:
+            core.heartbeat()
+        except Exception as e:  # noqa: BLE001
+            core.say(f"状态汇总出错：{e}")
+        await asyncio.sleep(300)
+
+
 async def live_refresher():
     """实盘：每 5 秒核对一次交易所持仓（止盈止损触发后记真实盈亏），每 30 秒读一次权益"""
     while True:
@@ -250,6 +271,10 @@ async def _startup():
     asyncio.create_task(core.hub.run())
     asyncio.create_task(core.xhub.run())
     asyncio.create_task(core.xx.run())
+    asyncio.create_task(heartbeat())
+    lp = [p.sym.split("-")[0] for p in core.acct.positions if p.live]
+    if lp:
+        core.say(f"提醒：上次还有 {len(lp)} 笔实盘持仓（{', '.join(lp)}），请在网页上重新切到实盘，程序才能按时帮你平仓")
     asyncio.create_task(book_sampler())
     asyncio.create_task(live_refresher())
     for k in range(10):

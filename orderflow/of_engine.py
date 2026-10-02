@@ -54,6 +54,7 @@ STATE_FILE = os.path.join(HERE, "of_state.json")
 BIG_USD = {"BTC": 200_000, "ETH": 100_000, "SOL": 50_000}     # 单笔（同一毫秒同方向合并）超过这个金额算大单
 
 TRADE_LOG = os.path.join(HERE, "of_trades.jsonl")
+LOG_FILE = os.path.join(HERE, "of_log.txt")
 TF_MS = {"1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000, "1h": 3_600_000}
 
 
@@ -612,6 +613,13 @@ class OrderFlowApp:
         self.log.append(line)
         self.log = self.log[-200:]
         print(line, flush=True)
+        try:                                   # 同时存到 of_log.txt（出问题时把这个文件发过来）
+            if os.path.exists(LOG_FILE) and os.path.getsize(LOG_FILE) > 5_000_000:
+                os.replace(LOG_FILE, LOG_FILE + ".old")
+            with open(LOG_FILE, "a", encoding="utf-8") as f:
+                f.write(time.strftime("%Y-%m-%d ") + line + "\n")
+        except OSError:
+            pass
 
     @property
     def broker(self):
@@ -692,6 +700,9 @@ class OrderFlowApp:
 
     def on_signal(self, eng, d):
         self.recent = (self.recent + [{**d, "inst": eng.inst}])[-100:]
+        if d.get("kind") in self.cfg.get("enabled", []) and not d.get("skip"):
+            self.say(f"信号：{eng.inst.split('-')[0]} {d['name']} {'做多' if d['side'] > 0 else '做空'} "
+                     f"价格 {d['price']:.6g}（{d.get('note', '')}）" + ("" if self.cfg.get("auto") else "——自动交易没开，不下单"))
 
     # ---------------------------------------------------------- 交易
     def _roll_day(self):
@@ -706,6 +717,12 @@ class OrderFlowApp:
         return self.acct.day_pnl <= -lim * self.acct.start_equity
 
     def try_open(self, eng: SymbolEngine, s, d, price, ts):
+        self._try_open(eng, s, d, price, ts)
+        why = d.get("skip")
+        if why and why != "正在下单…" and self.cfg.get("auto") and s.kind in self.cfg.get("enabled", []):
+            self.say(f"没开：{eng.inst.split('-')[0]} {ALL_NAMES.get(s.kind, s.kind)}——{why}")
+
+    def _try_open(self, eng: SymbolEngine, s, d, price, ts):
         """出信号后的下一笔成交时调用。检查都过了：模拟盘直接成交；实盘丢到后台线程去下单，不卡行情"""
         self._roll_day()
         if not self.cfg["auto"] or s.kind not in self.cfg["enabled"]:
@@ -811,6 +828,15 @@ class OrderFlowApp:
                         self._half_paper(pos, price * (1 - pos.side * PaperBroker.slip))
                     continue
             if pos.live:
+                if ts >= pos.max_until and not (self.live_confirmed and self.live):
+                    # 重启后实盘还没重新打开：不在本地假装平仓，提醒你（每 10 分钟一次）
+                    if ts - getattr(pos, "_warned", 0) >= 600_000:
+                        pos._warned = ts
+                        msg = (f"{pos.sym} 这笔实盘单已经到时间该平了，但实盘还没打开。"
+                               f"请在网页右边切到实盘（程序会马上去平），或者自己在欧易 App 里平掉")
+                        self.say(msg)
+                        of_notify.push("订单流：有实盘单该平仓了", msg)
+                    continue
                 if ts >= pos.max_until:
                     pos.busy = True
                     asyncio.get_event_loop().create_task(self._close_live(pos, "到时间", ts))
@@ -909,6 +935,18 @@ class OrderFlowApp:
             eng = self.engines.get(pos.sym)
             if eng and not math.isnan(eng.last):
                 self.check_exits(eng, eng.last, int(time.time() * 1000))
+
+    def heartbeat(self):
+        """每 5 分钟在黑窗口打一行运行状态"""
+        live = self.broker == "live"
+        eq = self.live_equity if live else self.acct.equity
+        day = (self.live_equity - self.live_day_start) if (live and self.live_day_start) else self.acct.day_pnl
+        xs = getattr(getattr(self, "xx", None), "status", {}) or {}
+        nm = {"binance": "币安", "bybit": "Bybit", "bn_liq": "币安爆仓", "coinbase": "Coinbase"}
+        src = " ".join(f"{nm.get(k, k)}{'✓' if str(v).startswith('正常') else '✗'}" for k, v in xs.items())
+        pos = "、".join(f"{p.sym.split('-')[0]}({ALL_NAMES.get(p.kind, p.kind)})" for p in self.acct.positions) or "无"
+        self.say(f"运行中｜{len(self.engines)} 个币｜{getattr(self.hub, 'status', '')}｜{'实盘' if live else '模拟'} 权益 {eq:.2f}"
+                 f"｜今日 {day:+.2f}｜持仓 {len(self.acct.positions)} 单：{pos}｜自动交易{'开' if self.cfg.get('auto') else '关'}｜{src}")
 
     def state(self, inst, tf=None):
         eng = self.engines.get(inst)
