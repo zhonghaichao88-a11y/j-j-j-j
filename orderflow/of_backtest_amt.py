@@ -62,7 +62,7 @@ def leg_lvn(bars, i0, i1, tick, side):
 
 def aggressive(b, side):
     """这根K线顺方向有主动性：delta 同向，并且（大单同向占优，或同向 3 格以上堆叠失衡）"""
-    if side * b.delta() <= 0:
+    if side * b.delta <= 0:
         return False
     if (b.big_buy - b.big_sell) * side > 0:
         return True
@@ -96,7 +96,7 @@ def run(d, all_hours=False):
         if pos is not None:
             s = pos["side"]
             if i > pos["i"]:
-                pos["cvd"] += b.delta()
+                pos["cvd"] += b.delta
                 hit = b.l <= pos["stop"] if s == 1 else b.h >= pos["stop"]
                 tgt = b.h > pos["tgt"] if s == 1 else b.l < pos["tgt"]
                 ex = None
