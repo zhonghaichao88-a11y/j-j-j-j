@@ -23,7 +23,7 @@ import of_v7data  # noqa: E402
 import httpx  # noqa: E402
 
 CFG_FILE = os.path.join(HERE, "of_config.json")
-BACKFILL_BARS = int(os.environ.get("OF_BACKFILL_BARS", "8"))
+BACKFILL_BARS = int(os.environ.get("OF_BACKFILL_BARS", "2"))   # 启动时补最近几根足迹（太多会让启动很慢）
 
 
 def load_env():
@@ -85,7 +85,12 @@ async def start_symbol(inst: str):
     asyncio.create_task(ex.run())
     core.say(f"{inst} 启动：{core.cfg['tf']} 足迹，每格 {row:g}，正在补最近 {BACKFILL_BARS} 根足迹…")
     try:
-        hist = await feed.backfill(since, max_pages=600)
+        feed.status = "正在补最近的成交（最多等 40 秒）…"
+        try:
+            hist = await asyncio.wait_for(feed.backfill(since, max_pages=60), timeout=40)
+        except asyncio.TimeoutError:
+            hist = []
+            core.say(f"{inst} 补历史超时，跳过（不影响实时）")
         if hist and int(hist[0]["ts"]) > since + 60_000:
             # 成交太多没拉全：从第一根完整的K线开始画，避免半根K线的足迹不准
             f0 = int(hist[0]["ts"])
