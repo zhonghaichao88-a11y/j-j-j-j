@@ -1,0 +1,490 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>订单流看图说明书</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* 版式：左侧固定目录 + 右侧说明；每一节 = 一张仿真截图（SVG）+ 编号注释 */
+:root{
+  --bg:#f3f5f8; --paper:#ffffff; --ink:#151a24; --mute:#5d6676; --line:#d9dee7;
+  --term:#131722; --term2:#1c2130; --termline:#2a3042; --termtext:#d1d4dc; --termmute:#7b8294;
+  --buy:#1f9e8f; --sell:#e04b48; --poc:#7c4dff; --gold:#c99610; --va:#3f73c4; --key:#9a6cf0; --naked:#f0962c;
+  --bigbuy:#18b8c9; --bigsell:#f08a24; --oi:#e0b020; --pin:#2f6bff; --pinfg:#ffffff; --note:#eef3ff;
+  --f-body:"Noto Sans SC",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1118; --paper:#161a24; --ink:#e6e9ef; --mute:#99a1b2; --line:#2a3040; --note:#1b2336;
+  --pin:#5b8cff; color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1118; --paper:#161a24; --ink:#e6e9ef; --mute:#99a1b2; --line:#2a3040; --note:#1b2336; --pin:#5b8cff; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.75}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:28px 64px;display:grid;grid-template-columns:220px minmax(0,1fr);gap:36px}
+nav.toc{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);align-self:start;font-size:13.5px}
+nav.toc b{display:block;font-size:12px;letter-spacing:.08em;color:var(--mute);margin-bottom:8px}
+nav.toc a{display:block;color:var(--ink);text-decoration:none;padding:4px 8px;border-radius:6px}
+nav.toc a:hover,nav.toc a:focus-visible{background:var(--note);outline:none}
+header.top{grid-column:1/-1}
+h1{font-size:clamp(26px,4vw,38px);font-weight:900;margin:0 0 6px;text-wrap:balance;letter-spacing:.01em}
+.lede{color:var(--mute);max-width:62ch;margin:0}
+main{min-width:0;display:flex;flex-direction:column;gap:44px}
+section{min-width:0}
+h2{font-size:22px;font-weight:900;margin:0 0 4px;text-wrap:balance}
+h2 small{font-size:13px;font-weight:500;color:var(--mute);margin-left:8px}
+.sub{color:var(--mute);margin:0 0 14px;max-width:70ch}
+.shot{background:var(--term);border:1px solid var(--termline);border-radius:10px;overflow-x:auto}
+.shot svg{display:block;width:100%;min-width:560px;height:auto}
+.notes{list-style:none;padding:0;margin:14px 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 18px}
+.notes li{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;align-items:start}
+.pin{width:24px;height:24px;border-radius:50%;background:var(--pin);color:var(--pinfg);font:600 12px/24px var(--f-mono);text-align:center}
+.notes b{font-weight:700}
+.tip{background:var(--note);border-radius:8px;padding:12px 14px;margin-top:14px;max-width:80ch}
+.tip b{color:var(--ink)}
+table.t{border-collapse:collapse;width:100%;font-size:14px}
+.tw{overflow-x:auto}
+table.t th,table.t td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+table.t th{font-size:12.5px;color:var(--mute);font-weight:500;letter-spacing:.04em;white-space:nowrap}
+code,.mono{font-family:var(--f-mono);font-size:.92em}
+.g{color:var(--buy);font-weight:700}.r{color:var(--sell);font-weight:700}
+.log{background:var(--term);color:var(--termtext);border-radius:10px;padding:14px 16px;font:13px/1.8 var(--f-mono);overflow-x:auto;white-space:pre}
+.log .c{color:var(--termmute)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:16px}
+.card h3{margin:0 0 6px;font-size:17px}
+.steps{margin:8px 0 0;padding-left:20px}
+/* SVG 里的颜色都走变量，深浅主题都可读 */
+.tx{fill:var(--termtext);font-family:var(--f-mono);font-size:11px}
+.txm{fill:var(--termmute);font-family:var(--f-body);font-size:11px}
+.lbl{fill:var(--termtext);font-family:var(--f-body);font-size:12px}
+.pinc{fill:var(--pin)}.pint{fill:var(--pinfg);font:600 11px var(--f-mono)}
+@media (max-width:820px){.wrap{grid-template-columns:minmax(0,1fr)}nav.toc{position:static;display:flex;flex-wrap:wrap;gap:4px}nav.toc b{width:100%}}
+@media (prefers-reduced-motion:no-preference){nav.toc a{transition:background .15s}}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <h1>订单流看图说明书</h1>
+  <p class="lede">对着你的网页一块一块看：每张图都是照着程序画的示意图，蓝色圆点编号对应下面的解释。最后两节讲两个自动交易打法在图上怎么看、黑窗口每行字是什么意思。</p>
+</header>
+
+<nav class="toc" aria-label="目录">
+  <b>目录</b>
+  <a href="#layout">整体布局</a>
+  <a href="#footprint">足迹K线</a>
+  <a href="#heat">挂单热力图</a>
+  <a href="#profile">成交量分布 / 挂单深度</a>
+  <a href="#marks">气泡、墙、关键位</a>
+  <a href="#bottom">底部指标</a>
+  <a href="#topbar">顶部数据条</a>
+  <a href="#cross">全网 / 大背景</a>
+  <a href="#scan">扫描表</a>
+  <a href="#trade">两个打法怎么看</a>
+  <a href="#panel">右侧设置</a>
+  <a href="#log">黑窗口日志</a>
+  <a href="#words">名词速查</a>
+</nav>
+
+<main>
+
+<!-- ============ 1 布局 ============ -->
+<section id="layout">
+  <h2>整体布局</h2>
+  <p class="sub">网页分五块。左边大图是行情，右边一长条是数据和设置。</p>
+  <div class="shot">
+  <svg viewBox="0 0 900 470" role="img" aria-label="网页整体布局示意">
+    <rect x="0" y="0" width="900" height="46" fill="var(--term2)"/>
+    <text x="14" y="28" class="lbl" font-weight="700">订单流</text>
+    <rect x="70" y="12" width="130" height="24" rx="4" fill="var(--termline)"/><text x="80" y="28" class="tx">SOL-USDT-SWAP ▾</text>
+    <g><rect x="210" y="12" width="34" height="24" rx="4" fill="var(--termline)"/><text x="217" y="28" class="tx">1分</text>
+       <rect x="248" y="12" width="34" height="24" rx="4" fill="var(--poc)"/><text x="255" y="28" class="tx">5分</text>
+       <rect x="286" y="12" width="40" height="24" rx="4" fill="var(--termline)"/><text x="292" y="28" class="tx">15分</text>
+       <rect x="330" y="12" width="44" height="24" rx="4" fill="var(--termline)"/><text x="335" y="28" class="tx">1小时</text></g>
+    <text x="384" y="28" class="txm">已连接（REST 轮询，约1秒延迟）</text>
+    <text x="560" y="28" class="txm">资金费率 0.01% ｜ 持仓 …｜ 多空比 …</text>
+    <rect x="800" y="12" width="40" height="24" rx="12" fill="var(--sell)"/><text x="807" y="28" class="tx">实盘</text>
+    <!-- 主图 -->
+    <rect x="0" y="46" width="470" height="330" fill="var(--term)"/>
+    <g opacity=".9">
+      <rect x="60" y="120" width="10" height="120" fill="var(--sell)"/><line x1="65" y1="100" x2="65" y2="260" stroke="var(--sell)"/>
+      <rect x="130" y="150" width="10" height="90" fill="var(--buy)"/><line x1="135" y1="130" x2="135" y2="260" stroke="var(--buy)"/>
+      <rect x="200" y="110" width="10" height="70" fill="var(--sell)"/><line x1="205" y1="95" x2="205" y2="200" stroke="var(--sell)"/>
+    </g>
+    <rect x="300" y="90" width="120" height="200" fill="var(--term2)" stroke="var(--termline)"/>
+    <text x="312" y="110" class="tx">卖量   买量</text>
+    <text x="312" y="130" class="tx">  92   5150</text><text x="312" y="150" class="tx">408    71k</text>
+    <text x="312" y="170" class="tx">1.1M  128k</text><text x="312" y="190" class="tx">1.2M  702k</text>
+    <rect x="304" y="260" width="112" height="26" fill="var(--paper)" opacity=".95"/><text x="310" y="277" fill="var(--ink)" font-family="var(--f-mono)" font-size="11">Delta -1.2M 总计 6.2M</text>
+    <!-- 成交量分布 + 深度 -->
+    <rect x="470" y="46" width="90" height="330" fill="var(--term)"/>
+    <g><rect x="470" y="110" width="70" height="10" fill="var(--va)"/><rect x="470" y="122" width="88" height="10" fill="var(--gold)"/><rect x="470" y="134" width="60" height="10" fill="var(--va)"/><rect x="470" y="146" width="40" height="10" fill="var(--termline)"/><rect x="470" y="98" width="30" height="10" fill="var(--termline)"/></g>
+    <rect x="560" y="46" width="60" height="330" fill="var(--term2)"/>
+    <g><rect x="565" y="120" width="50" height="9" fill="var(--sell)" opacity=".8"/><rect x="580" y="132" width="35" height="9" fill="var(--sell)" opacity=".8"/><rect x="565" y="160" width="50" height="9" fill="var(--buy)" opacity=".8"/><rect x="590" y="172" width="25" height="9" fill="var(--gold)"/></g>
+    <!-- 底部 -->
+    <rect x="0" y="376" width="620" height="94" fill="var(--term)" stroke="var(--termline)"/>
+    <polyline points="20,440 120,430 220,450 320,410 420,445 600,455" fill="none" stroke="var(--termtext)" stroke-width="1.5"/>
+    <polyline points="20,455 120,452 220,420 320,415 420,412 600,418" fill="none" stroke="var(--oi)" stroke-width="1.5"/>
+    <!-- 右侧 -->
+    <rect x="620" y="46" width="280" height="424" fill="var(--term2)"/>
+    <text x="634" y="72" class="lbl" font-weight="700">扫描（所有币）</text>
+    <rect x="634" y="80" width="252" height="60" fill="var(--term)"/>
+    <text x="634" y="164" class="lbl" font-weight="700">全网 / 大背景</text>
+    <rect x="634" y="172" width="252" height="70" fill="var(--term)"/>
+    <text x="634" y="266" class="lbl" font-weight="700">自动交易 · 参数 · 风控</text>
+    <rect x="634" y="274" width="252" height="60" fill="var(--term)"/>
+    <text x="634" y="358" class="lbl" font-weight="700">持仓 · 信号 · 成交 · 爆仓 · 大单 · 日志</text>
+    <rect x="634" y="366" width="252" height="90" fill="var(--term)"/>
+    <!-- 编号 -->
+    <g><circle cx="22" cy="62" r="11" class="pinc"/><text x="18" y="66" class="pint">1</text></g>
+    <g><circle cx="230" cy="80" r="11" class="pinc"/><text x="226" y="84" class="pint">2</text></g>
+    <g><circle cx="488" cy="64" r="11" class="pinc"/><text x="484" y="68" class="pint">3</text></g>
+    <g><circle cx="590" cy="64" r="11" class="pinc"/><text x="586" y="68" class="pint">4</text></g>
+    <g><circle cx="22" cy="392" r="11" class="pinc"/><text x="18" y="396" class="pint">5</text></g>
+    <g><circle cx="880" cy="62" r="11" class="pinc"/><text x="876" y="66" class="pint">6</text></g>
+  </svg>
+  </div>
+  <ol class="notes">
+    <li><span class="pin">1</span><span><b>顶部条</b>：选币、选周期（1分/5分/15分/1小时）、连接状态、资金费率等。右边红色"实盘"表示现在用真钱。</span></li>
+    <li><span class="pin">2</span><span><b>主图</b>：K线 + 足迹 + 挂单热力图 + 气泡。左边旧K线只画影线和实体，最新几根展开成足迹。</span></li>
+    <li><span class="pin">3</span><span><b>成交量分布</b>：每个价位一共成交了多少，金色最长的是 POC。</span></li>
+    <li><span class="pin">4</span><span><b>挂单深度</b>：现在盘口上挂着的买单（绿）卖单（红），黄色是大单。</span></li>
+    <li><span class="pin">5</span><span><b>底部指标</b>：白线累计 Delta，黄线持仓量，柱子是爆仓量。</span></li>
+    <li><span class="pin">6</span><span><b>右侧栏</b>：从上到下是扫描表、全网数据、自动交易设置、持仓和各种记录。</span></li>
+  </ol>
+</section>
+
+<!-- ============ 2 足迹 ============ -->
+<section id="footprint">
+  <h2>足迹K线 <small>主图里展开的那几根</small></h2>
+  <p class="sub">普通K线只告诉你开高低收；足迹把一根K线按价格切成一格一格，每一格写出"主动卖了多少 | 主动买了多少"。</p>
+  <div class="shot">
+  <svg viewBox="0 0 900 380" role="img" aria-label="足迹K线示意">
+    <text x="40" y="34" class="txm">价格</text>
+    <g font-family="var(--f-mono)" font-size="12">
+      <text x="30" y="70" class="tx">142.80</text><text x="30" y="100" class="tx">142.70</text><text x="30" y="130" class="tx">142.60</text>
+      <text x="30" y="160" class="tx">142.50</text><text x="30" y="190" class="tx">142.40</text><text x="30" y="220" class="tx">142.30</text><text x="30" y="250" class="tx">142.20</text>
+    </g>
+    <!-- 一根足迹：行 = 价位 -->
+    <g font-family="var(--f-mono)" font-size="13">
+      <rect x="120" y="55" width="200" height="26" fill="var(--sell)" opacity=".25"/><text x="140" y="73" class="tx">320</text><text x="250" y="73" class="tx">95</text>
+      <rect x="120" y="85" width="200" height="26" fill="var(--sell)" opacity=".35"/><text x="140" y="103" class="tx">1,450</text><text x="250" y="103" class="tx">610</text>
+      <rect x="120" y="115" width="200" height="26" fill="var(--buy)" opacity=".25"/><text x="140" y="133" class="tx">880</text><text x="250" y="133" class="tx">1,240</text>
+      <rect x="120" y="145" width="200" height="26" fill="var(--poc)" opacity=".55"/><rect x="120" y="145" width="200" height="26" fill="none" stroke="var(--poc)" stroke-width="2"/><text x="140" y="163" class="tx">3,660</text><text x="250" y="163" class="tx">4,020</text>
+      <rect x="120" y="175" width="200" height="26" fill="var(--buy)" opacity=".45"/><text x="140" y="193" class="tx">410</text><text x="250" y="193" class="tx" font-weight="700" style="font-weight:700">2,980</text>
+      <rect x="120" y="205" width="200" height="26" fill="var(--buy)" opacity=".45"/><text x="140" y="223" class="tx">260</text><text x="250" y="223" class="tx" style="font-weight:700">1,870</text>
+      <rect x="120" y="235" width="200" height="26" fill="var(--buy)" opacity=".2"/><text x="140" y="253" class="tx">55</text><text x="250" y="253" class="tx">140</text>
+    </g>
+    <line x1="220" y1="55" x2="220" y2="261" stroke="var(--termline)"/>
+    <text x="140" y="45" class="txm">主动卖</text><text x="250" y="45" class="txm">主动买</text>
+    <!-- 影线 -->
+    <line x1="340" y1="55" x2="340" y2="261" stroke="var(--buy)" stroke-width="2"/><rect x="334" y="115" width="12" height="120" fill="var(--buy)"/>
+    <!-- Delta 盒子 -->
+    <rect x="120" y="282" width="200" height="44" rx="4" fill="var(--paper)"/>
+    <text x="132" y="300" fill="var(--ink)" font-family="var(--f-mono)" font-size="12">Delta  <tspan fill="var(--buy)">+3,940</tspan></text>
+    <text x="132" y="318" fill="var(--ink)" font-family="var(--f-mono)" font-size="12">总计   17,990</text>
+    <!-- 斜向失衡说明 -->
+    <path d="M300 197 L420 120" stroke="var(--termmute)" stroke-dasharray="3 3" fill="none"/>
+    <text x="425" y="116" class="lbl">粗体 = 斜向失衡（买方）</text>
+    <text x="425" y="134" class="txm">这一格的主动买 ≥ 下一格主动卖的 3 倍</text>
+    <path d="M320 158 L420 175" stroke="var(--termmute)" stroke-dasharray="3 3" fill="none"/>
+    <text x="425" y="180" class="lbl">紫色框 = 这根K线的 POC</text>
+    <text x="425" y="198" class="txm">这根K线里成交最多的价位</text>
+    <path d="M320 304 L420 290" stroke="var(--termmute)" stroke-dasharray="3 3" fill="none"/>
+    <text x="425" y="286" class="lbl">Delta = 主动买 − 主动卖</text>
+    <text x="425" y="304" class="txm">正数（绿）买方更急；负数（红）卖方更急</text>
+    <text x="425" y="240" class="lbl">底色：绿 = 这格买多，红 = 这格卖多，越深差得越多</text>
+    <!-- 编号 -->
+    <g><circle cx="104" cy="68" r="11" class="pinc"/><text x="100" y="72" class="pint">1</text></g>
+    <g><circle cx="104" cy="158" r="11" class="pinc"/><text x="100" y="162" class="pint">2</text></g>
+    <g><circle cx="104" cy="218" r="11" class="pinc"/><text x="100" y="222" class="pint">3</text></g>
+    <g><circle cx="104" cy="304" r="11" class="pinc"/><text x="100" y="308" class="pint">4</text></g>
+  </svg>
+  </div>
+  <ol class="notes">
+    <li><span class="pin">1</span><span><b>每一行 = 一个价位</b>。左边数字是在这个价位<b>主动卖出</b>（砸盘）的量，右边是<b>主动买入</b>（扫单）的量。数字单位是币的数量。</span></li>
+    <li><span class="pin">2</span><span><b>紫色框 POC</b>：这根K线里成交最多的价位，多空在这里争得最凶。</span></li>
+    <li><span class="pin">3</span><span><b>粗体 / 连着好几格粗体</b>：一方明显压倒另一方。连续 3 格以上叫"堆叠失衡"，常被当成支撑或压力。</span></li>
+    <li><span class="pin">4</span><span><b>Delta 和总计</b>：这根K线主动买减主动卖，以及总成交量。价格涨了但 Delta 是负的，说明上涨没有真买盘撑着。</span></li>
+  </ol>
+  <div class="tip"><b>怎么用：</b>看价格涨跌的同时，看是谁在主动出手。价格到某个位置，卖量很大却跌不下去（叫"吸收"），往往是有大资金在下面接。</div>
+</section>
+
+<!-- ============ 3 热力图 ============ -->
+<section id="heat">
+  <h2>挂单热力图 <small>K线背后的彩色横条</small></h2>
+  <p class="sub">K线后面一条条的颜色，是每个价位<b>挂着</b>的限价单有多少（还没成交的）。和 Bookmap 一样。</p>
+  <div class="shot">
+  <svg viewBox="0 0 900 250" role="img" aria-label="挂单热力图示意">
+    <defs><linearGradient id="hg" x1="0" x2="1"><stop offset="0" stop-color="#0d2a4a"/><stop offset=".35" stop-color="#1f6f8b"/><stop offset=".65" stop-color="#5fb08a"/><stop offset="1" stop-color="#f2c94c"/></linearGradient></defs>
+    <g>
+      <rect x="20" y="30" width="520" height="18" fill="#0d2a4a"/><rect x="20" y="50" width="520" height="18" fill="#1f6f8b"/>
+      <rect x="20" y="70" width="300" height="18" fill="#f2c94c"/><rect x="320" y="70" width="220" height="18" fill="#5fb08a"/>
+      <rect x="20" y="90" width="520" height="18" fill="#123a5c"/><rect x="20" y="110" width="520" height="18" fill="#1f6f8b"/>
+      <rect x="20" y="130" width="520" height="18" fill="#0d2a4a"/><rect x="20" y="150" width="200" height="18" fill="#5fb08a"/><rect x="220" y="150" width="320" height="18" fill="#f2c94c"/>
+      <rect x="20" y="170" width="520" height="18" fill="#123a5c"/><rect x="20" y="190" width="520" height="18" fill="#0d2a4a"/>
+    </g>
+    <line x1="20" y1="159" x2="540" y2="159" stroke="var(--buy)" stroke-width="2"/>
+    <rect x="570" y="40" width="200" height="14" fill="url(#hg)"/><text x="570" y="72" class="txm">挂得少</text><text x="735" y="72" class="txm">挂得多</text>
+    <text x="570" y="110" class="lbl">黄色横条 = 很多限价单挂在那里</text>
+    <text x="570" y="130" class="txm">价格靠近时容易停一下或掉头</text>
+    <text x="570" y="160" class="lbl">黄条突然变暗 = 挂单撤了</text>
+    <text x="570" y="180" class="txm">可能是假挂单（挂出来吓人，快到了就撤）</text>
+    <text x="570" y="210" class="lbl">绿线 / 红线 = 大单墙</text>
+    <text x="570" y="230" class="txm">挂够 30 秒以上的大买单（绿）大卖单（红）</text>
+    <g><circle cx="300" cy="79" r="11" class="pinc"/><text x="296" y="83" class="pint">1</text></g>
+    <g><circle cx="230" cy="159" r="11" class="pinc"/><text x="226" y="163" class="pint">2</text></g>
+  </svg>
+  </div>
+  <ol class="notes">
+    <li><span class="pin">1</span><span><b>颜色越亮挂单越多</b>：深蓝几乎没人挂，黄色是一大堆挂单。横条变短、中途变暗，说明那段时间挂单被吃掉或撤了。</span></li>
+    <li><span class="pin">2</span><span><b>大单墙</b>：挂了超过 30 秒、量是平均 5 倍以上的单子，才画成线。挂一下就撤的不算，防止被假单骗。</span></li>
+  </ol>
+</section>
+
+<!-- ============ 4 成交量分布 / 深度 ============ -->
+<section id="profile">
+  <h2>成交量分布 和 挂单深度 <small>主图右边两窄条</small></h2>
+  <div class="two">
+    <div class="card">
+      <h3>成交量分布（已经成交的）</h3>
+      <svg viewBox="0 0 300 200" role="img" aria-label="成交量分布示意" style="width:100%;height:auto;background:var(--term);border-radius:8px">
+        <rect x="20" y="20" width="60" height="14" fill="var(--termline)"/><rect x="20" y="38" width="120" height="14" fill="var(--va)"/>
+        <rect x="20" y="56" width="180" height="14" fill="var(--va)"/><rect x="20" y="74" width="250" height="14" fill="var(--gold)"/>
+        <rect x="20" y="92" width="200" height="14" fill="var(--va)"/><rect x="20" y="110" width="90" height="14" fill="var(--va)"/>
+        <rect x="20" y="128" width="30" height="14" fill="var(--termline)"/><rect x="20" y="146" width="110" height="14" fill="var(--termline)"/>
+        <line x1="10" y1="36" x2="290" y2="36" stroke="var(--termmute)" stroke-dasharray="4 4"/><line x1="10" y1="126" x2="290" y2="126" stroke="var(--termmute)" stroke-dasharray="4 4"/>
+        <text x="200" y="32" class="txm">VAH</text><text x="200" y="140" class="txm">VAL</text><text x="200" y="85" class="lbl">POC</text>
+        <text x="140" y="140" class="txm">↑ 低量区 LVN</text>
+      </svg>
+      <ul class="steps">
+        <li><b>金色最长那条 = POC</b>：今天成交最多的价，市场认为的"公平价"。</li>
+        <li><b>蓝色 = 价值区</b>：包含 70% 成交量的那一段，上沿叫 VAH，下沿叫 VAL。</li>
+        <li><b>虚线</b>：昨天的 POC 和价值区上下沿，价格常在这些位置停顿。</li>
+        <li><b>很短的灰条 = 低量区（LVN）</b>：价格很快就穿过去的地方，回到这里也容易快速穿过。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>挂单深度（还没成交的）</h3>
+      <svg viewBox="0 0 300 200" role="img" aria-label="挂单深度示意" style="width:100%;height:auto;background:var(--term);border-radius:8px">
+        <text x="16" y="22" class="txm">卖单（上面）</text>
+        <rect x="150" y="30" width="80" height="12" fill="var(--sell)" opacity=".85"/><rect x="150" y="46" width="40" height="12" fill="var(--sell)" opacity=".85"/>
+        <rect x="150" y="62" width="130" height="12" fill="var(--gold)"/><rect x="150" y="78" width="60" height="12" fill="var(--sell)" opacity=".85"/>
+        <rect x="16" y="98" width="268" height="14" fill="var(--gold)" opacity=".25"/><text x="22" y="109" class="tx">最新价 142.55</text>
+        <rect x="150" y="118" width="70" height="12" fill="var(--buy)" opacity=".85"/><rect x="150" y="134" width="110" height="12" fill="var(--buy)" opacity=".85"/>
+        <rect x="150" y="150" width="45" height="12" fill="var(--buy)" opacity=".85"/><rect x="150" y="166" width="90" height="12" fill="var(--buy)" opacity=".85"/>
+        <text x="16" y="190" class="txm">买单（下面）</text>
+        <text x="16" y="72" class="lbl">黄 = 大单</text>
+      </svg>
+      <ul class="steps">
+        <li><b>最新价上面红色</b>是挂着的卖单，<b>下面绿色</b>是挂着的买单，条越长挂得越多。</li>
+        <li><b>黄色</b>：挂单量是平均的 3 倍以上。</li>
+        <li>挂单随时可以撤，不代表一定会成交，要结合热力图看它是一直在、还是一闪而过。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5 气泡 / 线 ============ -->
+<section id="marks">
+  <h2>气泡、墙线、关键位</h2>
+  <p class="sub">主图上的圆圈和横线，各代表一种事件或价位。</p>
+  <div class="shot">
+  <svg viewBox="0 0 900 260" role="img" aria-label="气泡和线的图例">
+    <g>
+      <circle cx="50" cy="45" r="14" fill="var(--sell)"/><text x="80" y="42" class="lbl">红色实心圆 = 多单爆仓</text><text x="80" y="60" class="txm">被强制卖出，圆越大金额越大</text>
+      <circle cx="50" cy="105" r="10" fill="var(--buy)"/><text x="80" y="102" class="lbl">绿色实心圆 = 空单爆仓</text><text x="80" y="120" class="txm">被强制买入</text>
+      <circle cx="50" cy="165" r="12" fill="none" stroke="var(--bigbuy)" stroke-width="3"/><text x="80" y="162" class="lbl">青色空心圈 = 主动大买单</text><text x="80" y="180" class="txm">同一毫秒同方向合并后，排前 0.5% 的成交</text>
+      <circle cx="50" cy="225" r="12" fill="none" stroke="var(--bigsell)" stroke-width="3"/><text x="80" y="222" class="lbl">橙色空心圈 = 主动大卖单</text><text x="80" y="240" class="txm">"大单"标准在右边大单列表标题旁显示</text>
+    </g>
+    <g>
+      <line x1="470" y1="45" x2="560" y2="45" stroke="var(--buy)" stroke-width="2.5"/><text x="575" y="42" class="lbl">绿线 / 红线 = 大单墙</text><text x="575" y="60" class="txm">挂了 30 秒以上的大买单 / 大卖单</text>
+      <line x1="470" y1="105" x2="560" y2="105" stroke="var(--key)" stroke-width="2" stroke-dasharray="7 4"/><text x="575" y="102" class="lbl">紫色虚线 = 关键位</text><text x="575" y="120" class="txm">昨日高低点、昨日 POC/价值区、VWAP、开盘区间、整数关口</text>
+      <line x1="470" y1="165" x2="560" y2="165" stroke="var(--naked)" stroke-width="2" stroke-dasharray="2 4"/><text x="575" y="162" class="lbl">橙色点线 = 未回补 POC</text><text x="575" y="180" class="txm">以前某天成交最多、之后再没回去过的价位</text>
+      <line x1="470" y1="225" x2="560" y2="225" stroke="var(--termmute)" stroke-dasharray="4 4"/><text x="575" y="222" class="lbl">灰色虚线 = 昨日 VAH / VAL</text><text x="575" y="240" class="txm">金色虚线是昨日 POC</text>
+    </g>
+  </svg>
+  </div>
+  <div class="tip">图上 K 线顶上的小三角和文字（比如"堆叠失衡回踩"）是<b>旧打法的信号</b>，只是显示出来给你参考。它们回测不过关，默认不会自动下单。会下单的只有"清洗接盘（现货）"和"轧空追多"。</div>
+</section>
+
+<!-- ============ 6 底部 ============ -->
+<section id="bottom">
+  <h2>底部指标</h2>
+  <div class="shot">
+  <svg viewBox="0 0 900 200" role="img" aria-label="底部指标示意">
+    <text x="16" y="24" class="txm">累计 Delta（CVD）</text><text x="140" y="24" fill="var(--oi)" font-size="11" font-family="var(--f-body)">持仓量</text>
+    <polyline points="20,120 140,110 260,140 380,70 500,100 620,130 760,150 880,160" fill="none" stroke="var(--termtext)" stroke-width="2"/>
+    <polyline points="20,150 140,148 260,148 380,120 500,95 620,92 760,96 880,100" fill="none" stroke="var(--oi)" stroke-width="2"/>
+    <rect x="490" y="150" width="30" height="34" fill="var(--sell)" opacity=".8"/><rect x="250" y="40" width="30" height="20" fill="var(--buy)" opacity=".8"/>
+    <text x="530" y="176" class="txm">← 下面红柱：多单爆仓量</text><text x="290" y="54" class="txm">← 上面绿柱：空单爆仓量</text>
+    <g><circle cx="380" cy="70" r="10" class="pinc"/><text x="376" y="74" class="pint">1</text></g>
+    <g><circle cx="620" cy="92" r="10" class="pinc"/><text x="616" y="96" class="pint">2</text></g>
+  </svg>
+  </div>
+  <ol class="notes">
+    <li><span class="pin">1</span><span><b>白线 CVD</b>：把每根K线的 Delta 一直加起来。往上走是买方一直更急，往下是卖方更急。价格创新高而 CVD 没创新高，叫背离，上涨可能没力。</span></li>
+    <li><span class="pin">2</span><span><b>黄线 持仓量</b>：市场上没平掉的合约总量。涨 = 有人新开仓；突然大跌 = 很多人平仓或被爆仓。"清洗接盘"和"轧空追多"都看它。</span></li>
+  </ol>
+</section>
+
+<!-- ============ 7 顶部条 ============ -->
+<section id="topbar">
+  <h2>顶部数据条</h2>
+  <div class="tw"><table class="t">
+    <thead><tr><th>显示</th><th>意思</th><th>怎么看</th></tr></thead>
+    <tbody>
+      <tr><td>已连接（WebSocket 实时）<br>已连接（REST 轮询）</td><td>和欧易的连接方式</td><td>实时最好；轮询大约慢 1~3 秒，也能用。显示"未连接"就是网络或代理有问题。</td></tr>
+      <tr><td>资金费率 0.0100%　X时X分后结算</td><td>多空双方每 8 小时互相付的钱</td><td>正数：做多的人付钱给做空的，说明多头拥挤；负数反过来。</td></tr>
+      <tr><td>持仓 2542M$　+0.13%/1h</td><td>持仓量和 1 小时变化</td><td>短时间大跌 = 有人被爆仓或大量平仓。</td></tr>
+      <tr><td>多空人数比 1.04　大户 1.03</td><td>开多的账户数 ÷ 开空的账户数</td><td>散户极端一边倒时，价格经常反着走（只作参考）。</td></tr>
+      <tr><td>盘口 ▬▬ 卖强 -27%</td><td>最近几档挂单，买单和卖单谁多</td><td>变化很快，只看个大概。</td></tr>
+      <tr><td>实盘权益 1234.56（可用 980.00）</td><td>欧易账户真实的钱</td><td>实盘时显示账户里的真实数字，模拟时显示模拟账户。</td></tr>
+      <tr><td>今日 +3.21</td><td>今天账户赚亏</td><td>当天亏到设置的上限（默认 3%）就停止开新单。</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ 8 全网 ============ -->
+<section id="cross">
+  <h2>全网 / 大背景 <small>右侧栏里那一块</small></h2>
+  <p class="sub">欧易一家看到的不全，这里把币安、Bybit、Coinbase 的数据合起来看。标题旁边 ✓ 是连上了，✗ 是没连上（鼠标放上去能看原因）。</p>
+  <div class="tw"><table class="t">
+    <thead><tr><th>那一行</th><th>意思</th><th>举例怎么读</th></tr></thead>
+    <tbody>
+      <tr><td>全网合约主动买卖</td><td>欧易 + 币安 + Bybit 合约，最近 1 小时 / 4 小时主动买比主动卖多百分之几</td><td><span class="r">-19.6%</span>：整个市场合约都在主动卖</td></tr>
+      <tr><td>币安现货主动买卖</td><td>币安现货同样的数字</td><td><span class="g">+18.1%</span>：现货真金白银在买</td></tr>
+      <tr><td>现货 − 合约</td><td>上面两个相减</td><td><span class="g">正数</span>：现货比合约更想买（真资金）；<span class="r">负数</span>：合约在推（杠杆，容易被打回来）</td></tr>
+      <tr><td>现货成交占比</td><td>现货成交额占现货加合约的比例</td><td>比平时高：现货资金活跃</td></tr>
+      <tr><td>Coinbase 溢价（BTC）</td><td>Coinbase 的 BTC 价格比币安贵多少</td><td>正数：美国资金在买</td></tr>
+      <tr><td>BTC 带动</td><td>BTC 1 小时涨跌、全网主动买卖、趋势</td><td>山寨币一般跟着 BTC 走</td></tr>
+      <tr><td>大背景</td><td>和 4 小时均线、20 日均线比</td><td>"上涨"：两条均线上方；"下跌"：两条均线下方</td></tr>
+      <tr><td>清洗接盘条件</td><td>三个条件现在各是多少</td><td>三个都 ✓ 就会出信号（见下一节）</td></tr>
+      <tr><td>轧空追多条件</td><td>两个条件现在各是多少</td><td>两个都 ✓ 就会出信号</td></tr>
+      <tr><td>昨日 POC / 未回补 POC</td><td>昨天成交最多的价；以前没被碰过的 POC</td><td>价格常被吸过去</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ 9 扫描表 ============ -->
+<section id="scan">
+  <h2>扫描表 <small>所有币一张表，点一行切换</small></h2>
+  <div class="tw"><table class="t">
+    <thead><tr><th>列</th><th>意思</th></tr></thead>
+    <tbody>
+      <tr><td>1h涨跌</td><td>最近 1 小时涨跌。表格按这一列绝对值排序，动得最厉害的在最上面。</td></tr>
+      <tr><td>费率</td><td>资金费率</td></tr>
+      <tr><td>持仓1h</td><td>持仓量 1 小时变化，<span class="r">大幅为负</span>说明有人被清</td></tr>
+      <tr><td>爆仓5m</td><td>最近 5 分钟爆仓金额（欧易 + 币安 + Bybit）</td></tr>
+      <tr><td>全网主动1h</td><td>三家合约 1 小时主动买卖差</td></tr>
+      <tr><td>现货-合约</td><td>同上一节"现货 − 合约"</td></tr>
+      <tr><td>趋势</td><td>上涨 / 下跌 / 震荡</td></tr>
+      <tr><td>最新信号</td><td>这个币最近一次信号，几分钟前</td></tr>
+    </tbody>
+  </table></div>
+  <p class="sub" style="margin-top:12px">顶上的下拉框能选欧易所有币。没在扫描的币选了会自动接入，大约 10~20 秒出图。表格下面可以改"自动选成交额前多少个币"，默认 40 个，最多 150 个。</p>
+</section>
+
+<!-- ============ 10 打法 ============ -->
+<section id="trade">
+  <h2>两个自动交易打法，在图上怎么看</h2>
+  <div class="two">
+    <div class="card">
+      <h3>清洗接盘（现货）　做多</h3>
+      <svg viewBox="0 0 320 210" role="img" aria-label="清洗接盘示意" style="width:100%;height:auto;background:var(--term);border-radius:8px">
+        <polyline points="10,40 60,50 110,120 140,150 170,140 220,110 300,70" fill="none" stroke="var(--termtext)" stroke-width="2"/>
+        <circle cx="120" cy="128" r="9" fill="var(--sell)"/><circle cx="135" cy="146" r="12" fill="var(--sell)"/>
+        <polyline points="10,170 60,168 110,185 140,198 300,196" fill="none" stroke="var(--oi)" stroke-width="2"/>
+        <line x1="140" y1="20" x2="140" y2="205" stroke="var(--buy)" stroke-dasharray="3 3"/>
+        <text x="146" y="30" class="lbl">进场（挂单）</text><text x="240" y="62" class="txm">拿 12 小时</text>
+        <text x="12" y="200" fill="var(--oi)" font-size="10" font-family="var(--f-body)">持仓量大降</text>
+      </svg>
+      <ol class="steps">
+        <li><b>1 小时跌超 2%</b></li>
+        <li><b>持仓量 1 小时降超 5%</b>：多单被大量爆仓、被迫卖（图上一串红色实心圆，黄线往下掉）</li>
+        <li><b>币安现货主动买比卖多 5%</b>：真资金趁低价在接</li>
+      </ol>
+      <p>三个都满足：在那根 5 分钟K线收盘价挂买单，5 分钟内没成交就撤。拿 12 小时到时间平仓，止损是这次跌幅的 3 倍。</p>
+      <p class="mono" style="color:var(--mute)">回测 104 个币：胜率 53%，每笔平均 +0.89%</p>
+    </div>
+    <div class="card">
+      <h3>轧空追多　做多</h3>
+      <svg viewBox="0 0 320 210" role="img" aria-label="轧空追多示意" style="width:100%;height:auto;background:var(--term);border-radius:8px">
+        <polyline points="10,150 60,145 110,90 140,60 170,70 220,50 300,30" fill="none" stroke="var(--termtext)" stroke-width="2"/>
+        <circle cx="115" cy="85" r="9" fill="var(--buy)"/><circle cx="132" cy="66" r="12" fill="var(--buy)"/>
+        <polyline points="10,170 60,168 110,185 140,198 300,196" fill="none" stroke="var(--oi)" stroke-width="2"/>
+        <line x1="142" y1="20" x2="142" y2="205" stroke="var(--buy)" stroke-dasharray="3 3"/>
+        <text x="148" y="100" class="lbl">进场（市价）</text><text x="240" y="62" class="txm">拿 12 小时</text>
+        <text x="12" y="200" fill="var(--oi)" font-size="10" font-family="var(--f-body)">持仓量下降</text>
+      </svg>
+      <ol class="steps">
+        <li><b>1 小时涨超 3%</b></li>
+        <li><b>持仓量 1 小时降超 2%</b>：空单被爆仓、被迫买回（图上一串绿色实心圆）</li>
+      </ol>
+      <p>满足就在下一笔成交市价做多，拿 12 小时。止损在进场价下方"这次涨幅"那么远。大部分单子小亏，靠少数大涨赚钱。</p>
+      <p class="mono" style="color:var(--mute)">回测 104 个币：胜率 46%，每笔平均 +1.98%</p>
+    </div>
+  </div>
+  <div class="tip">在"全网 / 大背景"里，<b>清洗接盘条件</b>和<b>轧空追多条件</b>两行会实时显示每个条件现在是多少、差多少，全是 ✓ 就会出信号。黑窗口也会打一行"信号：……"。</div>
+</section>
+
+<!-- ============ 11 右侧设置 ============ -->
+<section id="panel">
+  <h2>右侧设置怎么填</h2>
+  <div class="tw"><table class="t">
+    <thead><tr><th>位置</th><th>设置</th><th>默认</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="2">自动交易</td><td>开启自动交易</td><td>关</td><td>总开关，不勾就只看不下单</td></tr>
+      <tr><td>打法列表</td><td>勾了两个</td><td>后面写了回测成绩，"过关"的才建议勾</td></tr>
+      <tr><td>清洗接盘参数</td><td>跌幅 / 持仓降 / 现货主动 / 拿几小时 / 每笔仓位 / 止损倍数 / 挂单等几分钟</td><td>2% / 5% / 5% / 12 / 10% / 3 / 5</td><td>默认值就是回测用的数，不懂别改</td></tr>
+      <tr><td>轧空追多参数</td><td>涨幅 / 持仓降 / 拿几小时 / 每笔仓位 / 止损倍数</td><td>3% / 2% / 12 / 10% / 1</td><td>同上</td></tr>
+      <tr><td rowspan="4">风控</td><td>最大杠杆</td><td>3 倍</td><td>只影响占用多少保证金，不影响赚亏</td></tr>
+      <tr><td>保证金模式</td><td>逐仓</td><td>逐仓：一单爆仓不影响别的；全仓：所有单共用账户的钱</td></tr>
+      <tr><td>最多同时持仓</td><td>10 单</td><td>满了不开新单</td></tr>
+      <tr><td>单日最多亏</td><td>3%</td><td>当天亏到这里停止开新单，已开的照常到时间平</td></tr>
+      <tr><td>实盘开关</td><td>切换到实盘</td><td>—</td><td>要输入"我确认实盘"。每次重启程序都要重新切一次</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ 12 日志 ============ -->
+<section id="log">
+  <h2>黑窗口日志</h2>
+  <p class="sub">黑窗口里每一行前面是时间。同样的内容也存在文件夹里的 <code>of_log.txt</code>，出问题把它发过来。</p>
+<div class="log"><span class="c"># 启动</span>
+13:56:36 按 24 小时成交额自动选了 40 个币：BTC, ETH, SOL, …
+13:56:44 BTC-USDT-SWAP 已接入（信号周期 5m，格子 10）
+13:58:10 全部接入完成：40 个币
+<span class="c"># 每 5 分钟一行：在扫几个币｜连接｜权益｜今日｜持仓｜自动交易｜数据源</span>
+13:59:10 运行中｜40 个币｜已连接（WebSocket 实时）｜实盘 权益 1000.00｜今日 +0.00｜持仓 0 单：无｜自动交易开｜币安✓ Bybit✓ 币安爆仓✓ Coinbase✓
+<span class="c"># 出信号</span>
+14:20:00 信号：DOGE 轧空追多 做多 价格 0.1045（1小时 +4.5%，持仓 -3.0%（空单被强平））
+<span class="c"># 没开成（会写原因）</span>
+14:20:01 没开：SOL 清洗接盘（现货）——持仓数已满
+<span class="c"># 开仓 / 平仓 / 出错 也都会写一行</span></div>
+  <div class="tip"><b>看到这些要处理：</b>"未连接"很久 → 检查代理；"币安✗"很久 → 换代理节点（清洗接盘需要币安）；"实盘还没打开" → 网页上重新切到实盘；"没查到止盈止损单" → 马上去欧易 App 看这笔仓位。</div>
+</section>
+
+<!-- ============ 13 名词 ============ -->
+<section id="words">
+  <h2>名词速查</h2>
+  <div class="tw"><table class="t">
+    <tbody>
+      <tr><td><b>主动买 / 主动卖</b></td><td>直接吃掉别人挂单的那一方。主动买 = 市价买，推价格往上。</td></tr>
+      <tr><td><b>Delta</b></td><td>主动买量 − 主动卖量。</td></tr>
+      <tr><td><b>CVD</b></td><td>Delta 一直累加起来的线。</td></tr>
+      <tr><td><b>POC</b></td><td>一段时间里成交最多的价位。</td></tr>
+      <tr><td><b>价值区 VAH / VAL</b></td><td>包含 70% 成交量的价格区间的上沿 / 下沿。</td></tr>
+      <tr><td><b>失衡 / 堆叠失衡</b></td><td>某一格一方是另一方的 3 倍以上；连续 3 格以上叫堆叠。</td></tr>
+      <tr><td><b>吸收</b></td><td>大量主动卖砸下来，价格却跌不动（有人在下面接），反过来也一样。</td></tr>
+      <tr><td><b>持仓量 OI</b></td><td>市场上还没平掉的合约总数。</td></tr>
+      <tr><td><b>爆仓 / 强平</b></td><td>保证金不够，被交易所强制平仓。</td></tr>
+      <tr><td><b>清洗</b></td><td>价格急跌把大量多单爆掉，持仓量快速下降。</td></tr>
+      <tr><td><b>轧空</b></td><td>价格急涨把大量空单爆掉，空单被迫买回，又推高价格。</td></tr>
+      <tr><td><b>资金费率</b></td><td>永续合约多空之间定期互付的费用，正数多头付钱。</td></tr>
+      <tr><td><b>PF（盈亏比）</b></td><td>总赚的 ÷ 总亏的。大于 1 才赚钱。</td></tr>
+      <tr><td><b>回撤</b></td><td>账户从最高点往下跌了多少。</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+</main>
+</div>
