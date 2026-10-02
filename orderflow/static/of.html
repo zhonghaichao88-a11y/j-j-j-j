@@ -52,7 +52,7 @@ th{color:var(--mute);font-weight:normal}
     <h3>扫描（所有币，点一行切换） <span id="scanInfo" style="color:var(--mute);font-weight:normal"></span></h3>
     <div class="scanwrap"><table><thead><tr><th>币</th><th>价格</th><th>1h涨跌</th><th>费率</th><th>持仓1h</th><th>爆仓5m</th><th>全网主动1h</th><th>现货-合约</th><th>趋势</th><th>最新信号</th></tr></thead><tbody id="scan"></tbody></table></div>
     <div class="row"><input id="addCoin" placeholder="加币，如 DOGE" style="width:110px"><button id="addBtn">加入</button><button id="rmBtn">删掉当前币</button></div>
-    <div class="row">自动选成交额前 <input id="topN" type="number" min="1" max="60" style="width:56px"> 个币 <button id="topBtn">应用</button></div>
+    <div class="row">自动选成交额前 <input id="topN" type="number" min="1" max="150" style="width:56px"> 个币 <button id="topBtn">应用</button></div>
     <h3>全网 / 大背景 <small id="xsrc" style="color:var(--mute);font-weight:normal"></small></h3>
     <div id="xbox" style="font-size:12px;line-height:1.7"></div>
     <h3>自动交易</h3>
@@ -384,6 +384,16 @@ function scanTable(){
     <td class="${sg?(sg.side>0?'pos':'neg'):''}">${sg?`${sg.name}${sg.side>0?'多':'空'} ${age}分前`:'-'}</td></tr>`;}).join('');
   $('#scan').querySelectorAll('tr').forEach(tr=>tr.onclick=()=>{ inst=tr.dataset.i; priceOff=0; barOff=0; $('#sym').value=inst; send(); });
 }
+let ALL_INSTS=[]; const ADDING={};
+fetch('/api/all_insts').then(r=>r.json()).then(j=>{ ALL_INSTS=j; const sel=$('#sym'); if(sel) sel.dataset.k=''; });
+function buildSym(){
+  const sel=$('#sym'); const key=S.symbols.join()+'|'+ALL_INSTS.length+'|'+inst;
+  if(sel.dataset.k===key || sel===document.activeElement) return; sel.dataset.k=key;
+  const others=ALL_INSTS.filter(x=>!S.symbols.includes(x));
+  const pend=inst && !S.symbols.includes(inst) ? `<option value="${inst}">${inst}（正在接入…）</option>` : '';
+  sel.innerHTML=`<optgroup label="正在扫描（${S.symbols.length} 个）">${S.symbols.map(x=>`<option>${x}</option>`).join('')}${pend}</optgroup>`+
+    (others.length?`<optgroup label="其他币（选了自动接入）">${others.filter(x=>x!==inst).map(x=>`<option>${x}</option>`).join('')}</optgroup>`:'');
+  sel.value=inst; }
 function send(){ if(WS&&WS.readyState===1) WS.send(JSON.stringify({inst,tf})); }
 function markTf(){ const cur=tf||(S&&S.view&&S.view.tf)||'5m'; $('#tfs').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.tf===cur)); }
 $('#tfs').querySelectorAll('button').forEach(b=>b.onclick=()=>{ tf=b.dataset.tf; priceOff=0; barOff=0; markTf(); send(); });
@@ -397,14 +407,17 @@ function connect(){
   ws.onopen=()=>send();
   ws.onmessage=e=>{ S=JSON.parse(e.data);
     if(!inst && S.symbols.length){ inst=S.symbols[0]; }
-    if(inst && !S.symbols.includes(inst) && S.symbols.length) inst=S.symbols[0];
-    const sel=$('#sym'); if(sel.dataset.k!==S.symbols.join()){ sel.dataset.k=S.symbols.join(); sel.innerHTML=S.symbols.map(s=>`<option>${s}</option>`).join(''); sel.value=inst; }
+    if(inst && !S.symbols.includes(inst) && S.symbols.length && !(ADDING[inst] && Date.now()-ADDING[inst]<90000)) inst=S.symbols[0];
+    buildSym();
     if(S.view && (S.view.inst!==inst || (tf && S.view.tf!==tf))) send();
     if($('#topN')!==document.activeElement && !$('#topN').value) $('#topN').value=S.cfg.top_n||20;
     markTf();
     buildSide(); side(); draw(); };
   ws.onclose=()=>setTimeout(connect,1500);
-  $('#sym').onchange=()=>{ inst=$('#sym').value; priceOff=0; barOff=0; send(); };
+  $('#sym').onchange=async()=>{ const v=$('#sym').value; priceOff=0; barOff=0;
+    if(!S.symbols.includes(v)){ ADDING[v]=Date.now(); inst=v; const r=await post('/api/coins',{add:v}); if(r.msg) $('#feed').textContent=r.msg+'（大约 10~20 秒后出图）'; }
+    else inst=v;
+    send(); };
 }
 fetch('/api/bt').then(r=>r.json()).then(j=>{BT=j; built=false; buildSide();});
 resize(); connect();

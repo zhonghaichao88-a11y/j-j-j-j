@@ -317,6 +317,12 @@ async def live(body: dict):
     return JSONResponse({"ok": ok, "msg": msg})
 
 
+@app.get("/api/all_insts")
+async def all_insts():
+    """欧易所有 USDT 永续（网页下拉框用：没在扫描的币选了就自动接入）"""
+    return sorted(i for i in INSTS if i.endswith("-USDT-SWAP"))
+
+
 @app.post("/api/coins")
 async def coins(body: dict):
     """加币 / 删币 / 改自动选币数量"""
@@ -339,7 +345,7 @@ async def coins(body: dict):
             core.cfg["symbols"] = [x for x in core.cfg["symbols"] if x != body["remove"]]
         msg.append(f"已移除 {body['remove']}")
     if body.get("top_n"):
-        core.cfg["top_n"] = max(1, min(60, int(body["top_n"])))
+        core.cfg["top_n"] = max(1, min(150, int(body["top_n"])))
         core.cfg["symbols"] = "auto"
         want = await pick_symbols()
         for inst in want:
