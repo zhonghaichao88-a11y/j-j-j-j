@@ -75,6 +75,8 @@ th{color:var(--mute);font-weight:normal}
     <div class="row">最大杠杆 <input id="max_leverage" type="number" step="1"> 倍</div>
     <div class="row">保证金模式 <select id="margin_mode"><option value="isolated">逐仓（每单单独算，一单爆仓不影响别的）</option><option value="cross">全仓（所有单共用账户的钱）</option></select></div>
     <div class="row"><small style="color:var(--mute)">只影响以后开的新单；已经开着的单保持原来的模式</small></div>
+    <div class="row">大盘过滤 <select id="btc_ma_days"><option value="200">BTC 在 200 天均线上方才做多（推荐）</option><option value="150">BTC 在 150 天均线上方才做多</option><option value="100">BTC 在 100 天均线上方才做多</option><option value="0">不过滤（最近半年回测是亏的）</option></select></div>
+    <div class="row"><small id="btc_info" style="color:var(--mute)"></small></div>
     <div class="row">最多同时持仓 <input id="max_positions" type="number" step="1"> 个</div>
     <div class="row">单日最多亏 <input id="daily_loss_pct" type="number" step="0.5"> % 停止开新单</div>
     <div class="row"><button id="saveRisk">保存设置</button><button id="closeAll">全部平仓</button></div>
@@ -288,10 +290,11 @@ function buildSide(){
   $('#auto').checked=S.cfg.auto; $('#auto').onchange=saveCfg;
   for(const k of ['risk_pct','max_leverage','max_positions','daily_loss_pct']) $('#'+k).value=S.cfg[k];
   $('#margin_mode').value=S.cfg.margin_mode||'isolated';
+  $('#btc_ma_days').value=String(S.cfg.btc_ma_days ?? 0);
 }
 async function post(u,b){ const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}); return r.json(); }
 function saveCfg(){ const en=[...$('#sigs').querySelectorAll('input:checked')].map(i=>i.dataset.k);
-  const b={enabled:en,auto:$('#auto').checked}; for(const k of ['risk_pct','max_leverage','max_positions','daily_loss_pct']) b[k]=+$('#'+k).value; b.margin_mode=$('#margin_mode').value;
+  const b={enabled:en,auto:$('#auto').checked}; for(const k of ['risk_pct','max_leverage','max_positions','daily_loss_pct']) b[k]=+$('#'+k).value; b.margin_mode=$('#margin_mode').value; b.btc_ma_days=+$('#btc_ma_days').value;
   if(b.auto && en.length===0){ alert('先勾选至少一种打法'); $('#auto').checked=false; b.auto=false; }
   post('/api/cfg',b); }
 const FL_PCT=['drop','oi_drop','spot_flow'];
@@ -347,6 +350,7 @@ function side(){
   const a=S.acct; const dp=a.day_pnl;
   // 实盘显示欧易账户的真实权益；模拟盘显示模拟账户
   $('#eqLabel').textContent = S.live_ok ? '实盘权益' : '模拟权益';
+  $('#btc_info').textContent = S.btc_info || '';
   $('#eq').textContent = S.live_ok ? (S.live_equity ? S.live_equity.toFixed(2) + `（可用 ${(S.live_avail||0).toFixed(2)}）` : '读取中…') : a.equity.toFixed(2);
   const dpp = S.live_ok ? (S.live_day_pnl||0) : dp;
   $('#dpnl').innerHTML=`<span class="${dpp>=0?'pos':'neg'}">${dpp>=0?'+':''}${dpp.toFixed(2)}</span>`;

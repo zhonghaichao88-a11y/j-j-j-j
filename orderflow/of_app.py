@@ -19,7 +19,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect  # noqa: E402
 from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
 
 from of_core import auto_row_size  # noqa: E402
-from of_engine import OrderFlowApp, SymbolEngine, TF_MS, VIEW_TFS  # noqa: E402
+from of_engine import OrderFlowApp, SymbolEngine, TF_MS, VIEW_TFS, btc_regime_calc  # noqa: E402
 from of_feed import OkxExtrasHub, OkxHub, REST, get_json, instruments, top_by_volume  # noqa: E402
 from of_xfeed import CrossHub  # noqa: E402
 import of_v7data  # noqa: E402
@@ -67,7 +67,7 @@ STARTING: set = set()
 def save_cfg():
     """保存设置（自动刹车改了打法勾选也会调用）"""
     keep = {k: core.cfg[k] for k in ("symbols", "tf", "enabled", "auto", "risk_pct", "max_leverage",
-                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "margin_mode", "guard_n", "guard_pf")
+                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "margin_mode", "guard_n", "guard_pf", "btc_ma_days")
             if k in core.cfg}
     json.dump(keep, open(CFG_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
@@ -263,6 +263,46 @@ async def heartbeat():
         await asyncio.sleep(300)
 
 
+REGIME_LAST = {"bull": "x"}
+
+
+async def _regime_once():
+    """读 BTC 日线，算大盘是多头还是空头（做多打法只在多头时开）。读失败返回 False"""
+    n = int(core.cfg.get("btc_ma_days", 0) or 0)
+    if n <= 0:
+        core.btc_bull, core.btc_info = None, ""
+        REGIME_LAST["bull"] = "x"
+        return True
+    try:
+        async with httpx.AsyncClient(proxy=PROXY, timeout=15) as c:
+            rows = await get_json(c, "/api/v5/market/history-candles", instId="BTC-USDT-SWAP", bar="1Dutc", limit=100)
+            while len(rows) < n + 2:                       # 一次最多 100 根，往前翻页
+                more = await get_json(c, "/api/v5/market/history-candles", instId="BTC-USDT-SWAP", bar="1Dutc",
+                                      limit=100, after=min(int(r[0]) for r in rows))
+                if not more:
+                    break
+                rows += more
+                await asyncio.sleep(0.3)
+    except Exception as e:  # noqa: BLE001
+        core.say(f"读 BTC 日线失败（{e}），1 分钟后重试")
+        return False
+    bull, px, ma = btc_regime_calc(rows, n)
+    core.btc_bull = bull
+    core.btc_info = ("大盘：读不到足够的 BTC 日线，做多打法先不开" if bull is None else
+                     f"大盘{'多头' if bull else '空头'}（BTC 昨收 {px:.0f}，{n} 天均线 {ma:.0f}）{'' if bull else '，做多打法暂停'}")
+    if bull != REGIME_LAST["bull"]:
+        core.say(core.btc_info)
+        REGIME_LAST["bull"] = bull
+    return True
+
+
+async def btc_regime():
+    """每小时更新一次大盘判断"""
+    while True:
+        ok = await _regime_once()
+        await asyncio.sleep(3600 if ok else 60)
+
+
 async def live_refresher():
     """实盘：每 5 秒核对一次交易所持仓（止盈止损触发后记真实盈亏），每 30 秒读一次权益"""
     while True:
@@ -280,6 +320,7 @@ async def _startup():
     asyncio.create_task(core.xhub.run())
     asyncio.create_task(core.xx.run())
     asyncio.create_task(heartbeat())
+    asyncio.create_task(btc_regime())
     lp = [p.sym.split("-")[0] for p in core.acct.positions if p.live]
     if lp:
         core.say(f"提醒：上次还有 {len(lp)} 笔实盘持仓（{', '.join(lp)}），请在网页上重新切到实盘，程序才能按时帮你平仓")
@@ -333,6 +374,15 @@ async def set_cfg(body: dict):
     for k in ("enabled", "auto", "risk_pct", "max_leverage", "max_positions", "daily_loss_pct"):
         if k in body:
             core.cfg[k] = body[k]
+    if "btc_ma_days" in body:
+        try:
+            n = int(body["btc_ma_days"])
+            if n in (0, 100, 150, 200) and n != int(core.cfg.get("btc_ma_days", 0) or 0):
+                core.cfg["btc_ma_days"] = n
+                core.btc_bull, core.btc_info = None, ("" if n == 0 else "大盘：正在重新读 BTC 日线…")
+                asyncio.create_task(_regime_once())
+        except (TypeError, ValueError):
+            pass
     if body.get("margin_mode") in ("isolated", "cross"):
         core.cfg["margin_mode"] = body["margin_mode"]
     from of_engine import FLUSH, SQUEEZE

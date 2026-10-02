@@ -52,6 +52,7 @@ def show(mod, res, errs, secs, pick_min=50):
         sp = r['sp']
         rows.append({'参数': json.dumps(r['p'], ensure_ascii=False), **{f'训练{k}': v for k, v in sp['训练2024'].items() if k in ('笔数', '每笔基点', 'PF')},
                      **{f'考试{k}': v for k, v in sp['考试2025+'].items() if k in ('笔数', '每笔基点', 'PF')},
+                     '最近6月笔数': sp['最近6个月'].get('笔数'), '最近6月每笔': sp['最近6个月'].get('每笔基点'), '最近6月PF': sp['最近6个月'].get('PF'),
                      '新币PF': sp['新币'].get('PF'), '过关': '✔' if report.passed(sp) else ''})
     tab = pd.DataFrame(rows)
     lines.append(tab.to_markdown(index=False))
@@ -67,7 +68,7 @@ def show(mod, res, errs, secs, pick_min=50):
         lines.append(f'- 过关：{"是" if report.passed(best["sp"]) else "否"}')
         with open('/home/user/ext/long/lab/results/summary.jsonl', 'a') as f:
             f.write(json.dumps({'mod': mod, 'name': getattr(S, 'NAME', mod), 'p': best['p'], 'train': best['sp']['训练2024'],
-                                'test': best['sp']['考试2025+'], 'new': best['sp']['新币'], 'all': best['sp']['全部'],
+                                'test': best['sp']['考试2025+'], 'recent': best['sp']['最近6个月'], 'new': best['sp']['新币'], 'all': best['sp']['全部'],
                                 'pf': pt, 'pass': report.passed(best['sp']),
                                 'any_pass': sum(report.passed(r['sp']) for r in res), 'grid': len(res)}, ensure_ascii=False, default=str) + '\n')
         tp = [r['sp']['训练2024'].get('PF', np.nan) for r in res]

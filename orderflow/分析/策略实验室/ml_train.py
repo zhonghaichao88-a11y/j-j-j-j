@@ -9,11 +9,15 @@ import data, sim, feat, report
 H = int(sys.argv[1]) if len(sys.argv) > 1 else 12
 Q = float(sys.argv[2]) if len(sys.argv) > 2 else 0.01
 SIDE = sys.argv[3] if len(sys.argv) > 3 else 'both'
+MODE = sys.argv[4] if len(sys.argv) > 4 else 'ts'          # ts = 预测涨跌；xs = 只预测比其他币强还是弱（扣掉大盘）
 X = pd.read_parquet('/home/user/ext/long/lab/ml_hourly.parquet')
 FEATS = ['r1h', 'r4h', 'r24h', 'r3d', 'atr1h', 'pos24', 'vsurge', 'pf1h', 'pf4h', 'pf24h', 'sf1h', 'sf4h', 'div1h',
          'spot_share_chg', 'oi1h', 'oi4h', 'oi24h', 'fund', 'fund_z', 'ls_z', 'tls_z', 'prem_z', 'hour', 'dow',
          'btc_r1h', 'btc_r4h', 'btc_r24h', 'btc_pf1h', 'btc_oi1h', 'rel24h']
 ycol = f'y{H}h'
+if MODE == 'xs':
+    X[ycol] = X[ycol] - X.groupby('ts')[ycol].transform('mean')
+    FEATS = [f for f in FEATS if not f.startswith('btc_') and f not in ('hour', 'dow')]
 X['yn'] = (X[ycol] / (X.atr1h * np.sqrt(H))).clip(-5, 5)
 X = X[X.atr1h > 0]
 qs = pd.date_range('2025-01-01', '2026-04-01', freq='QS')
@@ -27,10 +31,17 @@ for a, b in zip(qs[:-1], qs[1:]):
                           subsample_freq=1, colsample_bytree=0.7, reg_lambda=5.0, verbose=-1)
     m.fit(tr[FEATS], tr.yn)
     ptr = m.predict(tr[FEATS])
-    hi, lo = np.quantile(ptr, 1 - Q), np.quantile(ptr, Q)
     p = m.predict(te[FEATS])
+    if MODE == 'xs':        # 每个整点：分数在当时所有币里排前 Q / 后 Q 的才做（同时有多有空，对冲大盘）
+        rk = pd.Series(p, index=te.index).groupby(te.ts).rank(pct=True).values
+        hi_m, lo_m = rk >= 1 - Q, rk <= Q
+        thr_hi, thr_lo = np.quantile(ptr, 0.9), np.quantile(ptr, 0.1)
+        p = np.where(hi_m & (p >= thr_hi), 1e9, np.where(lo_m & (p <= thr_lo), -1e9, 0.0))
+        hi, lo = 1e8, -1e8
+    else:
+        hi, lo = np.quantile(ptr, 1 - Q), np.quantile(ptr, Q)
     ok = te[ycol].notna()
-    ic = spearmanr(p[ok.values], te.yn[ok].values).correlation
+    ic = spearmanr(m.predict(te[FEATS])[ok.values], te.yn[ok].values).correlation
     print(f'{a.date()} 训练 {len(tr)} 行，考试 {len(te)} 行，排序相关 IC {ic:+.3f}', flush=True)
     t = te[['ts', 'coin', 'row']].copy()
     t['pred'], t['hi'], t['lo'] = p, hi, lo
@@ -58,6 +69,6 @@ out = {'H': H, 'Q': Q, 'side': SIDE, '考试全部': report.stats(T),
        '组合': report.portfolio(T),
        '重要特征': (imp.sort_values(ascending=False).head(10) / imp.sum()).round(3).to_dict()}
 print(json.dumps(out, ensure_ascii=False, indent=1, default=str))
-with open(f'/home/user/ext/long/lab/results/ml_H{H}_Q{Q}_{SIDE}.json', 'w') as f:
+with open(f'/home/user/ext/long/lab/results/ml_H{H}_Q{Q}_{SIDE}_{MODE}.json', 'w') as f:
     json.dump(out, f, ensure_ascii=False, indent=1, default=str)
 P.to_parquet(f'/home/user/ext/long/lab/results/ml_pred_H{H}.parquet')

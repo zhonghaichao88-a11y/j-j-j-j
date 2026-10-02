@@ -362,6 +362,7 @@ def test_flush_spot_signal_and_paper_trade(tmp_path, monkeypatch):
     monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
     monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
     app = E.OrderFlowApp({"auto": True, "enabled": ["flush_spot"]}, None, None, False)
+    app.btc_bull = True                          # 大盘多头
 
     class X:          # 假的全网数据：币安现货 1 小时主动买 > 卖 10%
         def stats(self, inst, okx_min=None):
@@ -457,6 +458,7 @@ def test_squeeze_long_signal_market_entry(tmp_path, monkeypatch):
     monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
     monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
     app = E.OrderFlowApp({"auto": True, "enabled": ["squeeze_long"]}, None, None, False)
+    app.btc_bull = True                          # 大盘多头
 
     class X:
         def stats(self, inst, okx_min=None):
@@ -533,3 +535,35 @@ def test_auto_guard_pauses_losing_strategy(tmp_path, monkeypatch):
         app._record_close(pos, 96.0 if k < 4 else 101.0, "止损", 1000 + k)
     assert "squeeze_long" not in app.cfg["enabled"] and "flush_spot" in app.cfg["enabled"]
     assert saved and any("自动刹车" in l for l in app.log)
+
+
+def test_btc_regime_gate_blocks_long_combos_in_bear(tmp_path, monkeypatch):
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = E.OrderFlowApp({"auto": True, "enabled": ["flush_spot"], "btc_ma_days": 200}, None, None, False)
+    eng = E.SymbolEngine(app, "SOL-USDT-SWAP", "5m", {t: 0.01 for t in E.VIEW_TFS}, 1.0)
+    sig = C.Signal("flush_spot", 1, 90.0, 120.0, 0)
+    for bull, opened in ((None, False), (False, False), (True, True)):
+        app.btc_bull = bull
+        d = {}
+        app.try_open(eng, sig, d, 100.0, 0)
+        assert bool(app.acct.positions) == opened, (bull, d)
+        if not opened:
+            assert "大盘过滤" in d["skip"]
+    # 关掉过滤（0）就不管大盘
+    app2 = E.OrderFlowApp({"auto": True, "enabled": ["flush_spot"], "btc_ma_days": 0}, None, None, False)
+    app2.btc_bull = False
+    app2.try_open(eng, sig, {}, 100.0, 0)
+    assert len(app2.acct.positions) == 1
+
+
+def test_btc_regime_calc_uses_only_closed_daily_candles():
+    # 欧易日线：新的在前；最后一个字段 1 = 已收盘。今天没收完的那根（涨到 1000）不能算进去
+    rows = [[str(86_400_000 * 10), "0", "0", "0", "1000", "0", "0", "0", "0"]]
+    rows += [[str(86_400_000 * k), "0", "0", "0", str(100 + k), "0", "0", "0", "1"] for k in range(9, -1, -1)]
+    bull, px, ma = E.btc_regime_calc(rows, 5)
+    assert px == 109 and ma == 107 and bull is True
+    rows[1][4] = "100"                                                # 昨收跌到均线下方
+    assert E.btc_regime_calc(rows, 5)[0] is False
+    assert E.btc_regime_calc(rows, 50)[0] is None                    # 日线不够

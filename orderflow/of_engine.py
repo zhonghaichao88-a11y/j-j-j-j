@@ -32,6 +32,7 @@ FLUSH = {"drop": 0.02,          # 1 小时跌超 2%
          "fill_min": 5}         # 在信号K线收盘价挂买单，5 分钟内价格回到这里才成交，否则撤单
 # 轧空追多（拿 12 小时，下一笔成交市价进场）：104 个币 824 笔，胜率 46%，每笔 +1.98%，PF 1.98，三年都赚；
 # 新加的 58 个币上每笔 +1.74%，PF 1.79。大部分单子小亏，靠少数大涨赚钱
+# 2026-10 补上 2026-04~09 的数据后：最近半年 PF 0.17（加大盘过滤 0.35），已经失效，默认不勾
 SQUEEZE = {"rise": 0.03,        # 1 小时涨超 3%
            "oi_drop": 0.02,     # 持仓量 1 小时降超 2%（空单被强平）
            "stop_x": 1.0,       # 止损 = 进场价下方"这次涨幅"那么远
@@ -172,6 +173,15 @@ class PaperBroker:
 
 
 # ====================================================================== 引擎
+def btc_regime_calc(rows, n):
+    """rows：欧易日线（新的在前）。只用已经收完的日线：昨天收盘 > 最近 n 天收盘均值 → 多头"""
+    closes = [float(r[4]) for r in sorted(rows, key=lambda r: int(r[0])) if len(r) <= 8 or str(r[8]) == "1"]
+    if n <= 0 or len(closes) < n:
+        return None, 0.0, 0.0
+    ma = sum(closes[-n:]) / n
+    return closes[-1] > ma, closes[-1], ma
+
+
 DEFAULT_CFG = {
     "symbols": ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP"],
     "tf": "5m",
@@ -181,6 +191,7 @@ DEFAULT_CFG = {
     "risk_pct": 0.5,            # 每单最多亏权益的 0.5%
     "max_leverage": 3,
     "margin_mode": "isolated",  # 实盘保证金模式：isolated 逐仓 / cross 全仓（网页上选）
+    "btc_ma_days": 200,         # 大盘过滤：BTC 昨收在这么多天均线上方才开做多打法；0 = 不过滤
     "max_positions": 2,
     "guard_n": 20,              # 自动刹车：看每个打法最近多少笔
     "guard_pf": 0.8,            # 最近这些笔的盈亏比低于这个就自动暂停该打法
@@ -610,6 +621,8 @@ class OrderFlowApp:
         json.dump(st, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         os.replace(tmp, STATE_FILE)
 
+    btc_bull = None             # 大盘过滤：BTC 昨天日线收盘在 N 天均线上方 = True，下方 = False，还没读到 = None
+    btc_info = ""
     save_cfg_cb = None          # 网页那边设置的保存配置函数（自动刹车改了打法勾选后要存下来）
 
     def say(self, msg):
@@ -736,6 +749,11 @@ class OrderFlowApp:
             return
         if s.kind in FLUSH_NAMES and getattr(eng, "category", "1") != "1":
             d["skip"] = "这是股票等非加密币合约，回测只测过加密币，不做"
+            return
+        n_ma = int(self.cfg.get("btc_ma_days", 0) or 0)
+        if s.kind in FLUSH_NAMES and n_ma > 0 and self.btc_bull is not True:   # 这两个都是做多打法：大盘空头时回测是亏的
+            d["skip"] = (f"大盘过滤：BTC 在 {n_ma} 天均线下方（空头），做多打法暂停" if self.btc_bull is False
+                         else "大盘过滤：还没读到 BTC 日线，先不开")
             return
         if self._day_loss_hit():
             d["skip"] = "今天亏损到上限，停止开新单"
@@ -972,7 +990,8 @@ class OrderFlowApp:
         src = " ".join(f"{nm.get(k, k)}{'✓' if str(v).startswith('正常') else '✗'}" for k, v in xs.items())
         pos = "、".join(f"{p.sym.split('-')[0]}({ALL_NAMES.get(p.kind, p.kind)})" for p in self.acct.positions) or "无"
         self.say(f"运行中｜{len(self.engines)} 个币｜{getattr(self.hub, 'status', '')}｜{'实盘' if live else '模拟'} 权益 {eq:.2f}"
-                 f"｜今日 {day:+.2f}｜持仓 {len(self.acct.positions)} 单：{pos}｜自动交易{'开' if self.cfg.get('auto') else '关'}｜{src}")
+                 f"｜今日 {day:+.2f}｜持仓 {len(self.acct.positions)} 单：{pos}｜自动交易{'开' if self.cfg.get('auto') else '关'}｜{src}"
+                 + (f"｜{self.btc_info}" if self.btc_info else ""))
 
     def state(self, inst, tf=None):
         eng = self.engines.get(inst)
@@ -984,7 +1003,7 @@ class OrderFlowApp:
                 "external": sorted(self.external), "live_equity": self.live_equity, "live_avail": self.live_avail,
                 "live_day_pnl": (self.live_equity - self.live_day_start) if self.live_day_start else 0.0,
                 "hedged": bool(self.live and self.live.hedged), "notify": of_notify.enabled(),
-                "cfg": self.cfg, "live_ok": self.live_confirmed, "allow_live": self.allow_live,
+                "cfg": self.cfg, "btc_info": self.btc_info, "btc_bull": self.btc_bull, "live_ok": self.live_confirmed, "allow_live": self.allow_live,
                 "signal_names": ALL_NAMES, "live_only": sorted(LIVE_ONLY), "pb_kinds": sorted(PB_NAMES),
                 "acct": {**asdict(self.acct), "positions": [asdict(p) for p in self.acct.positions]},
                 "last": {k: e.last for k, e in self.engines.items()},

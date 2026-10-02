@@ -1,6 +1,7 @@
 """汇总：训练（2024）/ 考试（2025-01 以后）、原来 46 个币 / 后加的币、按年、组合模拟（每笔 10%，最多同时 10 单，滚利）"""
 import numpy as np, pandas as pd
 from data import TRAIN_END, NEW
+RECENT = 1775001600000          # 2026-04-01：最近 6 个月单独看
 
 
 def pf(r):
@@ -21,7 +22,8 @@ def stats(T):
 def split(T):
     tr, te = T[T.t < TRAIN_END], T[T.t >= TRAIN_END]
     old, new = T[~T.coin.isin(NEW)], T[T.coin.isin(NEW)]
-    return {'全部': stats(T), '训练2024': stats(tr), '考试2025+': stats(te), '原46币': stats(old), '新币': stats(new)}
+    rc = T[T.t >= RECENT]
+    return {'全部': stats(T), '训练2024': stats(tr), '考试2025+': stats(te), '最近6个月': stats(rc), '原46币': stats(old), '新币': stats(new)}
 
 
 def portfolio(T, size=0.10, cap=10, start=100.0):
@@ -51,5 +53,7 @@ def passed(sp):
     """过关标准（事先定好）：考试期 PF ≥ 1.15、每笔为正、笔数 ≥ 50；新币 PF ≥ 1.1；训练期也为正"""
     te, nw, tr = sp['考试2025+'], sp['新币'], sp['训练2024']
     new_ok = nw.get('PF', 0) >= 1.1 if nw.get('笔数', 0) >= 30 else True      # 只做 BTC/ETH 的打法没有新币，不看这条
+    rc = sp.get('最近6个月', {})
+    recent_ok = rc.get('PF', 0) >= 1.0 if rc.get('笔数', 0) >= 20 else True   # 最近 6 个月也不能亏
     return (te.get('笔数', 0) >= 50 and te.get('PF', 0) >= 1.15 and te.get('每笔基点', -1) > 0
-            and new_ok and tr.get('每笔基点', -1) > 0)
+            and new_ok and tr.get('每笔基点', -1) > 0 and recent_ok)
