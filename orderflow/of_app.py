@@ -3,6 +3,8 @@
 读取同目录的 .env（PROXY_URL、OKX_API_KEY/SECRET/PASSPHRASE、OF_ALLOW_LIVE）和 of_config.json。"""
 from __future__ import annotations
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)   # 黑窗口里别显示无关的英文提示
 import asyncio
 import json
 import math
