@@ -65,8 +65,9 @@ STARTING: set = set()
 
 
 def save_cfg():
+    """保存设置（自动刹车改了打法勾选也会调用）"""
     keep = {k: core.cfg[k] for k in ("symbols", "tf", "enabled", "auto", "risk_pct", "max_leverage",
-                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "margin_mode")
+                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "margin_mode", "guard_n", "guard_pf")
             if k in core.cfg}
     json.dump(keep, open(CFG_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
@@ -266,6 +267,9 @@ async def live_refresher():
     while True:
         await asyncio.sleep(5)
         await core.reconcile_live()
+
+
+core.save_cfg_cb = save_cfg
 
 
 @app.on_event("startup")

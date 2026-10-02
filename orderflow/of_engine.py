@@ -182,6 +182,8 @@ DEFAULT_CFG = {
     "max_leverage": 3,
     "margin_mode": "isolated",  # 实盘保证金模式：isolated 逐仓 / cross 全仓（网页上选）
     "max_positions": 2,
+    "guard_n": 20,              # 自动刹车：看每个打法最近多少笔
+    "guard_pf": 0.8,            # 最近这些笔的盈亏比低于这个就自动暂停该打法
     "daily_loss_pct": 3,
     "paper_equity": 1000,
     "top_n": 20,                # symbols="auto" 时按 24 小时成交额自动选几个币
@@ -608,6 +610,8 @@ class OrderFlowApp:
         json.dump(st, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         os.replace(tmp, STATE_FILE)
 
+    save_cfg_cb = None          # 网页那边设置的保存配置函数（自动刹车改了打法勾选后要存下来）
+
     def say(self, msg):
         line = time.strftime("%H:%M:%S ") + msg
         self.log.append(line)
@@ -919,7 +923,8 @@ class OrderFlowApp:
         self.acct.wins += pnl > 0
         rec = {"sym": pos.sym, "kind": ALL_NAMES[pos.kind], "side": pos.side, "entry": pos.entry,
                "exit": exit_px, "pnl": round(pnl, 4), "why": why, "t_open": pos.t_open, "t_close": ts,
-               "live": pos.live, "real": bool(real)}
+               "live": pos.live, "real": bool(real), "k": pos.kind,
+               "ret": round(pnl / (pos.entry * pos.qty), 6) if pos.entry and pos.qty else 0.0}
         self.history.append(rec)
         with open(TRADE_LOG, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
@@ -930,7 +935,25 @@ class OrderFlowApp:
         msg = f"[{tag}] 平仓 {pos.sym} {why} 盈亏 {pnl:+.2f}U" + ("（欧易真实盈亏）" if real else "")
         self.say(msg)
         of_notify.push(f"订单流：{why} {pos.sym.split('-')[0]} {pnl:+.2f}U", msg)
+        self._guard(pos.kind)
         self.save()
+
+    def _guard(self, kind):
+        """自动刹车：这个打法最近 guard_n 笔的盈亏比（PF）低于 guard_pf，就自动取消勾选，提醒你"""
+        n, lim = int(self.cfg.get("guard_n", 20)), float(self.cfg.get("guard_pf", 0.8))
+        rs = [h.get("ret", 0.0) for h in self.history if h.get("k") == kind][-n:]
+        if n <= 0 or len(rs) < n or kind not in self.cfg.get("enabled", []):
+            return
+        win, loss = sum(r for r in rs if r > 0), -sum(r for r in rs if r < 0)
+        pf = win / loss if loss > 0 else float("inf")
+        if pf < lim:
+            self.cfg["enabled"] = [k for k in self.cfg["enabled"] if k != kind]
+            if self.save_cfg_cb:
+                self.save_cfg_cb()
+            msg = (f"自动刹车：{ALL_NAMES.get(kind, kind)} 最近 {n} 笔盈亏比只有 {pf:.2f}（低于 {lim}），已自动暂停。"
+                   f"行情可能变了；想继续用，在网页上重新勾选")
+            self.say(msg)
+            of_notify.push("订单流：打法已自动暂停", msg)
 
     def close_all(self):
         for pos in list(self.acct.positions):

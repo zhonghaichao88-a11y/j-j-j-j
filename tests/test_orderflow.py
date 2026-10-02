@@ -518,3 +518,18 @@ def test_combo_strategies_skip_stock_contracts(tmp_path, monkeypatch):
     d = {}
     app.try_open(eng, C.Signal("squeeze_long", 1, 100.0, 300.0, 0), d, 110.0, 0)
     assert app.acct.positions == [] and "股票" in d["skip"]
+
+
+def test_auto_guard_pauses_losing_strategy(tmp_path, monkeypatch):
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = E.OrderFlowApp({"auto": True, "enabled": ["squeeze_long", "flush_spot"], "guard_n": 5, "guard_pf": 0.8}, None, None, False)
+    saved = []
+    app.save_cfg_cb = lambda: saved.append(1)
+    for k in range(5):
+        pos = E.Position("SOL-USDT-SWAP", "squeeze_long", 1, 1.0, 100.0, 95.0, 300.0, 0, 1, "paper", False)
+        app.acct.positions.append(pos)
+        app._record_close(pos, 96.0 if k < 4 else 101.0, "止损", 1000 + k)
+    assert "squeeze_long" not in app.cfg["enabled"] and "flush_spot" in app.cfg["enabled"]
+    assert saved and any("自动刹车" in l for l in app.log)
