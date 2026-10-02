@@ -16,7 +16,7 @@ button{cursor:pointer}
 #main{flex:1;display:flex;min-height:0}
 #chartWrap{flex:1;position:relative;min-width:0}
 canvas{display:block}
-.side{width:340px;background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:10px;font-size:12px}
+.side{width:400px;background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:10px;font-size:12px}
 .side h3{margin:12px 0 6px;font-size:13px;color:#fff}
 .sig{display:flex;align-items:flex-start;gap:6px;padding:4px 0;border-bottom:1px dashed var(--line)}
 .sig small{color:var(--mute);display:block}
@@ -27,6 +27,9 @@ th{color:var(--mute);font-weight:normal}
 .row{display:flex;gap:6px;align-items:center;margin:4px 0}
 .row input{width:70px}
 .warnbox{background:#3a2f12;border:1px solid #6b5416;color:#f3d27a;padding:6px;border-radius:4px;margin:6px 0}
+.tfs{display:flex;gap:2px}.tfs button{padding:3px 9px}.tfs button.on{background:var(--poc);border-color:var(--poc);color:#fff}
+#scan tr{cursor:pointer}#scan tr.cur td{background:#2a2f45}#scan td{font-family:Consolas,monospace;font-size:11px}
+.scanwrap{max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:4px}
 #tip{position:absolute;pointer-events:none;background:#000c;padding:4px 6px;border-radius:4px;font-size:12px;display:none}
 </style>
 </head>
@@ -34,6 +37,7 @@ th{color:var(--mute);font-weight:normal}
 <header>
   <b>订单流</b>
   <select id="sym"></select>
+  <span class="tfs" id="tfs"><button data-tf="1m">1分</button><button data-tf="5m">5分</button><button data-tf="15m">15分</button><button data-tf="1h">1小时</button></span>
   <span id="feed" style="color:var(--mute)"></span>
   <span style="flex:1"></span>
   <span id="ext" style="color:var(--mute)"></span>
@@ -45,6 +49,10 @@ th{color:var(--mute);font-weight:normal}
 <div id="main">
   <div id="chartWrap"><canvas id="cv"></canvas><div id="tip"></div></div>
   <div class="side">
+    <h3>扫描（所有币，点一行切换） <span id="scanInfo" style="color:var(--mute);font-weight:normal"></span></h3>
+    <div class="scanwrap"><table><thead><tr><th>币</th><th>价格</th><th>1h涨跌</th><th>费率</th><th>持仓1h</th><th>爆仓5m</th><th>最新信号</th></tr></thead><tbody id="scan"></tbody></table></div>
+    <div class="row"><input id="addCoin" placeholder="加币，如 DOGE" style="width:110px"><button id="addBtn">加入</button><button id="rmBtn">删掉当前币</button></div>
+    <div class="row">自动选成交额前 <input id="topN" type="number" min="1" max="60" style="width:56px"> 个币 <button id="topBtn">应用</button></div>
     <h3>自动交易</h3>
     <div class="row"><label><input type="checkbox" id="auto"> 开启自动交易</label></div>
     <div class="warnbox" id="btwarn">打法后面是回测成绩（欧易逐笔成交，扣手续费）。PF 大于 1 才是赚钱。没过关的建议别勾。</div>
@@ -122,7 +130,8 @@ function draw(){
   const plotH = H-footH-indH-20;
   // 默认让屏幕上的K线都能看到：范围放得下就居中显示，放不下就以最新价为中心
   let baseRow = Math.floor(last/row);
-  { const nC=Math.floor((W-axisW-domW-profW)/colW), vis=V.bars.slice(Math.max(0,V.bars.length-nC-barOff), V.bars.length-barOff);
+  { const nC=Math.floor((W-axisW-domW-profW)/colW), vis0=V.bars.slice(Math.max(0,V.bars.length-nC-barOff), V.bars.length-barOff);
+    const vis=vis0.some(b=>!b.seeded)? vis0.filter(b=>!b.seeded) : vis0;   // 有实时足迹时，按实时那几根定上下范围
     if(vis.length){ const hi=Math.max(...vis.map(b=>b.h)), lo=Math.min(...vis.map(b=>b.l));
       const span=(hi-lo)/row; if(span*cellH < plotH-40) baseRow=Math.floor((hi+lo)/2/row);
       else baseRow=Math.min(Math.max(baseRow, Math.floor(lo/row)+Math.floor(plotH/2/cellH)), Math.floor(hi/row)-Math.floor(plotH/2/cellH)); } }
@@ -284,8 +293,9 @@ function side(){
   const a=S.acct; $('#eq').textContent=a.equity.toFixed(2); const dp=a.day_pnl;
   $('#dpnl').innerHTML=`<span class="${dp>=0?'pos':'neg'}">${dp>=0?'+':''}${dp.toFixed(2)}</span>`;
   $('#mode').className='badge '+(S.live_ok?'live':'paper'); $('#mode').textContent=S.live_ok?'实盘':'模拟盘';
-  $('#feed').textContent = S.feed[inst]||'';
-  $('#liveBox').innerHTML = S.live_ok ? `<button id="liveOff">切回模拟盘</button>`
+  $('#feed').textContent = (S.feed_status||'') + (S.extras_status && S.extras_status!=='衍生品数据正常' ? ' ｜ '+S.extras_status : '');
+  scanTable();
+  $('#liveBox').innerHTML = S.live_ok ? `<div>实盘账户权益 <b>${(S.live_equity||0).toFixed(2)}</b> U</div><div style="color:var(--mute)">账户里已有仓位、不会再开新单的币：${(S.external||[]).map(x=>x.split('-')[0]).join('、')||'无'}</div><button id="liveOff">切回模拟盘</button>`
     : (S.allow_live ? `<div class="warnbox">实盘会用你的欧易账户真实下单。先用模拟盘跑够时间再开。</div><button id="liveOn">切换到实盘…</button>`
        : `<small style="color:var(--mute)">实盘未开启（.env 里加 OF_ALLOW_LIVE=1 并重启才能用）。现在是模拟盘，不会动你的钱。</small>`);
   const on=$('#liveOn'); if(on) on.onclick=async()=>{ const p=prompt('确认用真钱自动交易？请输入：我确认实盘'); if(!p) return; const r=await post('/api/live',{on:true,phrase:p}); alert(r.msg); };
@@ -299,16 +309,38 @@ function side(){
   $('#hist').innerHTML = h.map(t=>`<tr><td>${t.sym.split('-')[0]}</td><td>${t.kind}</td><td>${t.side>0?'多':'空'}</td><td>${t.why}</td><td class="${t.pnl>=0?'pos':'neg'}">${t.pnl.toFixed(2)}</td></tr>`).join('');
   $('#log').textContent = S.log.slice().reverse().join('\n');
 }
+let tf=null, WS=null;
+function pct(v,d=2){ return v==null||isNaN(v)?'-':((v>=0?'+':'')+(v*100).toFixed(d)+'%'); }
+function scanTable(){
+  const rows=(S.scan||[]).slice().sort((a,b)=>Math.abs(b.chg_1h||0)-Math.abs(a.chg_1h||0));
+  $('#scanInfo').textContent=`${rows.length} 个币`;
+  $('#scan').innerHTML=rows.map(r=>{ const sg=r.sig; const age=sg?Math.round((Date.now()-sg.t)/60000):0;
+    return `<tr data-i="${r.inst}" class="${r.inst===inst?'cur':''}"><td>${r.inst.split('-')[0]}</td><td>${fp(r.last)}</td>
+    <td class="${(r.chg_1h||0)>=0?'pos':'neg'}">${pct(r.chg_1h)}</td><td class="${(r.funding||0)>=0?'pos':'neg'}">${pct(r.funding,3)}</td>
+    <td class="${(r.oi_1h||0)>=0?'pos':'neg'}">${pct(r.oi_1h)}</td><td>${r.liq_5m?usd(r.liq_5m):'-'}</td>
+    <td class="${sg?(sg.side>0?'pos':'neg'):''}">${sg?`${sg.name}${sg.side>0?'多':'空'} ${age}分前`:'-'}</td></tr>`;}).join('');
+  $('#scan').querySelectorAll('tr').forEach(tr=>tr.onclick=()=>{ inst=tr.dataset.i; priceOff=0; barOff=0; $('#sym').value=inst; send(); });
+}
+function send(){ if(WS&&WS.readyState===1) WS.send(JSON.stringify({inst,tf})); }
+function markTf(){ const cur=tf||(S&&S.view&&S.view.tf)||'5m'; $('#tfs').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.tf===cur)); }
+$('#tfs').querySelectorAll('button').forEach(b=>b.onclick=()=>{ tf=b.dataset.tf; priceOff=0; barOff=0; markTf(); send(); });
+$('#addBtn').onclick=async()=>{ const v=$('#addCoin').value.trim(); if(!v) return; const r=await post('/api/coins',{add:v}); $('#addCoin').value=''; if(!r.ok) alert(r.msg); };
+$('#rmBtn').onclick=async()=>{ if(!inst) return; const r=await post('/api/coins',{remove:inst}); if(!r.ok) alert(r.msg); else inst=null; };
+$('#topBtn').onclick=async()=>{ const n=+$('#topN').value; if(n>0) await post('/api/coins',{top_n:n}); };
 function connect(){
   const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
-  ws.onopen=()=>{ if(inst) ws.send(JSON.stringify({inst})); };
+  WS=ws;
+  ws.onopen=()=>send();
   ws.onmessage=e=>{ S=JSON.parse(e.data);
     if(!inst && S.symbols.length){ inst=S.symbols[0]; }
-    const sel=$('#sym'); if(sel.options.length!==S.symbols.length){ sel.innerHTML=S.symbols.map(s=>`<option>${s}</option>`).join(''); sel.value=inst; }
-    if(S.view && S.view.inst!==inst) ws.send(JSON.stringify({inst}));
+    if(inst && !S.symbols.includes(inst) && S.symbols.length) inst=S.symbols[0];
+    const sel=$('#sym'); if(sel.dataset.k!==S.symbols.join()){ sel.dataset.k=S.symbols.join(); sel.innerHTML=S.symbols.map(s=>`<option>${s}</option>`).join(''); sel.value=inst; }
+    if(S.view && (S.view.inst!==inst || (tf && S.view.tf!==tf))) send();
+    if($('#topN')!==document.activeElement && !$('#topN').value) $('#topN').value=S.cfg.top_n||20;
+    markTf();
     buildSide(); side(); draw(); };
   ws.onclose=()=>setTimeout(connect,1500);
-  $('#sym').onchange=()=>{ inst=$('#sym').value; priceOff=0; barOff=0; ws.send(JSON.stringify({inst})); };
+  $('#sym').onchange=()=>{ inst=$('#sym').value; priceOff=0; barOff=0; send(); };
 }
 fetch('/api/bt').then(r=>r.json()).then(j=>{BT=j; built=false; buildSide();});
 resize(); connect();

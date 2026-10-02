@@ -8,6 +8,6 @@
  "max_positions": 2,
  "daily_loss_pct": 3,
  "paper_equity": 1000,
- "top_n": 5,
+ "top_n": 20,
  "v7_days": 2
 }

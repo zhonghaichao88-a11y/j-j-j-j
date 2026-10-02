@@ -101,11 +101,12 @@ class Risk:
             return False, "这个币已有持仓"
         return True, ""
 
-    def size(self, acct: Account, entry: float, stop: float):
-        """按止损金额定仓位：每单最多亏权益的 risk_pct%，同时杠杆不超过 max_leverage"""
-        risk_amt = acct.equity * self.cfg["risk_pct"] / 100
+    def size(self, acct: Account, entry: float, stop: float, equity: float | None = None):
+        """按止损金额定仓位：每单最多亏权益的 risk_pct%，同时杠杆不超过 max_leverage（实盘用账户真实权益）"""
+        eq = equity if equity else acct.equity
+        risk_amt = eq * self.cfg["risk_pct"] / 100
         qty = risk_amt / max(abs(entry - stop), 1e-12)
-        cap = acct.equity * self.cfg["max_leverage"] / entry
+        cap = eq * self.cfg["max_leverage"] / entry
         return min(qty, cap)
 
 
@@ -186,6 +187,21 @@ class OkxLiveBroker(PaperBroker):
                 pass
             return float(o.get("average") or price)
 
+    def equity(self) -> float:
+        """账户 USDT 权益（用来算实盘仓位大小）"""
+        with self.lock:
+            b = self.ex.fetch_balance()
+            return float((b.get("USDT") or {}).get("total") or 0)
+
+    def open_positions(self) -> set:
+        """账户里现在有仓位的合约（包括 V7 或手动开的）"""
+        with self.lock:
+            out = set()
+            for p in self.ex.fetch_positions():
+                if abs(float(p.get("contracts") or 0)) > 0:
+                    out.add((p.get("info") or {}).get("instId") or "")
+            return out
+
     def has_position(self, inst) -> bool:
         with self.lock:
             ps = self.ex.fetch_positions([self._sym(inst)])
@@ -204,16 +220,29 @@ DEFAULT_CFG = {
     "max_positions": 2,
     "daily_loss_pct": 3,
     "paper_equity": 1000,
+    "top_n": 20,                # symbols="auto" 时按 24 小时成交额自动选几个币
 }
 
 
+VIEW_TFS = ["1m", "5m", "15m", "1h"]          # 每个币同时维护这几个周期的足迹，网页上随时切换
+
+
 class SymbolEngine:
-    def __init__(self, app, inst, tf, row, ct_val):
-        self.app, self.inst, self.tf, self.row, self.ct = app, inst, tf, row, ct_val
-        self.det = Detector(row, enabled=list(SIGNAL_NAMES))
-        self.builder = BarBuilder(tf, row, self._on_bar)
-        self.pb = Playbook(row)                       # 实战打法：1 分钟足迹 + 关键位
-        self.pb_builder = BarBuilder("1m", row, self._on_pb_bar)
+    """一个币：多周期足迹K线 + 信号（信号周期由配置 tf 决定；实战打法固定用 1 分钟）"""
+
+    def __init__(self, app, inst, tf, rows: dict, ct_val):
+        self.app, self.inst, self.tf, self.ct = app, inst, tf, ct_val
+        self.rows = rows                              # 每个周期的格子大小
+        self.row = rows[tf]
+        self.det = Detector(self.row, enabled=list(SIGNAL_NAMES))
+        self.builders = {}
+        for t in sorted(set(VIEW_TFS + [tf]), key=lambda x: TF_MS[x]):
+            cb = self._on_bar if t == tf else (self._on_pb_bar if t == "1m" else (lambda b, seeded=False: None))
+            self.builders[t] = BarBuilder(t, rows[t], cb)
+        if tf == "1m":                                # 信号周期就是 1 分钟时，两种打法都挂在同一个构建器上
+            self.builders["1m"].on_close = lambda b, seeded=False: (self._on_bar(b, seeded), self._on_pb_bar(b, seeded))
+        self.builder = self.builders[tf]
+        self.pb = Playbook(rows["1m"])                # 实战打法：1 分钟足迹 + 关键位
         self.limit_orders: list = []                  # 实战打法的限价单（价格碰到才进场）
         self.signals: list[dict] = []
         self.last = math.nan
@@ -225,30 +254,31 @@ class SymbolEngine:
                     "oi_hist": [], "ls": math.nan, "top_ls": math.nan, "liqs": [], "bigs": [], "obi": math.nan}
         self.wall_seen: dict = {}     # (方向, 行) -> 第一次看到的时间；挂够 30 秒才算真墙（防假挂单）
 
-
+    # ------------------------------------------------------------ 信号
     def _on_bar(self, bar: Bar, seeded=False):
         sigs = self.det.on_bar(bar)
         if seeded:
             return
-
         for s in sigs:
-            d = {"t": bar.t, "kind": s.kind, "name": ALL_NAMES[s.kind], "side": s.side,
-                 "stop": s.stop, "target": s.target, "price": bar.c, "note": s.note,
-                 "traded": False}
+            d = {"t": bar.t, "tf": self.tf, "kind": s.kind, "name": ALL_NAMES[s.kind], "side": s.side,
+                 "stop": s.stop, "target": s.target, "price": bar.c, "note": s.note, "traded": False}
             if self.backfilling:
                 d["skip"] = "历史信号"
-            self.signals.append(d)
-            self.signals = self.signals[-200:]
+            self.signals = (self.signals + [d])[-200:]
+            self.app.on_signal(self, d)
             if not self.backfilling:
                 self.pending.append((s, d))
 
     def _on_pb_bar(self, bar: Bar, seeded=False):
+        if seeded:
+            return
         for s in self.pb.on_bar(bar):
-            d = {"t": bar.t, "kind": s.kind, "name": ALL_NAMES[s.kind], "side": s.side, "stop": s.stop,
+            d = {"t": bar.t, "tf": "1m", "kind": s.kind, "name": ALL_NAMES[s.kind], "side": s.side, "stop": s.stop,
                  "target": s.target, "price": s.entry, "note": f"关键位：{s.level}，限价 {s.entry:.6g}", "traded": False}
             if self.backfilling:
                 d["skip"] = "历史信号"
             self.signals = (self.signals + [d])[-200:]
+            self.app.on_signal(self, d)
             if not self.backfilling:
                 self.limit_orders.append((s, d, bar.t + 60_000 + PB_FILL_MS))
 
@@ -266,44 +296,38 @@ class SymbolEngine:
             keep.append((s, d, until))
         self.limit_orders = keep
 
-    def _cur_bar(self, ts):
-        b = self.builder.cur
-        if b is not None and b.t <= ts < b.t + self.builder.tf_ms:
-            return b
-        return None
+    # ------------------------------------------------------------ 当前K线（所有周期）
+    def _curs(self):
+        return [b.cur for b in self.builders.values() if b.cur is not None]
 
     def _flush_big(self):
         a = self._agg
         self._agg = None
         if not a or a["usd"] < self.big_usd:
             return
-        b = self._cur_bar(a["ts"]) or self.builder.cur
-        if b is None:
-            return
         side = 1 if a["buy"] else -1
-        if a["buy"]:
-            b.big_buy += a["q"]
-        else:
-            b.big_sell += a["q"]
-        item = (a["px"], a["q"], side, a["ts"])
-        b.bigs.append(item[:3])
-        self.ext["bigs"] = (self.ext["bigs"] + [item])[-50:]
+        for b in self._curs():
+            if a["buy"]:
+                b.big_buy += a["q"]
+            else:
+                b.big_sell += a["q"]
+            b.bigs.append((a["px"], a["q"], side))
+        self.ext["bigs"] = (self.ext["bigs"] + [(a["px"], a["q"], side, a["ts"])])[-50:]
 
     def on_trade(self, price, size, is_buy, ts):
         self.last = price
         qty = size * self.ct
-        # 合并大单：同一毫秒、同方向的成交算一笔
-        a = self._agg
+        a = self._agg                 # 合并大单：同一毫秒、同方向的成交算一笔
         if a and a["ts"] == ts and a["buy"] == is_buy:
             a["q"] += qty; a["usd"] += qty * price; a["px"] = price
         else:
             self._flush_big()
             self._agg = {"ts": ts, "buy": is_buy, "q": qty, "usd": qty * price, "px": price}
-        self.builder.add(price, qty, is_buy, ts)
-        self.pb_builder.add(price, qty, is_buy, ts)
-        c = self.builder.cur
-        if c is not None and math.isnan(c.oi):        # 新K线：先带上最新的持仓、费率、多空比
-            c.oi, c.funding, c.ls = self.ext["oi"], self.ext["funding"], self.ext["ls"]
+        for b in self.builders.values():
+            b.add(price, qty, is_buy, ts)
+        for c in self._curs():
+            if math.isnan(c.oi):        # 新K线：先带上最新的持仓、费率、多空比
+                c.oi, c.funding, c.ls = self.ext["oi"], self.ext["funding"], self.ext["ls"]
         if self.backfilling:
             return
         if self.limit_orders:
@@ -320,8 +344,7 @@ class SymbolEngine:
         self.ext["liqs"] = (self.ext["liqs"] + [item])[-100:]
         if history:
             return
-        b = self._cur_bar(ts) or self.builder.cur
-        if b is not None:
+        for b in self._curs():
             if side == -1:
                 b.liq_long += qty
             else:
@@ -331,52 +354,59 @@ class SymbolEngine:
     def on_oi(self, oi_coin, oi_usd, ts):
         self.ext["oi"], self.ext["oi_usd"] = oi_coin, oi_usd
         h = self.ext["oi_hist"]
-        h.append((ts, oi_coin))
+        if not h or ts > h[-1][0]:
+            h.append((ts, oi_coin))
         self.ext["oi_hist"] = h[-2000:]
-        if self.builder.cur is not None:
-            self.builder.cur.oi = oi_coin
+        for b in self._curs():
+            b.oi = oi_coin
 
     def on_funding(self, rate, next_ts):
         self.ext["funding"], self.ext["next_funding"] = rate, next_ts
-        if self.builder.cur is not None:
-            self.builder.cur.funding = rate
+        for b in self._curs():
+            b.funding = rate
 
     def on_ratio(self, ls, top_ls):
         self.ext["ls"], self.ext["top_ls"] = ls, top_ls
-        if self.builder.cur is not None:
-            self.builder.cur.ls = ls
+        for b in self._curs():
+            b.ls = ls
 
     def sample_book(self, ts):
-        """每 2 秒采样一次盘口：热力图、盘口失衡、大单墙"""
-        b = self.builder.cur
-        if b is None or math.isnan(self.last):
+        """每 2 秒采样一次盘口：热力图（每个周期按自己的格子）、盘口失衡、大单墙"""
+        if math.isnan(self.last):
             return
-        bids, asks = self.app.feeds[self.inst].book.levels()
+        bids, asks = self.app.hub.book(self.inst).levels()
         if not bids or not asks:
             return
-        row, px = self.row, self.last
-        hb, ha = {}, {}
-        for p_, q in bids.items():
-            r = int(math.floor(p_ / row))
-            hb[r] = hb.get(r, 0.0) + q * self.ct
-        for p_, q in asks.items():
-            r = int(math.floor(p_ / row))
-            ha[r] = ha.get(r, 0.0) + q * self.ct
-        r0 = int(math.floor(px / row))
-        for r in range(r0 - 80, r0 + 81):
-            if r in hb or r in ha:
-                cell = b.heat.setdefault(r, [0.0, 0.0, 0])
-                cell[0] += hb.get(r, 0.0); cell[1] += ha.get(r, 0.0); cell[2] += 1
-        # 盘口失衡：价格上下 0.3% 以内
-        lo, hi = px * 0.997, px * 1.003
+        px = self.last
+        for t, bld in self.builders.items():
+            b = bld.cur
+            if b is None:
+                continue
+            row = bld.row
+            hb, ha = {}, {}
+            for p_, q in bids.items():
+                r = int(math.floor(p_ / row)); hb[r] = hb.get(r, 0.0) + q * self.ct
+            for p_, q in asks.items():
+                r = int(math.floor(p_ / row)); ha[r] = ha.get(r, 0.0) + q * self.ct
+            r0 = int(math.floor(px / row))
+            for r in range(r0 - 80, r0 + 81):
+                if r in hb or r in ha:
+                    cell = b.heat.setdefault(r, [0.0, 0.0, 0])
+                    cell[0] += hb.get(r, 0.0); cell[1] += ha.get(r, 0.0); cell[2] += 1
+            if t == self.tf:
+                self._walls(b, hb, ha, r0, row)
+        lo, hi = px * 0.997, px * 1.003             # 盘口失衡：价格上下 0.3% 以内
         sb = sum(q for p_, q in bids.items() if p_ >= lo)
         sa = sum(q for p_, q in asks.items() if p_ <= hi)
         obi = (sb - sa) / (sb + sa) if sb + sa > 0 else 0.0
-        n = getattr(b, "_obi_n", 0)
-        b.obi = obi if n == 0 or math.isnan(b.obi) else (b.obi * n + obi) / (n + 1)
-        b._obi_n = n + 1
         self.ext["obi"] = obi
-        # 大单墙：附近几格里挂单 ≥ 平均每格 5 倍，并且已经挂了 30 秒以上
+        for b in self._curs():
+            n = getattr(b, "_obi_n", 0)
+            b.obi = obi if n == 0 or math.isnan(b.obi) else (b.obi * n + obi) / (n + 1)
+            b._obi_n = n + 1
+
+    def _walls(self, b, hb, ha, r0, row):
+        """大单墙：附近几格里挂单 ≥ 平均每格 5 倍，并且已经挂了 30 秒以上（防假挂单）"""
         near = [hb.get(r, 0) for r in range(r0 - 40, r0 + 1)] + [ha.get(r, 0) for r in range(r0, r0 + 41)]
         avg = sum(near) / max(1, len(near))
         p = self.det.p
@@ -396,37 +426,56 @@ class SymbolEngine:
         self.wall_seen = {k: v for k, v in self.wall_seen.items() if k in live_walls}
         b.wall_bid, b.wall_ask = wb, wa
 
-    def view(self, n=40):
-        bars = self.builder.bars[-(n - 1):] + ([self.builder.cur] if self.builder.cur else [])
+    # ------------------------------------------------------------ 给网页
+    def view(self, tf=None, n=40):
+        tf = tf if tf in self.builders else self.tf
+        bld = self.builders[tf]
+        bars = bld.bars[-(n - 1):] + ([bld.cur] if bld.cur else [])
         out = []
         for b in bars:
             if b is None:
                 continue
-            bi, si = imbalances(b) if not getattr(b, "seeded", False) else (set(), set())
-            out.append({"t": b.t, "o": b.o, "h": b.h, "l": b.l, "c": b.c,
-                        "seeded": bool(getattr(b, "seeded", False)),
-                        "rows": [[r, round(x, 4), round(y, 4)] for r, (x, y) in sorted(b.rows.items())],
+            seeded = bool(getattr(b, "seeded", False))
+            bi, si = imbalances(b) if not seeded else (set(), set())
+            out.append({"t": b.t, "o": b.o, "h": b.h, "l": b.l, "c": b.c, "seeded": seeded,
+                        "rows": [[r, round(x, 4), round(y, 4)] for r, (x, y) in sorted(b.rows.items())] if not seeded else [],
                         "buy_imb": sorted(bi), "sell_imb": sorted(si),
-                        "stack_buy": stacked(bi, 3), "stack_sell": stacked(si, 3),
                         "delta": b.delta, "vol": b.vol, "poc": b.poc_row(),
                         "heat": [[r, round(x / c, 4), round(y / c, 4)] for r, (x, y, c) in b.heat.items() if c],
                         "liq_long": b.liq_long, "liq_short": b.liq_short, "liqs": b.liqs[-60:],
                         "big_buy": b.big_buy, "big_sell": b.big_sell, "bigs": b.bigs[-60:],
                         "oi": b.oi, "obi": b.obi, "wall_bid": b.wall_bid, "wall_ask": b.wall_ask})
-        real = [b for b in self.builder.bars if not getattr(b, "seeded", False)][-288:]
-        vp = volume_profile(real + ([self.builder.cur] if self.builder.cur else []), self.row)
-        bids, asks = self.app.feeds[self.inst].book.top(80)
-        return {"inst": self.inst, "tf": self.tf, "row": self.row, "last": self.last, "bars": out,
+        day0 = (int(time.time() * 1000) // 86_400_000) * 86_400_000
+        real = [b for b in bld.bars if not getattr(b, "seeded", False) and b.t >= day0]
+        vp = volume_profile(real + ([bld.cur] if bld.cur else []), bld.row)
+        bids, asks = self.app.hub.book(self.inst).top(120)
+        return {"inst": self.inst, "tf": tf, "signal_tf": self.tf, "row": bld.row, "last": self.last, "bars": out,
                 "profile": None if not vp else {"poc": vp["poc"], "vah": vp["vah"], "val": vp["val"],
                                                 "rows": sorted(vp["profile"].items())},
                 "prev_day": self.det.prev_day_profile and {k: self.det.prev_day_profile[k] for k in ("poc", "vah", "val")},
                 "dom": {"bids": [[p, s * self.ct] for p, s in bids], "asks": [[p, s * self.ct] for p, s in asks]},
-                "zones": [z for z in self.det.zones if not z["used"]],
-                "signals": self.signals[-30:],
+                "zones": [z for z in self.det.zones if not z["used"]] if tf == self.tf else [],
+                "signals": [s for s in self.signals[-60:] if s.get("tf") == tf][-30:],
                 "ext": {k: v for k, v in self.ext.items() if k != "oi_hist"},
                 "levels": [] if math.isnan(self.last) else [[x, n] for x, n in self.pb.levels(self.last)],
-                "oi_1h": self._oi_change(3600_000),
-                "extras_status": getattr(self.app.extras.get(self.inst), "status", "")}
+                "oi_1h": self._oi_change(3600_000)}
+
+    def summary(self):
+        """扫描表一行"""
+        b1 = self.builders["1m"]
+        hist = [b for b in b1.bars[-60:] if not getattr(b, "seeded", False)] + ([b1.cur] if b1.cur else [])
+        chg = None
+        if b1.bars and not math.isnan(self.last):
+            ref = b1.bars[-60].c if len(b1.bars) >= 60 else b1.bars[0].c
+            chg = self.last / ref - 1 if ref else None
+        now = int(time.time() * 1000)
+        liq5 = sum(l["usd"] * (-1 if l["side"] < 0 else 1) for l in self.ext["liqs"] if now - l["ts"] <= 300_000)
+        liq5_tot = sum(l["usd"] for l in self.ext["liqs"] if now - l["ts"] <= 300_000)
+        sig = self.signals[-1] if self.signals else None
+        return {"inst": self.inst, "last": self.last, "chg_1h": chg, "funding": self.ext["funding"],
+                "oi_1h": self._oi_change(3600_000), "liq_5m": liq5_tot, "liq_net_5m": liq5, "obi": self.ext["obi"],
+                "delta_15m": sum(b.delta for b in hist[-15:]) * (self.last if not math.isnan(self.last) else 0),
+                "sig": None if not sig else {"name": sig["name"], "side": sig["side"], "t": sig["t"], "tf": sig.get("tf")}}
 
     def _oi_change(self, ms):
         h = self.ext["oi_hist"]
@@ -448,8 +497,11 @@ class OrderFlowApp:
         self.live: OkxLiveBroker | None = None
         self.live_confirmed = False
         self.engines: dict[str, SymbolEngine] = {}
-        self.feeds = {}
-        self.extras = {}
+        self.hub = None               # 行情（of_feed.OkxHub），由 of_app 设置
+        self.xhub = None
+        self.external: set = set()    # 实盘账户里别的程序 / 手动开的仓位（这些币不再开新单）
+        self.live_equity = 0.0
+        self.recent: list = []        # 所有币最近的信号（扫描表用）
         self.log: list[str] = []
         self.history: list[dict] = []
         self._load()
@@ -498,8 +550,23 @@ class OrderFlowApp:
             return False, f"连接欧易失败：{e}"
         self.live_confirmed = True
         self.cfg["mode"] = "live"
-        self.say("已切换到实盘")
+        self.refresh_live()
+        self.say(f"已切换到实盘：账户权益 {self.live_equity:.2f}U；账户里已有仓位的币：{', '.join(sorted(self.external)) or '无'}（这些币不再开新单）")
         return True, "已切换到实盘"
+
+    def refresh_live(self):
+        """读实盘账户权益和已有仓位（每分钟一次）"""
+        if not (self.live_confirmed and self.live):
+            return
+        try:
+            self.live_equity = self.live.equity()
+            mine = {p.sym for p in self.acct.positions if p.live}
+            self.external = {i for i in self.live.open_positions() if i and i not in mine}
+        except Exception as e:  # noqa: BLE001
+            self.say(f"读取实盘账户失败：{e}")
+
+    def on_signal(self, eng, d):
+        self.recent = (self.recent + [{**d, "inst": eng.inst}])[-100:]
 
     def disable_live(self):
         self.live_confirmed = False
@@ -520,11 +587,17 @@ class OrderFlowApp:
             d["skip"] = "价格已越过止损或止盈"
             return
         ok, why = self.risk.can_open(self.acct, eng.inst, s.side)
+        if ok and self.broker is not self.paper and eng.inst in self.external:
+            ok, why = False, "账户里这个币已经有别的仓位"
         if not ok:
             d["skip"] = why
             return
-        qty = self.risk.size(self.acct, price, s.stop)
         br = self.broker
+        live_eq = self.live_equity if br is not self.paper else None
+        if br is not self.paper and not live_eq:
+            d["skip"] = "还没读到实盘账户权益"
+            return
+        qty = self.risk.size(self.acct, price, s.stop, live_eq)
         try:
             fill, oid = br.open(eng.inst, s.side, qty, price, s.stop, s.target)
         except Exception as e:  # noqa: BLE001
@@ -590,11 +663,14 @@ class OrderFlowApp:
                 pos.max_until = 0
                 self.check_exits(eng, eng.last, int(time.time() * 1000))
 
-    def state(self, inst):
+    def state(self, inst, tf=None):
         eng = self.engines.get(inst)
-        return {"view": eng.view() if eng else None,
-                "symbols": [x for x in self.cfg.get("symbols_live", self.cfg["symbols"]) if x in self.engines],
-                "feed": {k: f.status for k, f in self.feeds.items()},
+        return {"view": eng.view(tf) if eng else None,
+                "symbols": list(self.engines),
+                "scan": [e.summary() for e in self.engines.values()],
+                "recent": self.recent[-40:],
+                "feed_status": getattr(self.hub, "status", ""), "extras_status": getattr(self.xhub, "status", ""),
+                "external": sorted(self.external), "live_equity": self.live_equity,
                 "cfg": self.cfg, "live_ok": self.live_confirmed, "allow_live": self.allow_live,
                 "signal_names": ALL_NAMES, "live_only": sorted(LIVE_ONLY), "pb_kinds": sorted(PB_NAMES),
                 "acct": {**asdict(self.acct), "positions": [asdict(p) for p in self.acct.positions]},
