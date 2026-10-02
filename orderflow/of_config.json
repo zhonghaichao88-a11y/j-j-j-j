@@ -1,13 +1,24 @@
 {
  "symbols": "auto",
  "tf": "5m",
- "enabled": [],
+ "enabled": [
+  "flush_spot"
+ ],
  "auto": false,
  "risk_pct": 0.5,
  "max_leverage": 3,
- "max_positions": 2,
+ "max_positions": 10,
  "daily_loss_pct": 3,
  "paper_equity": 1000,
- "top_n": 20,
- "v7_days": 2
+ "top_n": 40,
+ "v7_days": 2,
+ "flush": {
+  "drop": 0.02,
+  "oi_drop": 0.03,
+  "spot_flow": 0.0,
+  "stop_x": 3.0,
+  "hold_h": 12,
+  "size_pct": 5.0,
+  "fill_min": 5
+ }
 }

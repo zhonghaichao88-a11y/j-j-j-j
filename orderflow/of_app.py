@@ -64,7 +64,7 @@ STARTING: set = set()
 
 def save_cfg():
     keep = {k: core.cfg[k] for k in ("symbols", "tf", "enabled", "auto", "risk_pct", "max_leverage",
-                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days")
+                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush")
             if k in core.cfg}
     json.dump(keep, open(CFG_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
