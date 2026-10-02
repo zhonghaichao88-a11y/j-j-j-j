@@ -12,6 +12,7 @@
   共同：盈亏比不到 1.5 不做；到 1R 而且进场后 delta 为正，止损移到保本；当天每个币亏 3 次就停；最多拿 4 小时。
   成本：进场吃单 0.05% + 滑点 0.02%；止盈挂单 0.02%；止损/到时间吃单 0.05% + 滑点 0.02%。
 
+严格版：环境变量 AMT_STRICT=1
 用法: python of_backtest_amt.py <npz目录> BTC,ETH,SOL [all]   （加 all = 不限时段；默认顺势只做纽约、回归只做伦敦）
 """
 from __future__ import annotations
@@ -31,6 +32,12 @@ MAKER, TAKER, SLIP = 0.0002, 0.0005, 0.0002
 RR_MIN, MAX_HOLD, MAX_LOSS_DAY = 1.5, 240, 3
 LVN_FRAC = 0.35          # 这一段的成交量分布里，低于最高量 35% 的价位算 LVN
 IMPULSE_ATR = 4.0        # 推动段至少是平均 1 分钟振幅的 4 倍
+# 严格版（第二轮，规则事先定好）：第一轮检查发现三处翻译得太松——
+#   止损中位数只有 0.08%，一进一出成本 0.14% 就是 1.7R；推动段 4 倍太容易；71% 的分钟都有"大单"，主动性不挑剔
+STRICT = os.environ.get("AMT_STRICT") == "1"
+if STRICT:
+    IMPULSE_ATR = 12.0       # 推动段 ≥ 12 倍平均 1 分钟振幅
+MIN_STOP_ATR = 3.0           # 严格版：止损至少 3 倍平均 1 分钟振幅
 SESS = {"trend": [(13.5, 20.0)], "mr": [(7.0, 12.0)]}   # UTC
 
 
@@ -60,10 +67,18 @@ def leg_lvn(bars, i0, i1, tick, side):
     return out
 
 
-def aggressive(b, side):
-    """这根K线顺方向有主动性：delta 同向，并且（大单同向占优，或同向 3 格以上堆叠失衡）"""
+def aggressive(b, side, hist=None):
+    """这根K线顺方向有主动性：delta 同向，并且（大单同向占优，或同向 3 格以上堆叠失衡）。
+    严格版另外要求：delta 是最近 4 小时里最强的 10%，而且同向大单 ≥ 最近 4 小时平均的 2 倍"""
     if side * b.delta <= 0:
         return False
+    if STRICT and hist:
+        ds = sorted(abs(x.delta) for x in hist)
+        if abs(b.delta) < ds[int(len(ds) * 0.9)]:
+            return False
+        avg_big = np.mean([x.big_buy + x.big_sell for x in hist]) + 1e-12
+        if (b.big_buy if side == 1 else b.big_sell) < 2 * avg_big:
+            return False
     if (b.big_buy - b.big_sell) * side > 0:
         return True
     buy, sell = imbalances(b)
@@ -140,7 +155,7 @@ def run(d, all_hours=False):
             if S["reclaimed"] and i - S["i_rec"] >= 2 and in_sess(b.t, "mr", all_hours):
                 lv = leg_lvn(bars, S["i_ext"], i - 1, tick, side)
                 touch = [r for r in lv if (b.l <= (r + 1) * tick and r * tick <= b.h)]
-                if touch and aggressive(b, side) and (b.c > edge if side == 1 else b.c < edge):
+                if touch and aggressive(b, side, bars[max(0, i - 240):i]) and (b.c > edge if side == 1 else b.c < edge):
                     cands.append(("回归", side, poc))
         # ---- 顺势：价值区外的推动段回踩
         for side in (1, -1):
@@ -162,13 +177,15 @@ def run(d, all_hours=False):
                 continue
             lv = leg_lvn(bars, j0, j1, tick, side)
             touch = [r for r in lv if (b.l <= (r + 1) * tick and r * tick <= b.h)]
-            if touch and aggressive(b, side):
+            if touch and aggressive(b, side, bars[max(0, i - 240):i]):
                 cands.append(("顺势", side, ext))
 
         for kind, side, tgt in cands[:1]:
             nb = bars[i + 1]
             entry = nb.o * (1 + side * SLIP)
             stop = (b.l - 2 * tick) if side == 1 else (b.h + 2 * tick)
+            if STRICT and abs(nb.o - stop) < MIN_STOP_ATR * atr:
+                stop = nb.o - side * MIN_STOP_ATR * atr
             risk = abs(entry - stop) / entry
             if risk <= 0 or side * (tgt - entry) <= 0:
                 continue
