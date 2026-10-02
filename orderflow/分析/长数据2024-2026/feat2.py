@@ -89,16 +89,25 @@ if __name__ == '__main__':
         spc = sp.sort_values('ts').drop_duplicates('ts').set_index('ts').close
         cbp = (cbc / spc.reindex(cbc.index) - 1).rolling(12, min_periods=6).mean()
     btc = one('BTC', None, cbp)
-    out = [btc]
+    KEEP = ['inst', 'r_60', 'oi_60', 'sf_60', 'pf_60', 'fwd_60', 'fwd_240', 'q']
+    os.makedirs('F2', exist_ok=True)
+
+    def save(f, c):                                    # 每个币单独存，只留两个打法要用的列（110 个币一起放内存会爆）
+        f = f.replace([np.inf, -np.inf], np.nan)
+        out = f[[k for k in KEEP if k in f]].copy()
+        for k in out.columns:
+            if out[k].dtype == 'float64':
+                out[k] = out[k].astype('float32')
+        out.index.name = 'ts'
+        out.reset_index().to_parquet(f'F2/{c}.parquet')
+    save(btc, 'BTC')
+    n = 1
     for c in FUT:
         if c == 'BTC':
             continue
         f = one(c, btc, cbp)
         if f is not None and len(f) > 288 * 60:
-            out.append(f)
+            save(f, c)
+            n += 1
             print(c, len(f), flush=True)
-    X = pd.concat(out)
-    X.index.name = 'ts'
-    X = X.replace([np.inf, -np.inf], np.nan)
-    X.astype({c: 'float32' for c in X.columns if X[c].dtype == 'float64'}).to_parquet('F2.parquet')
-    print(X.shape)
+    print('saved', n)

@@ -367,6 +367,7 @@ def test_flush_spot_signal_and_paper_trade(tmp_path, monkeypatch):
         def stats(self, inst, okx_min=None):
             return {"sf_60": 0.10}
     app.xx = X()
+    app.cfg["squeeze"] = {"rise": 9.9}          # 这个测试只看清洗接盘
     eng = E.SymbolEngine(app, "SOL-USDT-SWAP", "5m", {t: 0.01 for t in E.VIEW_TFS}, 1.0)
     app.engines = {eng.inst: eng}
     t0 = 10 * 86_400_000
@@ -385,7 +386,7 @@ def test_flush_spot_signal_and_paper_trade(tmp_path, monkeypatch):
     pos = app.acct.positions
     assert len(pos) == 1 and pos[0].kind == "flush_spot"
     assert pos[0].max_until - pos[0].t_open == 12 * 3600_000             # 拿 12 小时
-    assert abs(pos[0].qty * sig_px - 1000 * 0.05) < 1.0                  # 每笔用权益 5%
+    assert abs(pos[0].qty * sig_px - 1000 * 0.10) < 1.0                  # 每笔用权益 10%
     assert pos[0].stop < sig_px * (1 - 0.09)                             # 止损 = 3 倍跌幅
     # 12 小时内不重复
     eng.on_trade(95.0, 1, True, t0 + 16 * 300_000)
@@ -399,11 +400,11 @@ def test_flush_limit_order_expires(tmp_path, monkeypatch):
 
     class X:
         def stats(self, inst, okx_min=None):
-            return {"sf_60": 0.02}
+            return {"sf_60": 0.10}
     app.xx = X()
     eng = E.SymbolEngine(app, "SOL-USDT-SWAP", "5m", {t: 0.01 for t in E.VIEW_TFS}, 1.0)
     t0 = 10 * 86_400_000
-    eng.ext["oi_hist"] = [(t0, 1000.0), (t0 + 60 * 60_000, 960.0)]       # -4%
+    eng.ext["oi_hist"] = [(t0, 1000.0), (t0 + 60 * 60_000, 940.0)]       # -6%
     for k in range(13):
         eng.on_trade(100.0 - k * 3.0 / 13, 1, False, t0 + k * 300_000)
     eng.on_trade(98.0, 1, True, t0 + 13 * 300_000)
@@ -450,3 +451,30 @@ def test_live_cross_margin_used_for_open_and_close(tmp_path, monkeypatch):
         await asyncio.sleep(1.7)
         assert app.live.close_mgn == "cross"
     _run(go)
+
+
+def test_squeeze_long_signal_market_entry(tmp_path, monkeypatch):
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    app = E.OrderFlowApp({"auto": True, "enabled": ["squeeze_long"]}, None, None, False)
+
+    class X:
+        def stats(self, inst, okx_min=None):
+            return {"sf_60": -0.2}                  # 轧空追多不看现货
+    app.xx = X()
+    eng = E.SymbolEngine(app, "DOGE-USDT-SWAP", "5m", {t: 0.0001 for t in E.VIEW_TFS}, 1.0)
+    app.engines = {eng.inst: eng}
+    t0 = 10 * 86_400_000
+    eng.ext["oi_hist"] = [(t0, 1000.0), (t0 + 60 * 60_000, 970.0)]       # 持仓 -3%（空单被平）
+    for k in range(13):
+        eng.on_trade(0.100 + k * 0.004 / 12, 1, True, t0 + k * 300_000)  # 1 小时涨 4%
+    eng.on_trade(0.1045, 1, True, t0 + 13 * 300_000)                    # 收盘 → 出信号
+    sig = [s for s in eng.signals if s["kind"] == "squeeze_long"]
+    assert len(sig) == 1 and sig[0]["side"] == 1
+    eng.on_trade(0.1046, 1, True, t0 + 13 * 300_000 + 500)              # 下一笔成交市价进场
+    pos = app.acct.positions
+    assert len(pos) == 1 and pos[0].kind == "squeeze_long"
+    assert pos[0].max_until - pos[0].t_open == 12 * 3600_000
+    rise = sig[0]["price"] / 0.100 - 1
+    assert abs(pos[0].stop - sig[0]["price"] * (1 - rise)) < 1e-9         # 止损 = 涨幅那么远
+    assert abs(pos[0].qty * pos[0].entry - 1000 * 0.10) < 1.0             # 每笔 10%

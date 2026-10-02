@@ -19,16 +19,28 @@ from of_playbook import Playbook, PB_NAMES
 import of_notify
 from of_live import OkxLive, LiveError
 
-# 全网组合打法（2024-01 ~ 2026-03、46 个币长数据检验过，见 分析/长数据2024-2026/）
-FLUSH_NAMES = {"flush_spot": "清洗接盘（现货）"}
-# 宽松版 + 拿 12 小时 + 挂单进场（长数据：2148 笔，每月约 80 笔，胜率 53%，每笔 +0.47%，PF 1.24，2024/2025/2026 都赚）
+# 全网组合打法（2024-01 ~ 2026-03、104 个币长数据检验过，见 分析/长数据2024-2026/）
+FLUSH_NAMES = {"flush_spot": "清洗接盘（现货）", "squeeze_long": "轧空追多"}
+# 清洗接盘（严格版，拿 12 小时，挂单进场）：104 个币 1314 笔，胜率 53%，每笔 +0.89%，PF 1.40，2024/2025/2026 都赚；
+# 新加的 58 个币（没用来定参数）上每笔 +0.62%，PF 1.26
 FLUSH = {"drop": 0.02,          # 1 小时跌超 2%
-         "oi_drop": 0.03,       # 持仓量 1 小时降超 3%
-         "spot_flow": 0.0,      # 币安现货 1 小时主动买 > 卖
+         "oi_drop": 0.05,       # 持仓量 1 小时降超 5%
+         "spot_flow": 0.05,     # 币安现货 1 小时主动买比卖多 5%
          "stop_x": 3.0,         # 紧急止损 = 这次跌幅的 3 倍
          "hold_h": 12,          # 拿 12 小时
-         "size_pct": 5.0,       # 每笔用账户权益的 5% 开仓（不按止损算仓位）
+         "size_pct": 10.0,      # 每笔用账户权益的 10% 开仓（不按止损算仓位）
          "fill_min": 5}         # 在信号K线收盘价挂买单，5 分钟内价格回到这里才成交，否则撤单
+# 轧空追多（拿 12 小时，下一笔成交市价进场）：104 个币 824 笔，胜率 46%，每笔 +1.98%，PF 1.98，三年都赚；
+# 新加的 58 个币上每笔 +1.74%，PF 1.79。大部分单子小亏，靠少数大涨赚钱
+SQUEEZE = {"rise": 0.03,        # 1 小时涨超 3%
+           "oi_drop": 0.02,     # 持仓量 1 小时降超 2%（空单被强平）
+           "stop_x": 1.0,       # 止损 = 进场价下方"这次涨幅"那么远
+           "hold_h": 12,
+           "size_pct": 10.0}
+
+
+def squeeze_cfg(cfg):
+    return {**SQUEEZE, **(cfg.get("squeeze") or {})}
 
 
 def flush_cfg(cfg):
@@ -173,6 +185,7 @@ DEFAULT_CFG = {
     "paper_equity": 1000,
     "top_n": 20,                # symbols="auto" 时按 24 小时成交额自动选几个币
     "flush": dict(FLUSH),       # 清洗接盘的参数（网页上可以改）
+    "squeeze": dict(SQUEEZE),   # 轧空追多的参数（网页上可以改）
 }
 
 
@@ -205,7 +218,8 @@ class SymbolEngine:
         self.wall_seen: dict = {}     # (方向, 行) -> 第一次看到的时间；挂够 30 秒才算真墙（防假挂单）
         self.okx_min: dict = {}       # 分钟 -> [欧易主动买$, 主动卖$]，和币安、Bybit 合起来算全网
         self._last5 = 0               # 上一根已检查的 5 分钟K线
-        self._flush_t = 0             # 上次"清洗接盘"信号的时间（同一个币 4 小时内只做一次）
+        self._flush_t = 0             # 上次"清洗接盘"信号的时间（同一个币持有期内只做一次）
+        self._squeeze_t = 0           # 上次"轧空追多"信号的时间
 
     def _wire(self):
         """把信号周期的K线接到形态识别器，1 分钟K线接到实战打法"""
@@ -250,6 +264,7 @@ class SymbolEngine:
     def _check_flush(self, b5):
         """多头清洗 + 现货接盘 → 做多：1 小时跌超 2%、持仓量 1 小时降超 3%（多单被清）、币安现货 1 小时主动买 > 卖。
         在信号K线收盘价挂买单，拿 12 小时，紧急止损 3 倍跌幅。参数在网页上可以改"""
+        self._check_squeeze(b5)
         fc = flush_cfg(self.app.cfg)
         bar = b5[-1]
         if bar.t - self._flush_t < fc["hold_h"] * 3600_000:
@@ -269,6 +284,27 @@ class SymbolEngine:
             self.app.on_signal(self, d)
             # 收盘时刻 = 这根K线开始 + 5 分钟；挂单从那时起 fill_min 分钟内有效
             self.limit_orders.append((s, d, bar.t + 300_000 + fc["fill_min"] * 60_000))
+
+    def _check_squeeze(self, b5):
+        """轧空追多：1 小时涨超 3%、持仓量 1 小时降超 2%（空单被强平，被迫买回）→ 下一笔成交做多，拿 12 小时。
+        止损 = 进场价下方这次涨幅那么远；止盈放得很远（+200%），主要靠到时间平仓"""
+        qc = squeeze_cfg(self.app.cfg)
+        bar = b5[-1]
+        if bar.t - self._squeeze_t < qc["hold_h"] * 3600_000:
+            return
+        r60 = (b5[-1].c / b5[-13].c - 1) if len(b5) >= 13 and b5[-13].c else math.nan
+        oi = self._oi_change(3600_000)
+        if math.isnan(r60) or oi is None:
+            return
+        if r60 > qc["rise"] and oi < -qc["oi_drop"]:
+            self._squeeze_t = bar.t
+            s = Signal("squeeze_long", 1, bar.c * (1 - qc["stop_x"] * r60), bar.c * 3.0, bar.t,
+                       f"1小时 {r60:+.1%}，持仓 {oi:+.1%}（空单被强平）")
+            d = {"t": bar.t, "tf": "5m", "kind": s.kind, "name": ALL_NAMES[s.kind], "side": 1, "stop": s.stop,
+                 "target": s.target, "price": bar.c, "note": s.note, "traded": False}
+            self.signals = (self.signals + [d])[-200:]
+            self.app.on_signal(self, d)
+            self.pending.append((s, d))
 
     def _on_pb_bar(self, bar: Bar, seeded=False):
         if seeded:
@@ -498,7 +534,7 @@ class SymbolEngine:
                 "ext": {k: v for k, v in self.ext.items() if k != "oi_hist"},
                 "levels": [] if math.isnan(self.last) else [[x, n] for x, n in self.pb.levels(self.last)],
                 "oi_1h": self._oi_change(3600_000), "big_usd": self.big_usd, "x": self.xstats(),
-                "flush": dict(zip(("r60", "oi", "sf"), self.flush_state())), "flush_cfg": flush_cfg(self.app.cfg)}
+                "flush": dict(zip(("r60", "oi", "sf"), self.flush_state())), "flush_cfg": flush_cfg(self.app.cfg), "squeeze_cfg": squeeze_cfg(self.app.cfg)}
 
     def summary(self):
         """扫描表一行"""
@@ -694,12 +730,18 @@ class OrderFlowApp:
             d["skip"] = "还没读到实盘账户权益"
             return
         qty = self.risk.size(self.acct, price, s.stop, self.live_equity if live else None)
-        if s.kind in FLUSH_NAMES:              # 清洗接盘：固定用权益的 size_pct% 开仓
-            fc = flush_cfg(self.cfg)
+        if s.kind in FLUSH_NAMES:              # 清洗接盘 / 轧空追多：固定用权益的 size_pct% 开仓
+            fc = flush_cfg(self.cfg) if s.kind == "flush_spot" else squeeze_cfg(self.cfg)
             eq = self.live_equity if live else self.acct.equity
             qty = min(eq * fc["size_pct"] / 100 / price, eq * self.cfg["max_leverage"] / price)
-        hold = PB_HOLD_MS if s.kind in PB_NAMES else (flush_cfg(self.cfg)["hold_h"] * 3600_000 if s.kind in FLUSH_NAMES
-                                                       else self.cfg.get("max_hold_bars", 48) * TF_MS[eng.tf])
+        if s.kind in PB_NAMES:
+            hold = PB_HOLD_MS
+        elif s.kind == "flush_spot":
+            hold = flush_cfg(self.cfg)["hold_h"] * 3600_000
+        elif s.kind == "squeeze_long":
+            hold = squeeze_cfg(self.cfg)["hold_h"] * 3600_000
+        else:
+            hold = self.cfg.get("max_hold_bars", 48) * TF_MS[eng.tf]
         if not live:
             fill = price * (1 + s.side * PaperBroker.slip)
             self._add_position(eng, s, d, Position(eng.inst, s.kind, s.side, qty, fill, s.stop, s.target, ts, ts + hold,

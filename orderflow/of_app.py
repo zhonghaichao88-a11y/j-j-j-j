@@ -64,7 +64,7 @@ STARTING: set = set()
 
 def save_cfg():
     keep = {k: core.cfg[k] for k in ("symbols", "tf", "enabled", "auto", "risk_pct", "max_leverage",
-                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "margin_mode")
+                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "margin_mode")
             if k in core.cfg}
     json.dump(keep, open(CFG_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
@@ -289,16 +289,17 @@ async def set_cfg(body: dict):
             core.cfg[k] = body[k]
     if body.get("margin_mode") in ("isolated", "cross"):
         core.cfg["margin_mode"] = body["margin_mode"]
-    if isinstance(body.get("flush"), dict):          # 清洗接盘的参数，只收认识的数字
-        from of_engine import FLUSH
-        cur = dict(FLUSH, **(core.cfg.get("flush") or {}))
-        for k, v in body["flush"].items():
-            if k in FLUSH:
-                try:
-                    cur[k] = float(v)
-                except (TypeError, ValueError):
-                    pass
-        core.cfg["flush"] = cur
+    from of_engine import FLUSH, SQUEEZE
+    for key, base in (("flush", FLUSH), ("squeeze", SQUEEZE)):     # 两个组合打法的参数，只收认识的数字
+        if isinstance(body.get(key), dict):
+            cur = dict(base, **(core.cfg.get(key) or {}))
+            for k, v in body[key].items():
+                if k in base:
+                    try:
+                        cur[k] = float(v)
+                    except (TypeError, ValueError):
+                        pass
+            core.cfg[key] = cur
     core.risk.cfg = core.cfg
     save_cfg()
     core.say(f"设置已更新：自动交易={'开' if core.cfg['auto'] else '关'}，"

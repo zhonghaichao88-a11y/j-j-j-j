@@ -2,7 +2,8 @@
  "symbols": "auto",
  "tf": "5m",
  "enabled": [
-  "flush_spot"
+  "flush_spot",
+  "squeeze_long"
  ],
  "auto": false,
  "risk_pct": 0.5,
@@ -14,12 +15,19 @@
  "v7_days": 2,
  "flush": {
   "drop": 0.02,
-  "oi_drop": 0.03,
-  "spot_flow": 0.0,
+  "oi_drop": 0.05,
+  "spot_flow": 0.05,
   "stop_x": 3.0,
   "hold_h": 12,
-  "size_pct": 5.0,
+  "size_pct": 10.0,
   "fill_min": 5
  },
- "margin_mode": "isolated"
+ "margin_mode": "isolated",
+ "squeeze": {
+  "rise": 0.03,
+  "oi_drop": 0.02,
+  "stop_x": 1.0,
+  "hold_h": 12,
+  "size_pct": 10.0
+ }
 }

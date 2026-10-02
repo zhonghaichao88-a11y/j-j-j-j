@@ -1,6 +1,6 @@
 """想办法多赚：持有时间、挂单进出、条件松紧。统一按"最大回撤控制在 15%"来放大仓位，看一年能赚多少。"""
 import pandas as pd, numpy as np
-F=pd.read_parquet('F2.parquet').reset_index()
+F=pd.read_parquet('F2')
 def ev(mask,gap):
     E=F[mask.fillna(False).values].sort_values(['inst','ts']); keep=[];last={}
     for i,(inst,ts) in enumerate(zip(E.inst,E.ts)):
