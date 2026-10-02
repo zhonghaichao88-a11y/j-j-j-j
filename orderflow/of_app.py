@@ -67,7 +67,7 @@ STARTING: set = set()
 def save_cfg():
     """保存设置（自动刹车改了打法勾选也会调用）"""
     keep = {k: core.cfg[k] for k in ("symbols", "tf", "enabled", "auto", "risk_pct", "max_leverage",
-                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "margin_mode", "guard_n", "guard_pf", "btc_ma_days")
+                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "momo", "margin_mode", "guard_n", "guard_pf", "btc_ma_days")
             if k in core.cfg}
     json.dump(keep, open(CFG_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
@@ -102,6 +102,7 @@ async def start_symbol(inst: str):
         for tf, b in eng.builders.items():
             b.seed(cs.get(tf, []))
         await seed_derivs(eng, inst)
+        await seed_momo(eng, inst)
         seed_from_v7(eng, inst)
         eng.category = str(info.get("instCategory") or "1")    # 1=加密币，3=股票合约 等
         core.engines[inst] = eng
@@ -239,6 +240,22 @@ async def seed_derivs(eng, inst):
         _replay(eng)
     except Exception as e:  # noqa: BLE001
         core.say(f"{inst} 补持仓/多空比历史失败（不影响运行）：{e}")
+
+
+async def seed_momo(eng, inst):
+    """追强势币要 24 小时的 5 分钟收盘价、7 天的每小时成交额：各拉一次欧易K线（只用已经收完的）"""
+    try:
+        async with httpx.AsyncClient(proxy=PROXY, timeout=15) as c:
+            async with REST_SEM:
+                h1 = await get_json(c, "/api/v5/market/candles", instId=inst, bar="1H", limit=200)
+                await asyncio.sleep(0.15)
+                m5 = await get_json(c, "/api/v5/market/candles", instId=inst, bar="5m", limit=300)
+                await asyncio.sleep(0.15)
+        eng.momo.seed_hours((int(r[0]), float(r[7])) for r in h1 if r[8] == "1")
+        for r in sorted((r for r in m5 if r[8] == "1"), key=lambda r: int(r[0])):
+            eng.momo.add(int(r[0]), float(r[4]), float(r[7]))
+    except Exception as e:  # noqa: BLE001
+        core.say(f"{inst} 补追强势币用的K线失败（这个币 24 小时后才会出这个信号）：{e}")
 
 
 async def book_sampler():
@@ -385,8 +402,8 @@ async def set_cfg(body: dict):
             pass
     if body.get("margin_mode") in ("isolated", "cross"):
         core.cfg["margin_mode"] = body["margin_mode"]
-    from of_engine import FLUSH, SQUEEZE
-    for key, base in (("flush", FLUSH), ("squeeze", SQUEEZE)):     # 两个组合打法的参数，只收认识的数字
+    from of_engine import FLUSH, SQUEEZE, MOMO
+    for key, base in (("flush", FLUSH), ("squeeze", SQUEEZE), ("momo", MOMO)):     # 组合打法的参数，只收认识的数字
         if isinstance(body.get(key), dict):
             cur = dict(base, **(core.cfg.get(key) or {}))
             for k, v in body[key].items():

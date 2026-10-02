@@ -40,13 +40,80 @@ SQUEEZE = {"rise": 0.03,        # 1 小时涨超 3%
            "size_pct": 10.0}
 
 
+# 追强势币（拿 24 小时，下一笔成交市价进场，不管大盘）：102 个币 2024-01 ~ 2026-09，参数只用 2024 年挑，
+# 2024 年 PF 1.43，2025 年以后 1277 笔 PF 1.15，最近半年 PF 1.50，后加的币 PF 1.11；胜率只有 41%，靠少数暴涨的币赚钱
+MOMO_NAMES = {"momo_long": "追强势币"}
+MOMO = {"rise": 0.20,           # 24 小时涨超 20%
+        "vol_x": 3.0,           # 最近 1 小时成交额 ≥ 过去 7 天平均每小时的 3 倍
+        "stop": 0.15,           # 止损：进场价下方 15%
+        "hold_h": 24,           # 拿 24 小时
+        "size_pct": 5.0}        # 每笔用权益的 5%（回测：10% 时最大回撤 55%，5% 时 33%）
+COMBO_NAMES = {**FLUSH_NAMES, **MOMO_NAMES}
+
+
+def momo_cfg(cfg):
+    return {**MOMO, **(cfg.get("momo") or {})}
+
+
+def combo_cfg(cfg, kind):
+    return flush_cfg(cfg) if kind == "flush_spot" else squeeze_cfg(cfg) if kind == "squeeze_long" else momo_cfg(cfg)
+
+
+class MomoTracker:
+    """追强势币要用的数据：5 分钟收盘价（最近 25 小时）和每小时成交额（最近 8 天）。
+    和回测一样都只用已经收完的K线：24 小时涨幅 = 这根收盘 / 288 根前收盘；1 小时涨幅 = / 12 根前；
+    放量倍数 = 最近 12 根成交额 / 前 7 天平均每小时成交额"""
+
+    def __init__(self):
+        self.c5: dict = {}            # 5 分钟K线开始时间 -> 收盘价
+        self.q5: dict = {}            # 5 分钟K线开始时间 -> 成交额（U）
+        self.h1: dict = {}            # 小时开始时间 -> 成交额（U）
+        self.h1_done: set = set()     # 用欧易 1 小时K线补的整小时（不再往里加 5 分钟的量）
+        self.last = 0
+
+    def seed_hours(self, rows):
+        for t, qv in rows:
+            self.h1[t] = qv
+            self.h1_done.add(t)
+
+    def add(self, t, c, qv):
+        if t <= self.last or not (c > 0):
+            return
+        self.last = t
+        self.c5[t], self.q5[t] = c, qv
+        h = t - t % 3600_000
+        if h not in self.h1_done:
+            self.h1[h] = self.h1.get(h, 0.0) + qv
+        if len(self.c5) > 330:
+            for k in sorted(self.c5)[:-310]:
+                self.c5.pop(k, None)
+                self.q5.pop(k, None)
+        if len(self.h1) > 200:
+            for k in sorted(self.h1)[:-190]:
+                self.h1.pop(k, None)
+                self.h1_done.discard(k)
+
+    def state(self, t):
+        """(24 小时涨幅, 1 小时涨幅, 放量倍数)；数据不够返回 nan"""
+        c = self.c5.get(t)
+        c24, c1 = self.c5.get(t - 86_400_000), self.c5.get(t - 3_600_000)
+        if not c or not c24 or not c1:
+            return math.nan, math.nan, math.nan
+        v1 = sum(self.q5.get(t - k * 300_000, 0.0) for k in range(12))
+        h = t - t % 3600_000
+        prev = [self.h1[k] for k in range(h - 168 * 3600_000, h, 3600_000) if k in self.h1]
+        if len(prev) < 24 or sum(prev) <= 0:
+            return c / c24 - 1, c / c1 - 1, math.nan
+        return c / c24 - 1, c / c1 - 1, v1 / (sum(prev) / len(prev))
+
+
 def squeeze_cfg(cfg):
     return {**SQUEEZE, **(cfg.get("squeeze") or {})}
 
 
 def flush_cfg(cfg):
     return {**FLUSH, **(cfg.get("flush") or {})}
-ALL_NAMES = {**SIGNAL_NAMES, **PB_NAMES, **FLUSH_NAMES}     # 形态打法 + 实战打法 + 全网组合打法
+ALL_NAMES = {**SIGNAL_NAMES, **PB_NAMES, **COMBO_NAMES}     # 形态打法 + 实战打法 + 全网组合打法
 PB_HOLD_MS = 120 * 60_000                    # 实战打法最多拿 120 分钟（和回测一样）
 PB_FILL_MS = 4 * 60_000                      # 限价单挂 3~4 分钟没成交就撤
 
@@ -199,6 +266,7 @@ DEFAULT_CFG = {
     "paper_equity": 1000,
     "top_n": 20,                # symbols="auto" 时按 24 小时成交额自动选几个币
     "flush": dict(FLUSH),       # 清洗接盘的参数（网页上可以改）
+    "momo": dict(MOMO),         # 追强势币的参数（网页上可以改）
     "squeeze": dict(SQUEEZE),   # 轧空追多的参数（网页上可以改）
 }
 
@@ -234,6 +302,8 @@ class SymbolEngine:
         self._last5 = 0               # 上一根已检查的 5 分钟K线
         self._flush_t = 0             # 上次"清洗接盘"信号的时间（同一个币持有期内只做一次）
         self._squeeze_t = 0           # 上次"轧空追多"信号的时间
+        self._momo_t = 0              # 上次"追强势币"信号的时间
+        self.momo = MomoTracker()
 
     def _wire(self):
         """把信号周期的K线接到形态识别器，1 分钟K线接到实战打法"""
@@ -266,6 +336,24 @@ class SymbolEngine:
             self.app.on_signal(self, d)
             if not self.backfilling:
                 self.pending.append((s, d))
+
+    def _check_momo(self, bar):
+        """追强势币：24 小时涨超 20%、最近 1 小时成交额 ≥ 平时 3 倍、1 小时还在涨 → 下一笔成交做多，拿 24 小时，止损 15%"""
+        mc = momo_cfg(self.app.cfg)
+        if bar.t - self._momo_t < mc["hold_h"] * 3600_000:
+            return
+        r24, r60, vx = self.momo.state(bar.t)
+        if any(math.isnan(x) for x in (r24, r60, vx)):
+            return
+        if r24 > mc["rise"] and vx >= mc["vol_x"] and r60 > 0:
+            self._momo_t = bar.t
+            s = Signal("momo_long", 1, bar.c * (1 - mc["stop"]), bar.c * 10.0, bar.t,
+                       f"24小时 {r24:+.1%}，1小时 {r60:+.1%}，放量 {vx:.1f} 倍")
+            d = {"t": bar.t, "tf": "5m", "kind": s.kind, "name": ALL_NAMES[s.kind], "side": 1, "stop": s.stop,
+                 "target": s.target, "price": bar.c, "note": s.note, "traded": False}
+            self.signals = (self.signals + [d])[-200:]
+            self.app.on_signal(self, d)
+            self.pending.append((s, d))
 
     def flush_state(self, b5=None):
         """清洗接盘的三个条件现在各是多少：1 小时涨跌、1 小时持仓量变化、币安现货 1 小时主动买卖"""
@@ -388,8 +476,11 @@ class SymbolEngine:
         b5 = self.builders["5m"].bars
         if b5 and b5[-1].t != self._last5:
             self._last5 = b5[-1].t
+            lb = b5[-1]
+            self.momo.add(lb.t, lb.c, lb.vol * lb.c)      # 成交额（U）≈ 币数量 × 收盘价
             if not self.backfilling:
                 self._check_flush(b5)
+                self._check_momo(lb)
         mrow = self.okx_min.setdefault(ts // 60000, [0.0, 0.0])
         mrow[0 if is_buy else 1] += qty * price
         if len(self.okx_min) > 400:
@@ -548,7 +639,8 @@ class SymbolEngine:
                 "ext": {k: v for k, v in self.ext.items() if k != "oi_hist"},
                 "levels": [] if math.isnan(self.last) else [[x, n] for x, n in self.pb.levels(self.last)],
                 "oi_1h": self._oi_change(3600_000), "big_usd": self.big_usd, "x": self.xstats(),
-                "flush": dict(zip(("r60", "oi", "sf"), self.flush_state())), "flush_cfg": flush_cfg(self.app.cfg), "squeeze_cfg": squeeze_cfg(self.app.cfg)}
+                "flush": dict(zip(("r60", "oi", "sf"), self.flush_state())), "flush_cfg": flush_cfg(self.app.cfg), "squeeze_cfg": squeeze_cfg(self.app.cfg),
+                "momo": dict(zip(("r24", "r60", "vx"), self.momo.state(self.momo.last))), "momo_cfg": momo_cfg(self.app.cfg)}
 
     def summary(self):
         """扫描表一行"""
@@ -747,11 +839,11 @@ class OrderFlowApp:
         if (s.side == 1 and not (s.stop < price < s.target)) or (s.side == -1 and not (s.target < price < s.stop)):
             d["skip"] = "价格已越过止损或止盈"
             return
-        if s.kind in FLUSH_NAMES and getattr(eng, "category", "1") != "1":
+        if s.kind in COMBO_NAMES and getattr(eng, "category", "1") != "1":
             d["skip"] = "这是股票等非加密币合约，回测只测过加密币，不做"
             return
         n_ma = int(self.cfg.get("btc_ma_days", 0) or 0)
-        if s.kind in FLUSH_NAMES and n_ma > 0 and self.btc_bull is not True:   # 这两个都是做多打法：大盘空头时回测是亏的
+        if s.kind in FLUSH_NAMES and n_ma > 0 and self.btc_bull is not True:   # 清洗接盘 / 轧空追多：大盘空头时回测是亏的（追强势币不受这条限制）
             d["skip"] = (f"大盘过滤：BTC 在 {n_ma} 天均线下方（空头），做多打法暂停" if self.btc_bull is False
                          else "大盘过滤：还没读到 BTC 日线，先不开")
             return
@@ -772,16 +864,16 @@ class OrderFlowApp:
             d["skip"] = "还没读到实盘账户权益"
             return
         qty = self.risk.size(self.acct, price, s.stop, self.live_equity if live else None)
-        if s.kind in FLUSH_NAMES:              # 清洗接盘 / 轧空追多：固定用权益的 size_pct% 开仓
-            fc = flush_cfg(self.cfg) if s.kind == "flush_spot" else squeeze_cfg(self.cfg)
+        if s.kind in COMBO_NAMES:              # 清洗接盘 / 轧空追多 / 追强势币：固定用权益的 size_pct% 开仓
+            fc = combo_cfg(self.cfg, s.kind)
             eq = self.live_equity if live else self.acct.equity
             qty = min(eq * fc["size_pct"] / 100 / price, eq * self.cfg["max_leverage"] / price)
         if s.kind in PB_NAMES:
             hold = PB_HOLD_MS
         elif s.kind == "flush_spot":
             hold = flush_cfg(self.cfg)["hold_h"] * 3600_000
-        elif s.kind == "squeeze_long":
-            hold = squeeze_cfg(self.cfg)["hold_h"] * 3600_000
+        elif s.kind in ("squeeze_long", "momo_long"):
+            hold = combo_cfg(self.cfg, s.kind)["hold_h"] * 3600_000
         else:
             hold = self.cfg.get("max_hold_bars", 48) * TF_MS[eng.tf]
         if not live:

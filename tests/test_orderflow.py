@@ -1,3 +1,4 @@
+import math
 import copy
 import os
 import sys
@@ -567,3 +568,38 @@ def test_btc_regime_calc_uses_only_closed_daily_candles():
     rows[1][4] = "100"                                                # 昨收跌到均线下方
     assert E.btc_regime_calc(rows, 5)[0] is False
     assert E.btc_regime_calc(rows, 50)[0] is None                    # 日线不够
+
+
+def test_momo_long_signal_ignores_btc_filter(tmp_path, monkeypatch):
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = E.OrderFlowApp({"auto": True, "enabled": ["momo_long"], "btc_ma_days": 200}, None, None, False)
+    app.btc_bull = False                         # 大盘空头也照做
+    eng = E.SymbolEngine(app, "AKE-USDT-SWAP", "5m", {t: 0.0001 for t in E.VIEW_TFS}, 1.0)
+    app.engines = {eng.inst: eng}
+    t0 = 20 * 86_400_000
+    H = 3_600_000
+    eng.momo.seed_hours((t0 - k * H, 1000.0) for k in range(1, 8 * 24))        # 过去 8 天每小时成交 1000U
+    for k in range(25 * 12, 0, -1):
+        eng.momo.add(t0 - k * 300_000, 1.0, 1000 / 12)                          # 过去 25 小时价格 1.0
+    for k in range(4):                                                         # 涨到 1.25 以上，放量
+        eng.on_trade(1.25 + k * 0.01, 2000, True, t0 + k * 300_000)
+    sig = [s for s in eng.signals if s["kind"] == "momo_long"]
+    assert len(sig) == 1 and sig[0]["side"] == 1
+    eng.on_trade(1.29, 1, True, t0 + 3 * 300_000 + 500)                       # 下一笔成交市价进场
+    pos = app.acct.positions
+    assert len(pos) == 1 and pos[0].kind == "momo_long"
+    assert pos[0].max_until - pos[0].t_open == 24 * H                           # 拿 24 小时
+    assert abs(pos[0].stop - sig[0]["price"] * 0.85) < 1e-9                    # 止损 15%
+    assert abs(pos[0].qty * pos[0].entry - 1000 * 0.05) < 0.5                  # 每笔 5%
+    for k in range(4, 30):                                                     # 24 小时内同一个币不再出
+        eng.on_trade(1.35 + k * 0.01, 2000, True, t0 + k * 300_000)
+    assert len([s for s in eng.signals if s["kind"] == "momo_long"]) == 1
+
+
+def test_momo_tracker_needs_full_history():
+    tr = E.MomoTracker()
+    for k in range(100):
+        tr.add(k * 300_000, 1.0, 10.0)
+    assert all(math.isnan(x) for x in tr.state(99 * 300_000)[:1])              # 不够 24 小时：算不出

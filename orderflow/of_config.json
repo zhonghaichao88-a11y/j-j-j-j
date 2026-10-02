@@ -29,5 +29,12 @@
   "stop_x": 1.0,
   "hold_h": 12,
   "size_pct": 10.0
+ },
+ "momo": {
+  "rise": 0.2,
+  "vol_x": 3.0,
+  "stop": 0.15,
+  "hold_h": 24,
+  "size_pct": 5.0
  }
 }

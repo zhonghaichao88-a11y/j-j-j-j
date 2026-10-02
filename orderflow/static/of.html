@@ -66,6 +66,10 @@ th{color:var(--mute);font-weight:normal}
     <div class="row">现货主动买卖大于 <input id="fl_spot_flow" type="number" step="1" style="width:56px"> %　拿 <input id="fl_hold_h" type="number" step="1" style="width:50px"> 小时</div>
     <div class="row">每笔用权益 <input id="fl_size_pct" type="number" step="1" style="width:50px"> %　止损 = 跌幅 × <input id="fl_stop_x" type="number" step="0.5" style="width:50px">　挂单等 <input id="fl_fill_min" type="number" step="1" style="width:46px"> 分钟</div>
     <div class="row"><button id="saveFlush">保存</button> <small style="color:var(--mute)">保存后马上生效</small></div>
+    <h3>追强势币参数 <small style="color:var(--mute);font-weight:normal">不管大盘；胜率只有四成，靠少数暴涨的币赚钱</small></h3>
+    <div class="row">24小时涨超 <input id="mo_rise" type="number" step="1" style="width:56px"> %　1小时成交额 ≥ 平时 <input id="mo_vol_x" type="number" step="0.5" style="width:50px"> 倍</div>
+    <div class="row">拿 <input id="mo_hold_h" type="number" step="1" style="width:50px"> 小时　每笔用权益 <input id="mo_size_pct" type="number" step="1" style="width:50px"> %　止损 <input id="mo_stop" type="number" step="1" style="width:50px"> %</div>
+    <div class="row"><button id="saveMo">保存</button> <small style="color:var(--mute)">保存后马上生效</small></div>
     <h3>轧空追多参数</h3>
     <div class="row">1小时涨超 <input id="sq_rise" type="number" step="0.5" style="width:56px"> %　持仓量1小时降超 <input id="sq_oi_drop" type="number" step="0.5" style="width:56px"> %</div>
     <div class="row">拿 <input id="sq_hold_h" type="number" step="1" style="width:50px"> 小时　每笔用权益 <input id="sq_size_pct" type="number" step="1" style="width:50px"> %　止损 = 涨幅 × <input id="sq_stop_x" type="number" step="0.5" style="width:50px"></div>
@@ -303,6 +307,10 @@ function fillFlush(){ const f=(S.cfg||{}).flush||{}; for(const k of ['drop','oi_
 const SQ_PCT=['rise','oi_drop'], SQ_KEYS=['rise','oi_drop','hold_h','size_pct','stop_x'];
 function fillSq(){ const f=(S.cfg||{}).squeeze||{}; for(const k of SQ_KEYS){ const el=$('#sq_'+k);
   if(!el||el===document.activeElement||f[k]==null) continue; el.value= SQ_PCT.includes(k)? +(f[k]*100).toFixed(2) : f[k]; } }
+const MO_PCT=['rise','stop'], MO_KEYS=['rise','vol_x','hold_h','size_pct','stop'];
+function fillMo(){ const f=(S.cfg||{}).momo||{}; for(const k of MO_KEYS){ const el=$('#mo_'+k);
+  if(!el||el===document.activeElement||f[k]==null) continue; el.value= MO_PCT.includes(k)? +(f[k]*100).toFixed(2) : f[k]; } }
+$('#saveMo').onclick=()=>{ const f={}; for(const k of MO_KEYS){ const v=parseFloat($('#mo_'+k).value); if(!isNaN(v)) f[k]= MO_PCT.includes(k)? v/100 : v; } post('/api/cfg',{momo:f}); };
 $('#saveSq').onclick=()=>{ const f={}; for(const k of SQ_KEYS){ const v=parseFloat($('#sq_'+k).value); if(!isNaN(v)) f[k]= SQ_PCT.includes(k)? v/100 : v; } post('/api/cfg',{squeeze:f}); };
 $('#saveFlush').onclick=()=>{ const f={}; for(const k of ['drop','oi_drop','spot_flow','hold_h','size_pct','stop_x','fill_min']){
   const v=parseFloat($('#fl_'+k).value); if(!isNaN(v)) f[k]= FL_PCT.includes(k)? v/100 : v; } post('/api/cfg',{flush:f}); };
@@ -335,6 +343,9 @@ function xbox(){
     ['清洗接盘条件', (()=>{ const q=(S.view||{}).flush||{}, c=(S.view||{}).flush_cfg||{};
         const ok1=q.r60< -c.drop, ok2=q.oi< -c.oi_drop, ok3=q.sf>c.spot_flow, m=b=>b?'✓':'✗';
         return `1小时 ${f(q.r60)}（要 < -${(c.drop*100||0).toFixed(0)}%）${m(ok1)}　持仓1小时 ${f(q.oi)}（要 < -${(c.oi_drop*100||0).toFixed(0)}%）${m(ok2)}　现货主动 ${f(q.sf)}（要 > ${(c.spot_flow*100||0).toFixed(0)}%）${m(ok3)}`; })()],
+    ['追强势币条件', (()=>{ const q=(S.view||{}).momo||{}, c=(S.view||{}).momo_cfg||{};
+        const ok1=q.r24>c.rise, ok2=q.vx>=c.vol_x, ok3=q.r60>0, m=b=>b?'✓':'✗';
+        return `24小时 ${f(q.r24)}（要 > ${(c.rise*100||0).toFixed(0)}%）${m(ok1)}　放量 ${q.vx==null||isNaN(q.vx)?'-':q.vx.toFixed(1)+' 倍'}（要 ≥ ${c.vol_x||'-'}）${m(ok2)}　1小时 ${f(q.r60)}（要 > 0）${m(ok3)}`; })()],
     ['轧空追多条件', (()=>{ const q=(S.view||{}).flush||{}, c=(S.view||{}).squeeze_cfg||{};
         const ok1=q.r60>c.rise, ok2=q.oi< -c.oi_drop, m=b=>b?'✓':'✗';
         return `1小时 ${f(q.r60)}（要 > ${(c.rise*100||0).toFixed(0)}%）${m(ok1)}　持仓1小时 ${f(q.oi)}（要 < -${(c.oi_drop*100||0).toFixed(0)}%）${m(ok2)}`; })()],
@@ -346,7 +357,7 @@ function xbox(){
   $('#xsrc').title=Object.entries(st).map(([k,v])=>`${nm[k]||k}：${v}`).join('\n');
 }
 function side(){
-  sideExt(); xbox(); fillFlush(); fillSq();
+  sideExt(); xbox(); fillFlush(); fillSq(); fillMo();
   const a=S.acct; const dp=a.day_pnl;
   // 实盘显示欧易账户的真实权益；模拟盘显示模拟账户
   $('#eqLabel').textContent = S.live_ok ? '实盘权益' : '模拟权益';
