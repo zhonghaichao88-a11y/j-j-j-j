@@ -353,3 +353,33 @@ def test_cross_venue_liquidation_goes_into_bars(tmp_path, monkeypatch):
     eng.on_liq_usd(100.0, 5_000.0, -1, 1_500, "币安")
     assert eng.builders["5m"].cur.liq_long == 50.0
     assert eng.ext["liqs"][-1]["venue"] == "币安"
+
+
+def test_flush_spot_signal_and_paper_trade(tmp_path, monkeypatch):
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    app = E.OrderFlowApp({"auto": True, "enabled": ["flush_spot"]}, None, None, False)
+
+    class X:          # 假的全网数据：币安现货 1 小时主动买 > 卖 10%
+        def stats(self, inst, okx_min=None):
+            return {"sf_60": 0.10}
+    app.xx = X()
+    eng = E.SymbolEngine(app, "SOL-USDT-SWAP", "5m", {t: 0.01 for t in E.VIEW_TFS}, 1.0)
+    app.engines = {eng.inst: eng}
+    t0 = 10 * 86_400_000
+    # 1 小时从 100 跌到 96（-4%），持仓量 1 小时降 8%
+    eng.ext["oi_hist"] = [(t0, 1000.0), (t0 + 60 * 60_000, 920.0)]
+    for k in range(14):
+        px = 100.0 - k * 4.0 / 13
+        eng.on_trade(px, 1, False, t0 + k * 300_000)
+    eng.on_trade(96.0, 1, True, t0 + 14 * 300_000)      # 收盘第 14 根 → 检查 → 出信号
+    sig = [s for s in eng.signals if s["kind"] == "flush_spot"]
+    assert len(sig) == 1 and sig[0]["side"] == 1
+    eng.on_trade(96.0, 1, True, t0 + 14 * 300_000 + 1000)   # 下一笔成交进场
+    pos = app.acct.positions
+    assert len(pos) == 1 and pos[0].kind == "flush_spot"
+    assert pos[0].max_until - pos[0].t_open == E.FLUSH["hold_ms"]
+    assert pos[0].stop < 96.0 * (1 - 0.09)                      # 止损 = 3 倍跌幅（约 -9% 以下）
+    # 4 小时内不重复
+    eng.on_trade(95.0, 1, True, t0 + 16 * 300_000)
+    assert len([s for s in eng.signals if s["kind"] == "flush_spot"]) == 1

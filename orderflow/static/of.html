@@ -308,6 +308,9 @@ function xbox(){
     ['Coinbase 溢价（BTC）', `<b class="${cl(x.cb_premium)}">${f(x.cb_premium,3)}</b>　比 1 小时平均 ${f(x.cb_premium_chg,3)}　<small style="color:var(--mute)">正数=美国资金在买</small>`],
     ['BTC 带动', `1小时 <b class="${cl(btc.chg_1h)}">${f(btc.chg_1h)}</b>　全网主动 <b class="${cl(btc.all_pf_60)}">${f(btc.all_pf_60)}</b>　趋势 ${btc.trend||'-'}`],
     ['大背景', `<b class="${c.trend==='上涨'?'pos':(c.trend==='下跌'?'neg':'')}">${c.trend||'-'}</b>　离 4 小时均线 ${f(c.ema_4h)}　离 20 日均线 ${f(c.ema_1d)}`],
+    ['清洗接盘条件', (()=>{ const q=(S.view||{}).flush||{}, c=(S.view||{}).flush_cfg||{};
+        const ok1=q.r60< -c.drop, ok2=q.oi< -c.oi_drop, ok3=q.sf>c.spot_flow, m=b=>b?'✓':'✗';
+        return `1小时 ${f(q.r60)}（要 < -${(c.drop*100||0).toFixed(0)}%）${m(ok1)}　持仓1小时 ${f(q.oi)}（要 < -${(c.oi_drop*100||0).toFixed(0)}%）${m(ok2)}　现货主动 ${f(q.sf)}（要 > ${(c.spot_flow*100||0).toFixed(0)}%）${m(ok3)}`; })()],
     ['昨日 POC / 未回补 POC', `${c.prev_poc?fp(c.prev_poc):'-'} ／ ${(c.naked_pocs||[]).map(fp).join('、')||'无'}`],
   ];
   $('#xbox').innerHTML=rows.map(([k,v])=>`<div><span style="color:var(--mute)">${k}：</span>${v}</div>`).join('');

@@ -14,12 +14,15 @@ import threading
 import time
 from dataclasses import asdict, dataclass, field
 
-from of_core import Bar, Detector, SIGNAL_NAMES, LIVE_ONLY, auto_row_size, volume_profile, imbalances, stacked
+from of_core import Bar, Detector, Signal, SIGNAL_NAMES, LIVE_ONLY, auto_row_size, volume_profile, imbalances, stacked
 from of_playbook import Playbook, PB_NAMES
 import of_notify
 from of_live import OkxLive, LiveError
 
-ALL_NAMES = {**SIGNAL_NAMES, **PB_NAMES}     # 形态打法 + 实战打法（关键位 + 订单流确认）
+# 全网组合打法（2024-01 ~ 2026-03、46 个币长数据检验过，见 分析/长数据2024-2026/）
+FLUSH_NAMES = {"flush_spot": "清洗接盘（现货）"}
+FLUSH = {"drop": 0.02, "oi_drop": 0.05, "spot_flow": 0.05, "stop_x": 3.0, "hold_ms": 4 * 3600_000}
+ALL_NAMES = {**SIGNAL_NAMES, **PB_NAMES, **FLUSH_NAMES}     # 形态打法 + 实战打法 + 全网组合打法
 PB_HOLD_MS = 120 * 60_000                    # 实战打法最多拿 120 分钟（和回测一样）
 PB_FILL_MS = 4 * 60_000                      # 限价单挂 3~4 分钟没成交就撤
 
@@ -186,6 +189,8 @@ class SymbolEngine:
                     "oi_hist": [], "ls": math.nan, "top_ls": math.nan, "liqs": [], "bigs": [], "obi": math.nan}
         self.wall_seen: dict = {}     # (方向, 行) -> 第一次看到的时间；挂够 30 秒才算真墙（防假挂单）
         self.okx_min: dict = {}       # 分钟 -> [欧易主动买$, 主动卖$]，和币安、Bybit 合起来算全网
+        self._last5 = 0               # 上一根已检查的 5 分钟K线
+        self._flush_t = 0             # 上次"清洗接盘"信号的时间（同一个币 4 小时内只做一次）
 
     def _wire(self):
         """把信号周期的K线接到形态识别器，1 分钟K线接到实战打法"""
@@ -218,6 +223,34 @@ class SymbolEngine:
             self.app.on_signal(self, d)
             if not self.backfilling:
                 self.pending.append((s, d))
+
+    def flush_state(self, b5=None):
+        """清洗接盘的三个条件现在各是多少：1 小时涨跌、1 小时持仓量变化、币安现货 1 小时主动买卖"""
+        b5 = b5 if b5 is not None else self.builders["5m"].bars
+        r60 = (b5[-1].c / b5[-13].c - 1) if len(b5) >= 13 and b5[-13].c else math.nan
+        oi = self._oi_change(3600_000)
+        sf = self.xstats().get("sf_60", math.nan)
+        return r60, (math.nan if oi is None else oi), sf
+
+    def _check_flush(self, b5):
+        """多头清洗 + 现货接盘 → 做多：1 小时跌超 2%、持仓量 1 小时降超 5%（多单被清）、币安现货 1 小时主动买 > 卖 5%。
+        长数据检验：下一根进场、拿 4 小时、紧急止损 3 倍跌幅，每笔平均 +0.49%（扣 0.12% 成本后），PF 1.36"""
+        bar = b5[-1]
+        if bar.t - self._flush_t < FLUSH["hold_ms"]:
+            return
+        r60, oi, sf = self.flush_state(b5)
+        if any(math.isnan(x) for x in (r60, oi, sf)):
+            return
+        if r60 < -FLUSH["drop"] and oi < -FLUSH["oi_drop"] and sf > FLUSH["spot_flow"]:
+            self._flush_t = bar.t
+            drop = abs(r60)
+            s = Signal("flush_spot", 1, bar.c * (1 - FLUSH["stop_x"] * drop), bar.c * (1 + FLUSH["stop_x"] * drop), bar.t,
+                       f"1小时 {r60:+.1%}，持仓 {oi:+.1%}，现货主动 {sf:+.2f}")
+            d = {"t": bar.t, "tf": "5m", "kind": s.kind, "name": ALL_NAMES[s.kind], "side": 1, "stop": s.stop,
+                 "target": s.target, "price": bar.c, "note": s.note, "traded": False}
+            self.signals = (self.signals + [d])[-200:]
+            self.app.on_signal(self, d)
+            self.pending.append((s, d))
 
     def _on_pb_bar(self, bar: Bar, seeded=False):
         if seeded:
@@ -283,6 +316,11 @@ class SymbolEngine:
             self._agg = {"ts": ts, "buy": is_buy, "q": qty, "usd": qty * price, "px": price}
         for b in self.builders.values():
             b.add(price, qty, is_buy, ts)
+        b5 = self.builders["5m"].bars
+        if b5 and b5[-1].t != self._last5:
+            self._last5 = b5[-1].t
+            if not self.backfilling:
+                self._check_flush(b5)
         mrow = self.okx_min.setdefault(ts // 60000, [0.0, 0.0])
         mrow[0 if is_buy else 1] += qty * price
         if len(self.okx_min) > 400:
@@ -440,7 +478,8 @@ class SymbolEngine:
                 "signals": [s for s in self.signals[-60:] if s.get("tf") == tf][-30:],
                 "ext": {k: v for k, v in self.ext.items() if k != "oi_hist"},
                 "levels": [] if math.isnan(self.last) else [[x, n] for x, n in self.pb.levels(self.last)],
-                "oi_1h": self._oi_change(3600_000), "big_usd": self.big_usd, "x": self.xstats()}
+                "oi_1h": self._oi_change(3600_000), "big_usd": self.big_usd, "x": self.xstats(),
+                "flush": dict(zip(("r60", "oi", "sf"), self.flush_state())), "flush_cfg": FLUSH}
 
     def summary(self):
         """扫描表一行"""
@@ -636,7 +675,8 @@ class OrderFlowApp:
             d["skip"] = "还没读到实盘账户权益"
             return
         qty = self.risk.size(self.acct, price, s.stop, self.live_equity if live else None)
-        hold = PB_HOLD_MS if s.kind in PB_NAMES else self.cfg.get("max_hold_bars", 48) * TF_MS[eng.tf]
+        hold = PB_HOLD_MS if s.kind in PB_NAMES else (FLUSH["hold_ms"] if s.kind in FLUSH_NAMES
+                                                       else self.cfg.get("max_hold_bars", 48) * TF_MS[eng.tf])
         if not live:
             fill = price * (1 + s.side * PaperBroker.slip)
             self._add_position(eng, s, d, Position(eng.inst, s.kind, s.side, qty, fill, s.stop, s.target, ts, ts + hold,
