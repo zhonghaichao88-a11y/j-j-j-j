@@ -162,16 +162,19 @@ class FakeLive:
     def contracts_for(self, inst, qty):
         return round(qty / 0.01, 2), 0.01, 0.01        # 每张 0.01 币
 
-    def prepare(self, inst, lev):
+    def prepare(self, inst, lev, mgn="isolated"):
+        self.mgn = mgn
         self.calls.append(("prepare", inst, lev))
 
-    def open(self, inst, side, n, stop, target):
+    def open(self, inst, side, n, stop, target, mgn="isolated"):
+        self.open_mgn = mgn
         self.calls.append(("open", inst, side, n, stop, target))
         self.pos[inst] = side * n
         self.algos[inst] = "A1"
         return {"fill": 100.0, "contracts": n, "order_id": "O1", "algo_id": "A1"}
 
-    def close(self, inst, side_open, n, algo_id=""):
+    def close(self, inst, side_open, n, algo_id="", mgn="isolated"):
+        self.close_mgn = mgn
         self.calls.append(("close", inst, n))
         self.pos[inst] = self.pos.get(inst, 0) - side_open * n
         return 101.0
@@ -179,7 +182,7 @@ class FakeLive:
     def cancel_algo(self, inst, algo_id):
         self.calls.append(("cancel", inst, algo_id))
 
-    def place_oco(self, inst, side, n, stop, target):
+    def place_oco(self, inst, side, n, stop, target, mgn="isolated"):
         self.calls.append(("oco", inst, n, stop, target))
         return "A2"
 
@@ -428,3 +431,22 @@ def test_big_trade_threshold_not_recomputed_every_trade(tmp_path, monkeypatch):
     monkeypatch.setattr(builtins, "sorted", real_sorted)
     assert len(eng._sizes) == 3000
     assert calls["n"] <= 6000 // 300 + 50   # 大约每 300 笔一次，而不是每笔一次
+
+
+def test_live_cross_margin_used_for_open_and_close(tmp_path, monkeypatch):
+    app = _live_app(tmp_path, monkeypatch)
+    app.cfg["margin_mode"] = "cross"
+    eng = FakeEng()
+    app.engines[eng.inst] = eng
+
+    async def go():
+        app.try_open(eng, C.Signal("absorption", 1, 99.0, 102.0, 0), {}, 100.0, 0)
+        await asyncio.sleep(0.05)
+        pos = app.acct.positions[0]
+        assert pos.mgn == "cross" and app.live.mgn == "cross" and app.live.open_mgn == "cross"
+        app.cfg["margin_mode"] = "isolated"          # 改设置不影响已经开着的单
+        app.live.pnl[eng.inst] = {"pnl": 1.0, "exit": 100.5, "fee": -0.1, "funding": 0}
+        app.check_exits(eng, 100.5, pos.max_until + 1)
+        await asyncio.sleep(1.7)
+        assert app.live.close_mgn == "cross"
+    _run(go)

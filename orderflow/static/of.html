@@ -69,6 +69,8 @@ th{color:var(--mute);font-weight:normal}
     <h3>风控</h3>
     <div class="row">每单最多亏权益 <input id="risk_pct" type="number" step="0.1"> %</div>
     <div class="row">最大杠杆 <input id="max_leverage" type="number" step="1"> 倍</div>
+    <div class="row">保证金模式 <select id="margin_mode"><option value="isolated">逐仓（每单单独算，一单爆仓不影响别的）</option><option value="cross">全仓（所有单共用账户的钱）</option></select></div>
+    <div class="row"><small style="color:var(--mute)">只影响以后开的新单；已经开着的单保持原来的模式</small></div>
     <div class="row">最多同时持仓 <input id="max_positions" type="number" step="1"> 个</div>
     <div class="row">单日最多亏 <input id="daily_loss_pct" type="number" step="0.5"> % 停止开新单</div>
     <div class="row"><button id="saveRisk">保存设置</button><button id="closeAll">全部平仓</button></div>
@@ -281,10 +283,11 @@ function buildSide(){
   $('#sigs').querySelectorAll('input').forEach(i=>i.onchange=saveCfg);
   $('#auto').checked=S.cfg.auto; $('#auto').onchange=saveCfg;
   for(const k of ['risk_pct','max_leverage','max_positions','daily_loss_pct']) $('#'+k).value=S.cfg[k];
+  $('#margin_mode').value=S.cfg.margin_mode||'isolated';
 }
 async function post(u,b){ const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}); return r.json(); }
 function saveCfg(){ const en=[...$('#sigs').querySelectorAll('input:checked')].map(i=>i.dataset.k);
-  const b={enabled:en,auto:$('#auto').checked}; for(const k of ['risk_pct','max_leverage','max_positions','daily_loss_pct']) b[k]=+$('#'+k).value;
+  const b={enabled:en,auto:$('#auto').checked}; for(const k of ['risk_pct','max_leverage','max_positions','daily_loss_pct']) b[k]=+$('#'+k).value; b.margin_mode=$('#margin_mode').value;
   if(b.auto && en.length===0){ alert('先勾选至少一种打法'); $('#auto').checked=false; b.auto=false; }
   post('/api/cfg',b); }
 const FL_PCT=['drop','oi_drop','spot_flow'];

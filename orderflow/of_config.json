@@ -20,5 +20,6 @@
   "hold_h": 12,
   "size_pct": 5.0,
   "fill_min": 5
- }
+ },
+ "margin_mode": "isolated"
 }

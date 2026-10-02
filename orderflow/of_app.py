@@ -64,7 +64,7 @@ STARTING: set = set()
 
 def save_cfg():
     keep = {k: core.cfg[k] for k in ("symbols", "tf", "enabled", "auto", "risk_pct", "max_leverage",
-                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush")
+                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "margin_mode")
             if k in core.cfg}
     json.dump(keep, open(CFG_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
@@ -287,6 +287,8 @@ async def set_cfg(body: dict):
     for k in ("enabled", "auto", "risk_pct", "max_leverage", "max_positions", "daily_loss_pct"):
         if k in body:
             core.cfg[k] = body[k]
+    if body.get("margin_mode") in ("isolated", "cross"):
+        core.cfg["margin_mode"] = body["margin_mode"]
     if isinstance(body.get("flush"), dict):          # 清洗接盘的参数，只收认识的数字
         from of_engine import FLUSH
         cur = dict(FLUSH, **(core.cfg.get("flush") or {}))
@@ -299,7 +301,8 @@ async def set_cfg(body: dict):
         core.cfg["flush"] = cur
     core.risk.cfg = core.cfg
     save_cfg()
-    core.say(f"设置已更新：自动交易={'开' if core.cfg['auto'] else '关'}，打法={core.cfg['enabled']}")
+    core.say(f"设置已更新：自动交易={'开' if core.cfg['auto'] else '关'}，"
+             f"保证金={'全仓' if core.cfg.get('margin_mode') == 'cross' else '逐仓'}，打法={core.cfg['enabled']}")
     return {"ok": True}
 
 

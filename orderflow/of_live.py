@@ -2,7 +2,7 @@
 
 做了哪些保护：
   - 启动时读账户的持仓模式：单向（net）或双向（long/short），双向时自动带 posSide
-  - 开仓前设好逐仓杠杆；检查可用保证金；数量按合约面值和精度取整，低于最小下单量直接拒绝并说明差多少
+  - 开仓前设好杠杆（逐仓或全仓，网页上选）；检查可用保证金；数量按合约面值和精度取整，低于最小下单量直接拒绝并说明差多少
   - 市价开仓时同时挂好止损止盈（交易所端执行，程序关掉也有效），开完读回真实成交均价和止盈止损单号
   - 平仓：只减仓市价单，然后只撤掉这笔单自己的止盈止损
   - 平仓后从欧易的"历史持仓"读真实盈亏（含手续费、资金费）
@@ -90,14 +90,16 @@ class OkxLive:
             return out
 
     # ------------------------------------------------------------ 下单
-    def prepare(self, inst, leverage):
-        key = (inst, leverage)
+    def prepare(self, inst, leverage, mgn="isolated"):
+        """mgn: isolated 逐仓 / cross 全仓"""
+        key = (inst, leverage, mgn)
         if self._lev_done.get(key):
             return
         with self.lock:
-            sides = ["long", "short"] if self.hedged else [None]
+            # 双向持仓 + 逐仓要分别设多、空两边；全仓一次设好
+            sides = ["long", "short"] if (self.hedged and mgn == "isolated") else [None]
             for ps in sides:
-                params = {"mgnMode": "isolated"}
+                params = {"mgnMode": mgn}
                 if ps:
                     params["posSide"] = ps
                 try:
@@ -107,11 +109,11 @@ class OkxLive:
                         raise LiveError(f"设置杠杆失败：{e}")
             self._lev_done[key] = True
 
-    def open(self, inst, side, contracts, stop, target):
+    def open(self, inst, side, contracts, stop, target, mgn="isolated"):
         """市价开仓 + 附带止盈止损。返回 {fill, contracts, order_id, algo_id}"""
         s = self.sym(inst)
         with self.lock:
-            params = {"tdMode": "isolated",
+            params = {"tdMode": mgn,
                       "stopLoss": {"triggerPrice": self.ex.price_to_precision(s, stop), "type": "market"},
                       "takeProfit": {"triggerPrice": self.ex.price_to_precision(s, target), "type": "market"},
                       **self._pos_side(side)}
@@ -152,10 +154,10 @@ class OkxLive:
             except Exception:  # noqa: BLE001
                 pass
 
-    def place_oco(self, inst, side_open, contracts, stop, target):
+    def place_oco(self, inst, side_open, contracts, stop, target, mgn="isolated"):
         """给现有仓位重新挂一张止盈止损（只减仓）。返回单号"""
         s = self.sym(inst)
-        req = {"instId": inst, "tdMode": "isolated", "side": "sell" if side_open == 1 else "buy",
+        req = {"instId": inst, "tdMode": mgn, "side": "sell" if side_open == 1 else "buy",
                "ordType": "oco", "sz": self.ex.amount_to_precision(s, contracts),
                "slTriggerPx": self.ex.price_to_precision(s, stop), "slOrdPx": "-1",
                "tpTriggerPx": self.ex.price_to_precision(s, target), "tpOrdPx": "-1",
@@ -168,10 +170,10 @@ class OkxLive:
             raise LiveError(f"挂止盈止损失败：{r.get('sMsg')}")
         return r.get("algoId", "")
 
-    def close(self, inst, side_open, contracts, algo_id=""):
+    def close(self, inst, side_open, contracts, algo_id="", mgn="isolated"):
         """只减仓市价平掉 contracts 张，撤掉这笔的止盈止损。返回成交均价"""
         s = self.sym(inst)
-        params = {"tdMode": "isolated", **self._pos_side(side_open)}
+        params = {"tdMode": mgn, **self._pos_side(side_open)}
         if not self.hedged:
             params["reduceOnly"] = True
         with self.lock:

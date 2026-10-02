@@ -96,6 +96,7 @@ class Position:
     risk: float = 0.0       # 开仓价到止损的距离（1R）
     half_done: bool = False  # 实战打法：到 1R 已平一半、止损移到保本
     busy: bool = False      # 实盘：正在向交易所操作，别重复下指令
+    mgn: str = "isolated"   # 实盘：这笔用的保证金模式（平仓、改止损要用同一个）
 
 
 @dataclass
@@ -166,6 +167,7 @@ DEFAULT_CFG = {
     "mode": "paper",            # paper / live
     "risk_pct": 0.5,            # 每单最多亏权益的 0.5%
     "max_leverage": 3,
+    "margin_mode": "isolated",  # 实盘保证金模式：isolated 逐仓 / cross 全仓（网页上选）
     "max_positions": 2,
     "daily_loss_pct": 3,
     "paper_equity": 1000,
@@ -714,15 +716,16 @@ class OrderFlowApp:
             if n < nmin or n <= 0:
                 d["skip"] = f"仓位太小（{n:g} 张 < 最少 {nmin:g} 张），资金不够开这个币"
                 return
+            mgn = "cross" if self.cfg.get("margin_mode") == "cross" else "isolated"
             margin = n * cs * price / lev
             if margin > self.live_avail * 0.95:
                 d["skip"] = f"可用保证金不够（要 {margin:.2f}U，可用 {self.live_avail:.2f}U）"
                 return
-            await asyncio.to_thread(self.live.prepare, eng.inst, lev)
-            r = await asyncio.to_thread(self.live.open, eng.inst, s.side, n, s.stop, s.target)
+            await asyncio.to_thread(self.live.prepare, eng.inst, lev, mgn)
+            r = await asyncio.to_thread(self.live.open, eng.inst, s.side, n, s.stop, s.target, mgn)
             fill = r["fill"] or price
             pos = Position(eng.inst, s.kind, s.side, r["contracts"] * cs, fill, s.stop, s.target, ts, ts + hold,
-                           r["order_id"], True, contracts=r["contracts"], algo_id=r["algo_id"], risk=abs(fill - s.stop))
+                           r["order_id"], True, contracts=r["contracts"], algo_id=r["algo_id"], risk=abs(fill - s.stop), mgn=mgn)
             d.pop("skip", None)
             self._add_position(eng, s, d, pos)
             if not r["algo_id"]:
@@ -796,13 +799,13 @@ class OrderFlowApp:
             n_half, nmin, _ = self.live.contracts_for(pos.sym, pos.qty / 2)
             if n_half < nmin or n_half >= pos.contracts:       # 太小分不了：只把止损移到保本
                 await asyncio.to_thread(self.live.cancel_algo, pos.sym, pos.algo_id)
-                pos.algo_id = await asyncio.to_thread(self.live.place_oco, pos.sym, pos.side, pos.contracts, pos.entry, pos.target)
+                pos.algo_id = await asyncio.to_thread(self.live.place_oco, pos.sym, pos.side, pos.contracts, pos.entry, pos.target, pos.mgn)
             else:
                 await asyncio.to_thread(self.live.cancel_algo, pos.sym, pos.algo_id)
-                px = await asyncio.to_thread(self.live.close, pos.sym, pos.side, n_half)
+                px = await asyncio.to_thread(self.live.close, pos.sym, pos.side, n_half, "", pos.mgn)
                 pos.contracts -= n_half
                 pos.qty = pos.contracts * cs
-                pos.algo_id = await asyncio.to_thread(self.live.place_oco, pos.sym, pos.side, pos.contracts, pos.entry, pos.target)
+                pos.algo_id = await asyncio.to_thread(self.live.place_oco, pos.sym, pos.side, pos.contracts, pos.entry, pos.target, pos.mgn)
                 self.say(f"[实盘] {pos.sym} 到 1R 平一半（{n_half:g} 张，均价 {px:.6g}），剩下的止损移到保本")
             pos.stop = pos.entry
             pos.half_done = True
@@ -818,7 +821,7 @@ class OrderFlowApp:
         try:
             ex_pos = await asyncio.to_thread(self.live.positions)
             if pos.sym in ex_pos:
-                await asyncio.to_thread(self.live.close, pos.sym, pos.side, pos.contracts)
+                await asyncio.to_thread(self.live.close, pos.sym, pos.side, pos.contracts, "", pos.mgn)
             await asyncio.to_thread(self.live.cancel_algo, pos.sym, pos.algo_id)
             await asyncio.sleep(1.5)
             r = await asyncio.to_thread(self.live.closed_pnl, pos.sym, pos.t_open)
