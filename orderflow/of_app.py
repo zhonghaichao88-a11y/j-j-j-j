@@ -332,27 +332,18 @@ async def coins(body: dict):
 
 @app.post("/api/signal_tf")
 async def signal_tf(body: dict):
-    """换自动交易用的信号周期：所有币重新接入（约 2~3 分钟），持仓不受影响"""
+    """换自动交易用的信号周期：马上生效，不用重启，持仓不受影响"""
     tf = body.get("tf")
-    if tf not in TF_MS:
+    if tf not in VIEW_TFS:
         return JSONResponse({"ok": False, "msg": "周期不对"})
     if tf == core.cfg["tf"]:
         return {"ok": True, "msg": "没变"}
     core.cfg["tf"] = tf
     save_cfg()
-    insts = list(core.engines)
-    for inst in insts:
-        core.hub.remove(inst)
-        core.xhub.remove(inst)
-        core.engines.pop(inst, None)
-    core.say(f"信号周期改成 {tf}，正在重新接入 {len(insts)} 个币…")
-
-    async def again():
-        for inst in insts:
-            await start_symbol(inst)
-        core.say("重新接入完成")
-    asyncio.create_task(again())
-    return {"ok": True, "msg": f"信号周期改成 {tf}，正在重新接入，大约 2~3 分钟"}
+    for eng in list(core.engines.values()):
+        eng.set_signal_tf(tf)
+    core.say(f"信号周期改成 {tf}，{len(core.engines)} 个币已经切换，已存进 of_config.json")
+    return {"ok": True, "msg": f"信号周期改成 {tf}，已经生效（已保存，重启后也是 {tf}）"}
 
 
 @app.post("/api/close_all")

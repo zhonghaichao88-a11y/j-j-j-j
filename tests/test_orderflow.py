@@ -299,3 +299,22 @@ def test_paper_daily_loss_limit_blocks(tmp_path, monkeypatch):
     d = {}
     app.try_open(FakeEng(), C.Signal("absorption", 1, 99.0, 102.0, 0), d, 100.0, 0)
     assert d["skip"].startswith("今天亏损")
+
+
+def test_signal_tf_switch_is_instant(tmp_path, monkeypatch):
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    app = E.OrderFlowApp({"auto": False, "enabled": list(C.SIGNAL_NAMES)}, None, None, False)
+    eng = E.SymbolEngine(app, "BTC-USDT-SWAP", "5m", {t: 1.0 for t in E.VIEW_TFS}, 0.01)
+    for t in range(0, 4 * 3_600_000, 20_000):
+        for b in eng.builders.values():
+            b.add(100.0, 1.0, True, t)
+    n15 = len(eng.builders["15m"].bars)
+    eng.set_signal_tf("15m")
+    assert eng.tf == "15m" and eng.builder is eng.builders["15m"]
+    assert eng.det.n == n15                                   # 识别器已经用 15 分钟历史K线重新跑过
+    assert eng.builders["15m"].on_close == eng._on_bar
+    assert eng.builders["5m"].on_close not in (eng._on_bar, eng._on_pb_bar)
+    assert eng.builders["1m"].on_close == eng._on_pb_bar      # 实战打法还在 1 分钟
+    eng.set_signal_tf("1m")
+    assert eng.builders["1m"].on_close not in (eng._on_bar, eng._on_pb_bar)   # 两种打法挂在一起

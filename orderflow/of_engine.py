@@ -170,13 +170,9 @@ class SymbolEngine:
         self.rows = rows                              # 每个周期的格子大小
         self.row = rows[tf]
         self.det = Detector(self.row, enabled=list(SIGNAL_NAMES))
-        self.builders = {}
-        for t in sorted(set(VIEW_TFS + [tf]), key=lambda x: TF_MS[x]):
-            cb = self._on_bar if t == tf else (self._on_pb_bar if t == "1m" else (lambda b, seeded=False: None))
-            self.builders[t] = BarBuilder(t, rows[t], cb)
-        if tf == "1m":                                # 信号周期就是 1 分钟时，两种打法都挂在同一个构建器上
-            self.builders["1m"].on_close = lambda b, seeded=False: (self._on_bar(b, seeded), self._on_pb_bar(b, seeded))
-        self.builder = self.builders[tf]
+        self.builders = {t: BarBuilder(t, rows[t], None)
+                         for t in sorted(set(VIEW_TFS + [tf]), key=lambda x: TF_MS[x])}
+        self._wire()
         self.pb = Playbook(rows["1m"])                # 实战打法：1 分钟足迹 + 关键位
         self.limit_orders: list = []                  # 实战打法的限价单（价格碰到才进场）
         self.signals: list[dict] = []
@@ -189,6 +185,23 @@ class SymbolEngine:
         self.ext = {"funding": math.nan, "next_funding": 0, "oi": math.nan, "oi_usd": math.nan,
                     "oi_hist": [], "ls": math.nan, "top_ls": math.nan, "liqs": [], "bigs": [], "obi": math.nan}
         self.wall_seen: dict = {}     # (方向, 行) -> 第一次看到的时间；挂够 30 秒才算真墙（防假挂单）
+
+    def _wire(self):
+        """把信号周期的K线接到形态识别器，1 分钟K线接到实战打法"""
+        for t, b in self.builders.items():
+            b.on_close = self._on_bar if t == self.tf else (self._on_pb_bar if t == "1m" else (lambda b, seeded=False: None))
+        if self.tf == "1m":                           # 信号周期就是 1 分钟时，两种打法都挂在同一个构建器上
+            self.builders["1m"].on_close = lambda b, seeded=False: (self._on_bar(b, seeded), self._on_pb_bar(b, seeded))
+        self.builder = self.builders[self.tf]
+
+    def set_signal_tf(self, tf):
+        """马上换信号周期：每个周期的足迹本来就一直在算，只要把识别器换到新周期、用已有K线重新跑一遍"""
+        self.tf, self.row = tf, self.rows[tf]
+        self._wire()
+        self.pending = []
+        self.det = Detector(self.row, enabled=list(self.det.enabled))
+        for b in self.builder.bars:
+            self.det.on_bar(b)
 
     # ------------------------------------------------------------ 信号
     def _on_bar(self, bar: Bar, seeded=False):
