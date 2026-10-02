@@ -41,7 +41,7 @@ th{color:var(--mute);font-weight:normal}
   <span id="feed" style="color:var(--mute)"></span>
   <span style="flex:1"></span>
   <span id="ext" style="color:var(--mute)"></span>
-  <span>权益 <b id="eq">-</b> U</span>
+  <span><span id="eqLabel">权益</span> <b id="eq">-</b> U</span>
   <span>今日 <b id="dpnl">-</b></span>
   <span id="mode" class="badge paper">模拟盘</span>
   <button id="zoomOut">−</button><button id="zoomIn">＋</button><button id="center">回到最新</button>
@@ -290,7 +290,10 @@ function sideExt(){
 }
 function side(){
   sideExt();
-  const a=S.acct; $('#eq').textContent=a.equity.toFixed(2); const dp=a.day_pnl;
+  const a=S.acct; const dp=a.day_pnl;
+  // 实盘显示欧易账户的真实权益；模拟盘显示模拟账户
+  $('#eqLabel').textContent = S.live_ok ? '实盘权益' : '模拟权益';
+  $('#eq').textContent = S.live_ok ? (S.live_equity ? S.live_equity.toFixed(2) : '读取中…') : a.equity.toFixed(2);
   $('#dpnl').innerHTML=`<span class="${dp>=0?'pos':'neg'}">${dp>=0?'+':''}${dp.toFixed(2)}</span>`;
   $('#mode').className='badge '+(S.live_ok?'live':'paper'); $('#mode').textContent=S.live_ok?'实盘':'模拟盘';
   $('#feed').textContent = (S.feed_status||'') + (S.extras_status && S.extras_status!=='衍生品数据正常' ? ' ｜ '+S.extras_status : '');

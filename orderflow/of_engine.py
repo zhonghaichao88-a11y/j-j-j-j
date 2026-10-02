@@ -191,7 +191,11 @@ class OkxLiveBroker(PaperBroker):
         """账户 USDT 权益（用来算实盘仓位大小）"""
         with self.lock:
             b = self.ex.fetch_balance()
-            return float((b.get("USDT") or {}).get("total") or 0)
+            try:   # 欧易统一账户：总权益（美元）；没有就用 USDT 余额
+                eq = float(((b.get("info") or {}).get("data") or [{}])[0].get("totalEq") or 0)
+            except (TypeError, ValueError, IndexError):
+                eq = 0.0
+            return eq or float((b.get("USDT") or {}).get("total") or 0)
 
     def open_positions(self) -> set:
         """账户里现在有仓位的合约（包括 V7 或手动开的）"""
