@@ -102,6 +102,7 @@ async def start_symbol(inst: str):
             b.seed(cs.get(tf, []))
         await seed_derivs(eng, inst)
         seed_from_v7(eng, inst)
+        eng.category = str(info.get("instCategory") or "1")    # 1=加密币，3=股票合约 等
         core.engines[inst] = eng
         # 补当前这根K线的足迹：先把实时成交存起来，拉完最近的历史成交再按时间顺序喂进去，不会乱序
         buf = []

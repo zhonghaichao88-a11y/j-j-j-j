@@ -730,6 +730,9 @@ class OrderFlowApp:
         if (s.side == 1 and not (s.stop < price < s.target)) or (s.side == -1 and not (s.target < price < s.stop)):
             d["skip"] = "价格已越过止损或止盈"
             return
+        if s.kind in FLUSH_NAMES and getattr(eng, "category", "1") != "1":
+            d["skip"] = "这是股票等非加密币合约，回测只测过加密币，不做"
+            return
         if self._day_loss_hit():
             d["skip"] = "今天亏损到上限，停止开新单"
             return

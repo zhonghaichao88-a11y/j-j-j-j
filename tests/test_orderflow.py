@@ -506,3 +506,15 @@ def test_heartbeat_line(tmp_path, monkeypatch):
     app.heartbeat()
     assert "运行中" in app.log[-1] and "持仓 0 单" in app.log[-1]
     assert "运行中" in open(tmp_path / "log.txt", encoding="utf-8").read()
+
+
+def test_combo_strategies_skip_stock_contracts(tmp_path, monkeypatch):
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = E.OrderFlowApp({"auto": True, "enabled": ["squeeze_long"]}, None, None, False)
+    eng = E.SymbolEngine(app, "AAOI-USDT-SWAP", "5m", {t: 0.01 for t in E.VIEW_TFS}, 1.0)
+    eng.category = "3"
+    d = {}
+    app.try_open(eng, C.Signal("squeeze_long", 1, 100.0, 300.0, 0), d, 110.0, 0)
+    assert app.acct.positions == [] and "股票" in d["skip"]
