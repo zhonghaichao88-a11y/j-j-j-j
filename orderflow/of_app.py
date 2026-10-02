@@ -279,6 +279,12 @@ async def _startup():
         core.say(f"提醒：上次还有 {len(lp)} 笔实盘持仓（{', '.join(lp)}），请在网页上重新切到实盘，程序才能按时帮你平仓")
     asyncio.create_task(book_sampler())
     asyncio.create_task(live_refresher())
+    # 接入币放到后台做：网页马上就能打开，币接好一个显示一个
+    asyncio.create_task(_connect_all())
+
+
+async def _connect_all():
+    global INSTS
     for k in range(10):
         try:
             INSTS = await instruments(PROXY)
@@ -288,8 +294,15 @@ async def _startup():
             await asyncio.sleep(5)
     await asyncio.to_thread(v7_load)
     syms = await pick_symbols()
-    for inst in syms:                  # 一个一个接入（同时拉历史会被限频）；接入一个就能看一个
-        await start_symbol(inst)
+    sem = asyncio.Semaphore(4)         # 同时接 4 个（拉历史的请求另外有限频保护）
+
+    async def one(inst):
+        async with sem:
+            try:
+                await start_symbol(inst)
+            except Exception as e:  # noqa: BLE001
+                core.say(f"{inst} 接入失败：{e}")
+    await asyncio.gather(*(one(i) for i in syms))
     core.say(f"全部接入完成：{len(core.engines)} 个币")
 
 

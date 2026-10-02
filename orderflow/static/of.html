@@ -385,7 +385,9 @@ function scanTable(){
   $('#scan').querySelectorAll('tr').forEach(tr=>tr.onclick=()=>{ inst=tr.dataset.i; priceOff=0; barOff=0; $('#sym').value=inst; send(); });
 }
 let ALL_INSTS=[]; const ADDING={};
-fetch('/api/all_insts').then(r=>r.json()).then(j=>{ ALL_INSTS=j; const sel=$('#sym'); if(sel) sel.dataset.k=''; });
+function loadAll(){ fetch('/api/all_insts').then(r=>r.json()).then(j=>{ ALL_INSTS=j; const sel=$('#sym'); if(sel) sel.dataset.k='';
+  if(!j.length) setTimeout(loadAll,5000); }).catch(()=>setTimeout(loadAll,5000)); }   // 刚启动时合约列表还没读到，过几秒再拿
+loadAll();
 function buildSym(){
   const sel=$('#sym'); const key=S.symbols.join()+'|'+ALL_INSTS.length+'|'+inst;
   if(sel.dataset.k===key || sel===document.activeElement) return; sel.dataset.k=key;
