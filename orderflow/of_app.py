@@ -287,6 +287,16 @@ async def set_cfg(body: dict):
     for k in ("enabled", "auto", "risk_pct", "max_leverage", "max_positions", "daily_loss_pct"):
         if k in body:
             core.cfg[k] = body[k]
+    if isinstance(body.get("flush"), dict):          # 清洗接盘的参数，只收认识的数字
+        from of_engine import FLUSH
+        cur = dict(FLUSH, **(core.cfg.get("flush") or {}))
+        for k, v in body["flush"].items():
+            if k in FLUSH:
+                try:
+                    cur[k] = float(v)
+                except (TypeError, ValueError):
+                    pass
+        core.cfg["flush"] = cur
     core.risk.cfg = core.cfg
     save_cfg()
     core.say(f"设置已更新：自动交易={'开' if core.cfg['auto'] else '关'}，打法={core.cfg['enabled']}")

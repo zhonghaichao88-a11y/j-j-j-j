@@ -61,6 +61,11 @@ th{color:var(--mute);font-weight:normal}
       <small style="color:var(--mute)">改了马上生效，不用重启</small></div>
     <div class="warnbox" id="btwarn">打法后面是回测成绩（欧易逐笔成交，扣手续费）。PF 大于 1 才是赚钱。没过关的建议别勾。</div>
     <div id="sigs"></div>
+    <h3>清洗接盘参数 <small style="color:var(--mute);font-weight:normal">长数据检验用的就是下面这组默认值</small></h3>
+    <div class="row">1小时跌超 <input id="fl_drop" type="number" step="0.5" style="width:56px"> %　持仓量1小时降超 <input id="fl_oi_drop" type="number" step="0.5" style="width:56px"> %</div>
+    <div class="row">现货主动买卖大于 <input id="fl_spot_flow" type="number" step="1" style="width:56px"> %　拿 <input id="fl_hold_h" type="number" step="1" style="width:50px"> 小时</div>
+    <div class="row">每笔用权益 <input id="fl_size_pct" type="number" step="1" style="width:50px"> %　止损 = 跌幅 × <input id="fl_stop_x" type="number" step="0.5" style="width:50px">　挂单等 <input id="fl_fill_min" type="number" step="1" style="width:46px"> 分钟</div>
+    <div class="row"><button id="saveFlush">保存</button> <small style="color:var(--mute)">保存后马上生效</small></div>
     <h3>风控</h3>
     <div class="row">每单最多亏权益 <input id="risk_pct" type="number" step="0.1"> %</div>
     <div class="row">最大杠杆 <input id="max_leverage" type="number" step="1"> 倍</div>
@@ -282,6 +287,11 @@ function saveCfg(){ const en=[...$('#sigs').querySelectorAll('input:checked')].m
   const b={enabled:en,auto:$('#auto').checked}; for(const k of ['risk_pct','max_leverage','max_positions','daily_loss_pct']) b[k]=+$('#'+k).value;
   if(b.auto && en.length===0){ alert('先勾选至少一种打法'); $('#auto').checked=false; b.auto=false; }
   post('/api/cfg',b); }
+const FL_PCT=['drop','oi_drop','spot_flow'];
+function fillFlush(){ const f=(S.cfg||{}).flush||{}; for(const k of ['drop','oi_drop','spot_flow','hold_h','size_pct','stop_x','fill_min']){
+  const el=$('#fl_'+k); if(!el||el===document.activeElement||f[k]==null) continue; el.value= FL_PCT.includes(k)? +(f[k]*100).toFixed(2) : f[k]; } }
+$('#saveFlush').onclick=()=>{ const f={}; for(const k of ['drop','oi_drop','spot_flow','hold_h','size_pct','stop_x','fill_min']){
+  const v=parseFloat($('#fl_'+k).value); if(!isNaN(v)) f[k]= FL_PCT.includes(k)? v/100 : v; } post('/api/cfg',{flush:f}); };
 $('#saveRisk').onclick=saveCfg;
 $('#closeAll').onclick=()=>{ if(confirm('确定全部平仓？')) post('/api/close_all',{}); };
 
@@ -319,7 +329,7 @@ function xbox(){
   $('#xsrc').title=Object.entries(st).map(([k,v])=>`${nm[k]||k}：${v}`).join('\n');
 }
 function side(){
-  sideExt(); xbox();
+  sideExt(); xbox(); fillFlush();
   const a=S.acct; const dp=a.day_pnl;
   // 实盘显示欧易账户的真实权益；模拟盘显示模拟账户
   $('#eqLabel').textContent = S.live_ok ? '实盘权益' : '模拟权益';

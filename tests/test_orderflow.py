@@ -369,17 +369,42 @@ def test_flush_spot_signal_and_paper_trade(tmp_path, monkeypatch):
     t0 = 10 * 86_400_000
     # 1 小时从 100 跌到 96（-4%），持仓量 1 小时降 8%
     eng.ext["oi_hist"] = [(t0, 1000.0), (t0 + 60 * 60_000, 920.0)]
-    for k in range(14):
+    for k in range(13):
         px = 100.0 - k * 4.0 / 13
         eng.on_trade(px, 1, False, t0 + k * 300_000)
-    eng.on_trade(96.0, 1, True, t0 + 14 * 300_000)      # 收盘第 14 根 → 检查 → 出信号
+    eng.on_trade(97.0, 1, True, t0 + 13 * 300_000)      # 收盘第 14 根 → 检查 → 出信号（这一笔反弹在挂单价上面，不成交）
     sig = [s for s in eng.signals if s["kind"] == "flush_spot"]
     assert len(sig) == 1 and sig[0]["side"] == 1
-    eng.on_trade(96.0, 1, True, t0 + 14 * 300_000 + 1000)   # 下一笔成交进场
+    sig_px = sig[0]["price"]
+    eng.on_trade(sig_px + 0.5, 1, True, t0 + 13 * 300_000 + 1000)     # 价格没回到挂单价：不成交
+    assert app.acct.positions == []
+    eng.on_trade(sig_px - 0.01, 1, False, t0 + 13 * 300_000 + 60_000)  # 回到挂单价：成交
     pos = app.acct.positions
     assert len(pos) == 1 and pos[0].kind == "flush_spot"
-    assert pos[0].max_until - pos[0].t_open == E.FLUSH["hold_ms"]
-    assert pos[0].stop < 96.0 * (1 - 0.09)                      # 止损 = 3 倍跌幅（约 -9% 以下）
-    # 4 小时内不重复
+    assert pos[0].max_until - pos[0].t_open == 12 * 3600_000             # 拿 12 小时
+    assert abs(pos[0].qty * sig_px - 1000 * 0.05) < 1.0                  # 每笔用权益 5%
+    assert pos[0].stop < sig_px * (1 - 0.09)                             # 止损 = 3 倍跌幅
+    # 12 小时内不重复
     eng.on_trade(95.0, 1, True, t0 + 16 * 300_000)
     assert len([s for s in eng.signals if s["kind"] == "flush_spot"]) == 1
+
+
+def test_flush_limit_order_expires(tmp_path, monkeypatch):
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    app = E.OrderFlowApp({"auto": True, "enabled": ["flush_spot"]}, None, None, False)
+
+    class X:
+        def stats(self, inst, okx_min=None):
+            return {"sf_60": 0.02}
+    app.xx = X()
+    eng = E.SymbolEngine(app, "SOL-USDT-SWAP", "5m", {t: 0.01 for t in E.VIEW_TFS}, 1.0)
+    t0 = 10 * 86_400_000
+    eng.ext["oi_hist"] = [(t0, 1000.0), (t0 + 60 * 60_000, 960.0)]       # -4%
+    for k in range(13):
+        eng.on_trade(100.0 - k * 3.0 / 13, 1, False, t0 + k * 300_000)
+    eng.on_trade(98.0, 1, True, t0 + 13 * 300_000)
+    sig = [s for s in eng.signals if s["kind"] == "flush_spot"]
+    assert len(sig) == 1
+    eng.on_trade(sig[0]["price"] + 1, 1, True, t0 + 13 * 300_000 + 11 * 60_000)   # 超过 5 分钟还没回来 → 撤单
+    assert app.acct.positions == [] and sig[0].get("skip") == "限价没成交，已撤"
