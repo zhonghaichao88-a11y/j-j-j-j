@@ -318,3 +318,38 @@ def test_signal_tf_switch_is_instant(tmp_path, monkeypatch):
     assert eng.builders["1m"].on_close == eng._on_pb_bar      # 实战打法还在 1 分钟
     eng.set_signal_tf("1m")
     assert eng.builders["1m"].on_close not in (eng._on_bar, eng._on_pb_bar)   # 两种打法挂在一起
+
+
+def test_cross_stats_spot_vs_perp_and_context():
+    import time as _t
+    import of_xfeed as X
+    x = X.CrossHub()
+    now = int(_t.time() // 60)
+    m = x.min["BTC-USDT-SWAP"] = {}
+    for k in range(now - 300, now + 1):
+        # 合约：主动买 40%（偏卖）；现货：主动买 70%（偏买）
+        m[k] = [40.0, 100.0, 35.0, 50.0, 100.0, 100.0]
+    s = x.stats("BTC-USDT-SWAP", okx_min={k: [10.0, 10.0] for k in range(now - 300, now + 1)})
+    assert abs(s["pf_60"] - (-0.2)) < 1e-9 and abs(s["sf_60"] - 0.4) < 1e-9
+    assert abs(s["div_60"] - 0.6) < 1e-9
+    assert s["all_pf_60"] < 0                      # 币安 40 买/60 卖 + 欧易 10/10
+    assert abs(s["spot_share"] - 50 / 150) < 1e-9
+    # 大背景：前两天 POC 在 100，之后价格一直在 120 以上 → 100 是没被碰过的 POC
+    rows = []
+    t0 = (int(_t.time() * 1000) // 86_400_000 - 3) * 86_400_000
+    for i in range(96 * 3 + 10):
+        px = 100.0 if i < 96 * 2 else 125.0
+        rows.append([t0 + i * 900_000, px, px + 0.5, px - 0.5, px, 1, 0, 1000.0])
+    c = X.context_from_15m(rows)
+    assert any(abs(p - 100) < 1 for p in c["naked_pocs"]) and c["trend"] == "上涨"
+
+
+def test_cross_venue_liquidation_goes_into_bars(tmp_path, monkeypatch):
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    app = E.OrderFlowApp({"auto": False, "enabled": list(C.SIGNAL_NAMES)}, None, None, False)
+    eng = E.SymbolEngine(app, "BTC-USDT-SWAP", "5m", {t: 1.0 for t in E.VIEW_TFS}, 0.01)
+    eng.on_trade(100.0, 1, True, 1_000)
+    eng.on_liq_usd(100.0, 5_000.0, -1, 1_500, "币安")
+    assert eng.builders["5m"].cur.liq_long == 50.0
+    assert eng.ext["liqs"][-1]["venue"] == "币安"

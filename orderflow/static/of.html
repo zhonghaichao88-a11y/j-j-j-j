@@ -50,9 +50,11 @@ th{color:var(--mute);font-weight:normal}
   <div id="chartWrap"><canvas id="cv"></canvas><div id="tip"></div></div>
   <div class="side">
     <h3>扫描（所有币，点一行切换） <span id="scanInfo" style="color:var(--mute);font-weight:normal"></span></h3>
-    <div class="scanwrap"><table><thead><tr><th>币</th><th>价格</th><th>1h涨跌</th><th>费率</th><th>持仓1h</th><th>爆仓5m</th><th>最新信号</th></tr></thead><tbody id="scan"></tbody></table></div>
+    <div class="scanwrap"><table><thead><tr><th>币</th><th>价格</th><th>1h涨跌</th><th>费率</th><th>持仓1h</th><th>爆仓5m</th><th>全网主动1h</th><th>现货-合约</th><th>趋势</th><th>最新信号</th></tr></thead><tbody id="scan"></tbody></table></div>
     <div class="row"><input id="addCoin" placeholder="加币，如 DOGE" style="width:110px"><button id="addBtn">加入</button><button id="rmBtn">删掉当前币</button></div>
     <div class="row">自动选成交额前 <input id="topN" type="number" min="1" max="60" style="width:56px"> 个币 <button id="topBtn">应用</button></div>
+    <h3>全网 / 大背景 <small id="xsrc" style="color:var(--mute);font-weight:normal"></small></h3>
+    <div id="xbox" style="font-size:12px;line-height:1.7"></div>
     <h3>自动交易</h3>
     <div class="row"><label><input type="checkbox" id="auto"> 开启自动交易</label></div>
     <div class="row">出信号用的周期 <select id="sigTf"><option value="1m">1分钟</option><option value="5m">5分钟</option><option value="15m">15分钟</option><option value="1h">1小时</option></select>
@@ -148,6 +150,10 @@ function draw(){
   if(V.prev_day){ for(const [k,c] of [['vah','#8888'],['val','#8888'],['poc','#d4a01788']]){ const y=yOfPx(V.prev_day[k]);
       ctx.strokeStyle=c; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(plotR,y); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle=c; ctx.fillText('昨日'+k.toUpperCase(),4,y-7);} }
+  // 没被碰过的 POC（以前某天成交最多、之后再没回去过的价位，价格常被吸过去）
+  for(const px of ((V.x||{}).ctx||{}).naked_pocs||[]){ const y=yOfPx(px); if(y<0||y>plotH) continue;
+    ctx.strokeStyle='#ffb74d99'; ctx.setLineDash([2,4]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(plotR,y); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='#ffb74d'; ctx.fillText('未回补POC '+fp(px),4,y-7); }
   // 关键位（昨日高低点/价值区/POC、VWAP、开盘区间、整数关口）
   for(const [px,name] of (V.levels||[])){ const y=yOfPx(px); if(y<0||y>plotH) continue;
     ctx.strokeStyle='#b388ff88'; ctx.setLineDash([6,3]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(plotR,y); ctx.stroke(); ctx.setLineDash([]);
@@ -287,11 +293,30 @@ function sideExt(){
   const oi = e.oi_usd!=null? usd(e.oi_usd):'-', oc = V.oi_1h!=null? ((V.oi_1h>=0?'+':'')+(V.oi_1h*100).toFixed(2)+'%/1h'):'';
   const obi = e.obi!=null? e.obi:0; const ob=`<span style="display:inline-block;width:60px;height:8px;background:#333;position:relative;vertical-align:middle"><span style="position:absolute;left:${obi>=0?50:50+obi*50}%;width:${Math.abs(obi)*50}%;height:8px;background:${obi>=0?'#26a69a':'#ef5350'}"></span></span>`;
   $('#ext').innerHTML = `资金费率 <b style="color:${(e.funding||0)>=0?'#26a69a':'#ef5350'}">${fr}</b>${cd} ｜ 持仓 <b>${oi}</b> ${oc} ｜ 多空人数比 <b>${e.ls!=null?e.ls.toFixed(2):'-'}</b> 大户 <b>${e.top_ls!=null&&!isNaN(e.top_ls)?e.top_ls.toFixed(2):'-'}</b> ｜ 盘口 ${ob} ${obi>=0?'买强':'卖强'} ${(obi*100).toFixed(0)}%`;
-  $('#liqList').innerHTML = (e.liqs||[]).slice().reverse().slice(0,15).map(l=>`<tr><td>${new Date(l.ts).toTimeString().slice(0,8)}</td><td class="${l.side<0?'neg':'pos'}">${l.side<0?'多单爆仓':'空单爆仓'}</td><td>${fp(l.px)}</td><td>${usd(l.usd)}</td></tr>`).join('') || '<tr><td colspan=4 style="color:var(--mute)">暂无</td></tr>';
+  $('#liqList').innerHTML = (e.liqs||[]).slice().reverse().slice(0,15).map(l=>`<tr><td>${new Date(l.ts).toTimeString().slice(0,8)}</td><td class="${l.side<0?'neg':'pos'}">${l.venue||'欧易'} ${l.side<0?'多单爆仓':'空单爆仓'}</td><td>${fp(l.px)}</td><td>${usd(l.usd)}</td></tr>`).join('') || '<tr><td colspan=4 style="color:var(--mute)">暂无</td></tr>';
   $('#bigList').innerHTML = (e.bigs||[]).slice().reverse().slice(0,15).map(([p,q,sd,ts])=>`<tr><td>${new Date(ts).toTimeString().slice(0,8)}</td><td class="${sd>0?'pos':'neg'}">${sd>0?'主动买':'主动卖'}</td><td>${fp(p)}</td><td>${usd(p*q)}</td></tr>`).join('') || '<tr><td colspan=4 style="color:var(--mute)">暂无</td></tr>';
 }
+function xbox(){
+  const x=(S.view||{}).x||{}; const c=x.ctx||{}; const st=S.x_status||{};
+  const f=(v,d=1)=>pct(v,d), cl=v=>v==null||isNaN(v)?'':(v>=0?'pos':'neg');
+  const btc=(S.scan||[]).find(r=>r.inst==='BTC-USDT-SWAP')||{};
+  const rows=[
+    ['全网合约主动买卖（欧易+币安+Bybit）', `1小时 <b class="${cl(x.all_pf_60)}">${f(x.all_pf_60)}</b>（${x.all_cvd_60!=null&&!isNaN(x.all_cvd_60)?(x.all_cvd_60>=0?'+':'-')+usd(Math.abs(x.all_cvd_60)):'-'}）　4小时 <b class="${cl(x.all_pf_240)}">${f(x.all_pf_240)}</b>`],
+    ['币安现货主动买卖', x.has_spot?`1小时 <b class="${cl(x.sf_60)}">${f(x.sf_60)}</b>　4小时 <b class="${cl(x.sf_240)}">${f(x.sf_240)}</b>`:'没有现货'],
+    ['现货 − 合约', x.has_spot?`1小时 <b class="${cl(x.div_60)}">${f(x.div_60)}</b>　4小时 <b class="${cl(x.div_240)}">${f(x.div_240)}</b>　<small style="color:var(--mute)">正数=现货比合约更想买</small>`:'-'],
+    ['现货成交占比', x.has_spot?`${f(x.spot_share,1).replace('+','')}（比 24 小时平均 ${f(x.spot_share_chg,1)}）`:'-'],
+    ['Coinbase 溢价（BTC）', `<b class="${cl(x.cb_premium)}">${f(x.cb_premium,3)}</b>　比 1 小时平均 ${f(x.cb_premium_chg,3)}　<small style="color:var(--mute)">正数=美国资金在买</small>`],
+    ['BTC 带动', `1小时 <b class="${cl(btc.chg_1h)}">${f(btc.chg_1h)}</b>　全网主动 <b class="${cl(btc.all_pf_60)}">${f(btc.all_pf_60)}</b>　趋势 ${btc.trend||'-'}`],
+    ['大背景', `<b class="${c.trend==='上涨'?'pos':(c.trend==='下跌'?'neg':'')}">${c.trend||'-'}</b>　离 4 小时均线 ${f(c.ema_4h)}　离 20 日均线 ${f(c.ema_1d)}`],
+    ['昨日 POC / 未回补 POC', `${c.prev_poc?fp(c.prev_poc):'-'} ／ ${(c.naked_pocs||[]).map(fp).join('、')||'无'}`],
+  ];
+  $('#xbox').innerHTML=rows.map(([k,v])=>`<div><span style="color:var(--mute)">${k}：</span>${v}</div>`).join('');
+  const nm={binance:'币安',bybit:'Bybit',bn_liq:'币安爆仓',coinbase:'Coinbase'};
+  $('#xsrc').textContent=Object.entries(st).map(([k,v])=>`${nm[k]||k} ${String(v).startsWith('正常')?'✓':'✗'}`).join(' ');
+  $('#xsrc').title=Object.entries(st).map(([k,v])=>`${nm[k]||k}：${v}`).join('\n');
+}
 function side(){
-  sideExt();
+  sideExt(); xbox();
   const a=S.acct; const dp=a.day_pnl;
   // 实盘显示欧易账户的真实权益；模拟盘显示模拟账户
   $('#eqLabel').textContent = S.live_ok ? '实盘权益' : '模拟权益';
@@ -327,6 +352,8 @@ function scanTable(){
     return `<tr data-i="${r.inst}" class="${r.inst===inst?'cur':''}"><td>${r.inst.split('-')[0]}</td><td>${fp(r.last)}</td>
     <td class="${(r.chg_1h||0)>=0?'pos':'neg'}">${pct(r.chg_1h)}</td><td class="${(r.funding||0)>=0?'pos':'neg'}">${pct(r.funding,3)}</td>
     <td class="${(r.oi_1h||0)>=0?'pos':'neg'}">${pct(r.oi_1h)}</td><td>${r.liq_5m?usd(r.liq_5m):'-'}</td>
+    <td class="${(r.all_pf_60||0)>=0?'pos':'neg'}">${pct(r.all_pf_60,1)}</td><td class="${(r.div_60||0)>=0?'pos':'neg'}">${pct(r.div_60,1)}</td>
+    <td class="${r.trend==='上涨'?'pos':(r.trend==='下跌'?'neg':'')}">${r.trend||'-'}</td>
     <td class="${sg?(sg.side>0?'pos':'neg'):''}">${sg?`${sg.name}${sg.side>0?'多':'空'} ${age}分前`:'-'}</td></tr>`;}).join('');
   $('#scan').querySelectorAll('tr').forEach(tr=>tr.onclick=()=>{ inst=tr.dataset.i; priceOff=0; barOff=0; $('#sym').value=inst; send(); });
 }

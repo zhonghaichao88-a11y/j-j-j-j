@@ -185,6 +185,7 @@ class SymbolEngine:
         self.ext = {"funding": math.nan, "next_funding": 0, "oi": math.nan, "oi_usd": math.nan,
                     "oi_hist": [], "ls": math.nan, "top_ls": math.nan, "liqs": [], "bigs": [], "obi": math.nan}
         self.wall_seen: dict = {}     # (方向, 行) -> 第一次看到的时间；挂够 30 秒才算真墙（防假挂单）
+        self.okx_min: dict = {}       # 分钟 -> [欧易主动买$, 主动卖$]，和币安、Bybit 合起来算全网
 
     def _wire(self):
         """把信号周期的K线接到形态识别器，1 分钟K线接到实战打法"""
@@ -282,6 +283,11 @@ class SymbolEngine:
             self._agg = {"ts": ts, "buy": is_buy, "q": qty, "usd": qty * price, "px": price}
         for b in self.builders.values():
             b.add(price, qty, is_buy, ts)
+        mrow = self.okx_min.setdefault(ts // 60000, [0.0, 0.0])
+        mrow[0 if is_buy else 1] += qty * price
+        if len(self.okx_min) > 400:
+            for k in sorted(self.okx_min)[:-300]:
+                self.okx_min.pop(k, None)
         for c in self._curs():
             if math.isnan(c.oi):        # 新K线：先带上最新的持仓、费率、多空比
                 c.oi, c.funding, c.ls = self.ext["oi"], self.ext["funding"], self.ext["ls"]
@@ -307,6 +313,25 @@ class SymbolEngine:
             else:
                 b.liq_short += qty
             b.liqs.append((price, qty, side))
+
+    def on_liq_usd(self, price, usd, side, ts, venue):
+        """币安、Bybit 的爆仓（金额是美元）"""
+        if price <= 0:
+            return
+        qty = usd / price
+        item = {"px": price, "q": qty, "usd": usd, "side": side, "ts": ts, "venue": venue}
+        self.ext["liqs"] = (self.ext["liqs"] + [item])[-150:]
+        for b in self._curs():
+            if side == -1:
+                b.liq_long += qty
+            else:
+                b.liq_short += qty
+            b.liqs.append((price, qty, side))
+
+    def xstats(self):
+        """全网数据（币安合约/现货、Bybit、Coinbase、大背景）"""
+        x = getattr(self.app, "xx", None)
+        return x.stats(self.inst, self.okx_min) if x is not None else {}
 
     def on_oi(self, oi_coin, oi_usd, ts):
         self.ext["oi"], self.ext["oi_usd"] = oi_coin, oi_usd
@@ -415,7 +440,7 @@ class SymbolEngine:
                 "signals": [s for s in self.signals[-60:] if s.get("tf") == tf][-30:],
                 "ext": {k: v for k, v in self.ext.items() if k != "oi_hist"},
                 "levels": [] if math.isnan(self.last) else [[x, n] for x, n in self.pb.levels(self.last)],
-                "oi_1h": self._oi_change(3600_000), "big_usd": self.big_usd}
+                "oi_1h": self._oi_change(3600_000), "big_usd": self.big_usd, "x": self.xstats()}
 
     def summary(self):
         """扫描表一行"""
@@ -429,7 +454,9 @@ class SymbolEngine:
         liq5 = sum(l["usd"] * (-1 if l["side"] < 0 else 1) for l in self.ext["liqs"] if now - l["ts"] <= 300_000)
         liq5_tot = sum(l["usd"] for l in self.ext["liqs"] if now - l["ts"] <= 300_000)
         sig = self.signals[-1] if self.signals else None
-        return {"inst": self.inst, "last": self.last, "chg_1h": chg, "funding": self.ext["funding"],
+        x = self.xstats()
+        return {"all_pf_60": x.get("all_pf_60"), "div_60": x.get("div_60"), "trend": (x.get("ctx") or {}).get("trend"),
+                "inst": self.inst, "last": self.last, "chg_1h": chg, "funding": self.ext["funding"],
                 "oi_1h": self._oi_change(3600_000), "liq_5m": liq5_tot, "liq_net_5m": liq5, "obi": self.ext["obi"],
                 "delta_15m": sum(b.delta for b in hist[-15:]) * (self.last if not math.isnan(self.last) else 0),
                 "sig": None if not sig else {"name": sig["name"], "side": sig["side"], "t": sig["t"], "tf": sig.get("tf")}}
@@ -783,7 +810,7 @@ class OrderFlowApp:
                 "symbols": list(self.engines),
                 "scan": [e.summary() for e in self.engines.values()],
                 "recent": self.recent[-40:],
-                "feed_status": getattr(self.hub, "status", ""), "extras_status": getattr(self.xhub, "status", ""),
+                "feed_status": getattr(self.hub, "status", ""), "extras_status": getattr(self.xhub, "status", ""), "x_status": getattr(getattr(self, "xx", None), "status", {}),
                 "external": sorted(self.external), "live_equity": self.live_equity, "live_avail": self.live_avail,
                 "live_day_pnl": (self.live_equity - self.live_day_start) if self.live_day_start else 0.0,
                 "hedged": bool(self.live and self.live.hedged), "notify": of_notify.enabled(),

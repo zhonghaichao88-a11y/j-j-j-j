@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
 from of_core import auto_row_size  # noqa: E402
 from of_engine import OrderFlowApp, SymbolEngine, TF_MS, VIEW_TFS  # noqa: E402
 from of_feed import OkxExtrasHub, OkxHub, REST, get_json, instruments, top_by_volume  # noqa: E402
+from of_xfeed import CrossHub  # noqa: E402
 import of_v7data  # noqa: E402
 import of_notify  # noqa: E402
 import httpx  # noqa: E402
@@ -52,6 +53,7 @@ core = OrderFlowApp(cfg, PROXY, KEYS, ENV.get("OF_ALLOW_LIVE") == "1")
 of_notify.setup(ENV, PROXY)
 core.hub = OkxHub(PROXY, os.environ.get("OF_FEED", "auto"))
 core.xhub = OkxExtrasHub(PROXY, core.hub)
+core.xx = CrossHub(PROXY)            # 币安、Bybit、Coinbase、大背景
 core.hub.on_liq = lambda inst, px, sz, side, ts: core.engines[inst].on_liq(px, sz, side, ts) if inst in core.engines else None
 app = FastAPI()
 INSTS: dict = {}                       # 全部合约信息
@@ -103,6 +105,7 @@ async def start_symbol(inst: str):
         buf = []
         core.hub.add(inst, lambda *t: buf.append(t))
         core.xhub.add(inst, eng)
+        core.xx.add(inst, eng)
         try:
             tfm = TF_MS[core.cfg["tf"]]
             now = int(time.time() * 1000)
@@ -134,6 +137,7 @@ def stop_symbol(inst: str):
         return False, "这个币还有持仓，先平仓再删"
     core.hub.remove(inst)
     core.xhub.remove(inst)
+    core.xx.remove(inst)
     core.engines.pop(inst, None)
     return True, ""
 
@@ -245,6 +249,7 @@ async def _startup():
     global INSTS
     asyncio.create_task(core.hub.run())
     asyncio.create_task(core.xhub.run())
+    asyncio.create_task(core.xx.run())
     asyncio.create_task(book_sampler())
     asyncio.create_task(live_refresher())
     for k in range(10):
