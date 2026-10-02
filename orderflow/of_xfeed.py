@@ -252,9 +252,13 @@ class CrossHub:
 
     # ------------------------------------------------------------ 大背景（每 30 分钟更新一次）
     async def _ctx_loop(self):
+        """新加的币马上算；所有币每 30 分钟更新一次"""
         async with httpx.AsyncClient(proxy=self.proxy, timeout=15) as c:
             while not self._stop:
+                now = time.time() * 1000
                 for inst in list(self.engines):
+                    if now - self.ctx.get(inst, {}).get("ts", 0) < 1800_000:
+                        continue
                     b = base_of(inst)
                     if self.fsym.get(b):
                         url, sym, mult = FAPI + "/fapi/v1/klines", self.fsym[b], self.mult.get(b, 1)
@@ -269,7 +273,7 @@ class CrossHub:
                     except Exception:  # noqa: BLE001
                         pass
                     await asyncio.sleep(0.3)
-                await asyncio.sleep(1800)
+                await asyncio.sleep(20)
 
     # ------------------------------------------------------------ 给引擎 / 网页用的数字
     def stats(self, inst, okx_min=None):
