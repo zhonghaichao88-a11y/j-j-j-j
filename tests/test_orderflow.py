@@ -90,10 +90,10 @@ def test_live_requires_permission_and_phrase(tmp_path, monkeypatch):
     monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
     app = E.OrderFlowApp({}, None, {"key": "k", "secret": "s", "passphrase": "p"}, allow_live=False)
     ok, msg = app.enable_live("我确认实盘")
-    assert not ok and app.broker is app.paper
+    assert not ok and app.broker == "paper"
     app2 = E.OrderFlowApp({}, None, {"key": "k", "secret": "s", "passphrase": "p"}, allow_live=True)
     ok, msg = app2.enable_live("随便")
-    assert not ok and app2.broker is app2.paper
+    assert not ok and app2.broker == "paper"
 
 
 def test_auto_trading_off_never_opens(tmp_path, monkeypatch):
@@ -137,3 +137,165 @@ def test_book_wall_needs_wall_price():
     b2.wall_bid = 98.0
     sigs = d.on_bar(b2)
     assert sigs and sigs[0].side == 1 and sigs[0].stop <= 96.0
+
+
+# ---------------------------------------------------------------- 实盘流程（假交易所，不连欧易）
+import asyncio
+
+
+class FakeLive:
+    hedged = False
+
+    def __init__(self, equity=1000.0, avail=1000.0):
+        self.eq, self.av = equity, avail
+        self.pos = {}            # inst -> 张数（带方向）
+        self.algos = {}
+        self.calls = []
+        self.pnl = {}
+
+    def account(self):
+        return self.eq, self.av
+
+    def positions(self):
+        return {k: [{"pos": v}] for k, v in self.pos.items() if v}
+
+    def contracts_for(self, inst, qty):
+        return round(qty / 0.01, 2), 0.01, 0.01        # 每张 0.01 币
+
+    def prepare(self, inst, lev):
+        self.calls.append(("prepare", inst, lev))
+
+    def open(self, inst, side, n, stop, target):
+        self.calls.append(("open", inst, side, n, stop, target))
+        self.pos[inst] = side * n
+        self.algos[inst] = "A1"
+        return {"fill": 100.0, "contracts": n, "order_id": "O1", "algo_id": "A1"}
+
+    def close(self, inst, side_open, n, algo_id=""):
+        self.calls.append(("close", inst, n))
+        self.pos[inst] = self.pos.get(inst, 0) - side_open * n
+        return 101.0
+
+    def cancel_algo(self, inst, algo_id):
+        self.calls.append(("cancel", inst, algo_id))
+
+    def place_oco(self, inst, side, n, stop, target):
+        self.calls.append(("oco", inst, n, stop, target))
+        return "A2"
+
+    def closed_pnl(self, inst, since):
+        return self.pnl.get(inst)
+
+
+class FakeEng:
+    def __init__(self, inst="BTC-USDT-SWAP"):
+        self.inst, self.tf, self.last = inst, "5m", 100.0
+        self.pb = type("PB", (), {"trades_today": 0, "record_result": lambda self, w: None})()
+
+
+def _live_app(tmp_path, monkeypatch, **cfg):
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    app = E.OrderFlowApp({"auto": True, "enabled": ["absorption", "pb_absorb"], "max_positions": 2, **cfg}, None, None, True)
+    app.live = FakeLive()
+    app.live_confirmed = True
+    app.cfg["mode"] = "live"
+    app.live_equity, app.live_avail, app.live_day_start = 1000.0, 1000.0, 1000.0
+    return app
+
+
+def _run(coro_fn):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(coro_fn())
+    finally:
+        loop.close()
+
+
+def test_live_open_then_exchange_stop_records_real_pnl(tmp_path, monkeypatch):
+    app = _live_app(tmp_path, monkeypatch)
+    eng = FakeEng()
+    app.engines[eng.inst] = eng
+
+    async def go():
+        s = C.Signal("absorption", 1, 99.0, 102.0, 0)
+        d = {}
+        app.try_open(eng, s, d, 100.0, 0)
+        assert eng.inst in app.opening
+        await asyncio.sleep(0.05)
+        assert d.get("traded") and len(app.acct.positions) == 1
+        pos = app.acct.positions[0]
+        assert pos.live and pos.algo_id == "A1" and pos.contracts > 0
+        # 交易所止损触发：仓位没了，历史持仓给出真实盈亏
+        app.live.pos[eng.inst] = 0
+        app.live.pnl[eng.inst] = {"pnl": -5.3, "exit": 98.9, "fee": -0.1, "funding": 0}
+        pos.t_open = 0
+        await app.reconcile_live()
+        assert app.acct.positions == []
+        assert app.history[-1]["pnl"] == -5.3 and app.history[-1]["real"] and app.history[-1]["why"] == "止损"
+    _run(go)
+
+
+def test_live_blocks_external_position_and_small_margin(tmp_path, monkeypatch):
+    app = _live_app(tmp_path, monkeypatch)
+    eng = FakeEng()
+    app.external = {eng.inst}
+    d = {}
+    app.try_open(eng, C.Signal("absorption", 1, 99.0, 102.0, 0), d, 100.0, 0)
+    assert d["skip"] == "账户里这个币已经有别的仓位"
+    app.external = set()
+    app.live_avail = 1.0
+
+    async def go():
+        d2 = {}
+        app.try_open(eng, C.Signal("absorption", 1, 99.0, 102.0, 0), d2, 100.0, 0)
+        await asyncio.sleep(0.05)
+        assert "可用保证金不够" in d2["skip"] and app.acct.positions == []
+        assert not any(c[0] == "open" for c in app.live.calls)
+    _run(go)
+
+
+def test_live_time_exit_closes_and_cancels_algo(tmp_path, monkeypatch):
+    app = _live_app(tmp_path, monkeypatch)
+    eng = FakeEng()
+    app.engines[eng.inst] = eng
+
+    async def go():
+        app.try_open(eng, C.Signal("absorption", 1, 99.0, 102.0, 0), {}, 100.0, 0)
+        await asyncio.sleep(0.05)
+        pos = app.acct.positions[0]
+        app.live.pnl[eng.inst] = {"pnl": 1.2, "exit": 100.6, "fee": -0.1, "funding": 0}
+        app.check_exits(eng, 100.5, pos.max_until + 1)
+        await asyncio.sleep(1.7)
+        kinds = [c[0] for c in app.live.calls]
+        assert "close" in kinds and ("cancel", eng.inst, "A1") in app.live.calls
+        assert app.acct.positions == [] and app.history[-1]["why"] == "到时间"
+    _run(go)
+
+
+def test_live_playbook_half_close_moves_stop_to_breakeven(tmp_path, monkeypatch):
+    app = _live_app(tmp_path, monkeypatch)
+    eng = FakeEng()
+    app.engines[eng.inst] = eng
+
+    async def go():
+        app.try_open(eng, C.Signal("pb_absorb", 1, 99.0, 103.0, 0), {}, 100.0, 0)
+        await asyncio.sleep(0.05)
+        pos = app.acct.positions[0]
+        n0 = pos.contracts
+        app.check_exits(eng, 101.1, 1)          # 到 1R（100 + 1）
+        await asyncio.sleep(0.05)
+        assert pos.half_done and pos.stop == pos.entry and pos.contracts < n0
+        assert any(c[0] == "oco" and c[3] == pos.entry for c in app.live.calls)
+    _run(go)
+
+
+def test_paper_daily_loss_limit_blocks(tmp_path, monkeypatch):
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    app = E.OrderFlowApp({"auto": True, "enabled": ["absorption"]}, None, None, False)
+    app._roll_day()
+    app.acct.day_pnl = -100
+    d = {}
+    app.try_open(FakeEng(), C.Signal("absorption", 1, 99.0, 102.0, 0), d, 100.0, 0)
+    assert d["skip"].startswith("今天亏损")

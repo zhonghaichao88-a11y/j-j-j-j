@@ -123,6 +123,7 @@ class OkxHub:
         self.last_id: dict[str, int] = {}
         self._ws = None
         self._stop = False
+        self._hist_lock = asyncio.Lock()
 
     def add(self, inst, on_trade):
         self.books.setdefault(inst, Book())
@@ -210,17 +211,45 @@ class OkxHub:
                 self.status = f"已连接（WebSocket 实时，{len(self.on_trade)} 个币）"
 
     async def _full_book_loop(self):
+        """全量盘口（上下 5000 档）：正在看的币每 3 秒一次；其他币轮流，每 3 秒顺带一个"""
         async with httpx.AsyncClient(proxy=self.proxy, timeout=10) as c:
+            k = 0
             while not self._stop:
-                inst = self.focus
-                if inst:
+                others = [i for i in self.on_trade if i != self.focus]
+                todo = ([self.focus] if self.focus else []) + ([others[k % len(others)]] if others else [])
+                k += 1
+                for inst in todo:
                     try:
                         d = await get_json(c, "/api/v5/market/books-full", instId=inst, sz=5000)
                         if d:
                             self.book(inst).full(d[0]["bids"], d[0]["asks"])
                     except Exception:  # noqa: BLE001
                         pass
-                await asyncio.sleep(3)
+                    await asyncio.sleep(0.5)
+                await asyncio.sleep(2)
+
+    async def history_trades(self, inst, since_ms, max_pages=10):
+        """往回拉最近的逐笔成交（启动时补出当前这根K线的足迹）。返回按时间排好的列表"""
+        out, after = [], None
+        async with self._hist_lock, httpx.AsyncClient(proxy=self.proxy, timeout=15) as c:
+            for _ in range(max_pages):
+                params = {"instId": inst, "type": 1, "limit": 100}
+                if after:
+                    params["after"] = after
+                try:
+                    data = await get_json(c, "/api/v5/market/history-trades", **params)
+                except Exception:  # noqa: BLE001
+                    break
+                if not data:
+                    break
+                out += data
+                after = min(int(t["tradeId"]) for t in data)
+                if min(int(t["ts"]) for t in data) < since_ms:
+                    break
+                await asyncio.sleep(0.12)
+        out = [t for t in out if int(t["ts"]) >= since_ms]
+        out.sort(key=lambda t: int(t["tradeId"]))
+        return out
 
     # ---------------------------------------------------------- REST 轮询（WebSocket 连不上时）
     async def _run_rest(self):

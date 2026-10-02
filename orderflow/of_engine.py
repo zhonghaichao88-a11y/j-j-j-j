@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 import os
@@ -15,6 +16,8 @@ from dataclasses import asdict, dataclass, field
 
 from of_core import Bar, Detector, SIGNAL_NAMES, LIVE_ONLY, auto_row_size, volume_profile, imbalances, stacked
 from of_playbook import Playbook, PB_NAMES
+import of_notify
+from of_live import OkxLive, LiveError
 
 ALL_NAMES = {**SIGNAL_NAMES, **PB_NAMES}     # 形态打法 + 实战打法（关键位 + 订单流确认）
 PB_HOLD_MS = 120 * 60_000                    # 实战打法最多拿 120 分钟（和回测一样）
@@ -74,6 +77,11 @@ class Position:
     order_id: str = ""
     live: bool = False
     checked: float = 0.0  # 实盘：上次向交易所核对的时间
+    contracts: float = 0.0  # 实盘：合约张数
+    algo_id: str = ""       # 实盘：交易所上这笔的止盈止损单号
+    risk: float = 0.0       # 开仓价到止损的距离（1R）
+    half_done: bool = False  # 实战打法：到 1R 已平一半、止损移到保本
+    busy: bool = False      # 实盘：正在向交易所操作，别重复下指令
 
 
 @dataclass
@@ -135,83 +143,6 @@ class PaperBroker:
         return None
 
 
-class OkxLiveBroker(PaperBroker):
-    """欧易实盘：市价开仓，同时挂好止损止盈（交易所端执行，程序断线也有效）。"""
-    name = "实盘"
-
-    def __init__(self, keys: dict, proxy: str | None, leverage: int):
-        import ccxt
-        cfg = {"apiKey": keys["key"], "secret": keys["secret"], "password": keys["passphrase"],
-               "options": {"defaultType": "swap"}, "enableRateLimit": True}
-        if proxy:
-            cfg["httpsProxy"] = proxy
-        self.ex = ccxt.okx(cfg)
-        self.ex.load_markets()
-        self.leverage = leverage
-        self.lock = threading.Lock()
-
-    def _sym(self, inst):            # BTC-USDT-SWAP -> BTC/USDT:USDT
-        base = inst.split("-")[0]
-        return f"{base}/USDT:USDT"
-
-    def open(self, inst, side, qty, price, stop, target):
-        with self.lock:
-            s = self._sym(inst)
-            m = self.ex.market(s)
-            contracts = float(self.ex.amount_to_precision(s, qty / m["contractSize"]))
-            if contracts < (m["limits"]["amount"]["min"] or 0):
-                raise RuntimeError("仓位太小，低于欧易最小下单量")
-            try:
-                self.ex.set_leverage(self.leverage, s, params={"mgnMode": "isolated"})
-            except Exception:  # noqa: BLE001
-                pass
-            o = self.ex.create_order(s, "market", "buy" if side == 1 else "sell", contracts, params={
-                "tdMode": "isolated",
-                "stopLoss": {"triggerPrice": self.ex.price_to_precision(s, stop), "type": "market"},
-                "takeProfit": {"triggerPrice": self.ex.price_to_precision(s, target), "type": "market"},
-            })
-            fill = float(o.get("average") or price)
-            return fill, o.get("id", "")
-
-    def close(self, pos: Position, price):
-        with self.lock:
-            s = self._sym(pos.sym)
-            m = self.ex.market(s)
-            contracts = float(self.ex.amount_to_precision(s, pos.qty / m["contractSize"]))
-            o = self.ex.create_order(s, "market", "sell" if pos.side == 1 else "buy", contracts,
-                                     params={"tdMode": "isolated", "reduceOnly": True})
-            try:   # 撤掉还挂着的止损止盈
-                for a in self.ex.fetch_open_orders(s, params={"stop": True, "ordType": "oco"}):
-                    self.ex.cancel_order(a["id"], s, params={"stop": True})
-            except Exception:  # noqa: BLE001
-                pass
-            return float(o.get("average") or price)
-
-    def equity(self) -> float:
-        """账户 USDT 权益（用来算实盘仓位大小）"""
-        with self.lock:
-            b = self.ex.fetch_balance()
-            try:   # 欧易统一账户：总权益（美元）；没有就用 USDT 余额
-                eq = float(((b.get("info") or {}).get("data") or [{}])[0].get("totalEq") or 0)
-            except (TypeError, ValueError, IndexError):
-                eq = 0.0
-            return eq or float((b.get("USDT") or {}).get("total") or 0)
-
-    def open_positions(self) -> set:
-        """账户里现在有仓位的合约（包括 V7 或手动开的）"""
-        with self.lock:
-            out = set()
-            for p in self.ex.fetch_positions():
-                if abs(float(p.get("contracts") or 0)) > 0:
-                    out.add((p.get("info") or {}).get("instId") or "")
-            return out
-
-    def has_position(self, inst) -> bool:
-        with self.lock:
-            ps = self.ex.fetch_positions([self._sym(inst)])
-            return any(abs(float(p.get("contracts") or 0)) > 0 for p in ps)
-
-
 # ====================================================================== 引擎
 DEFAULT_CFG = {
     "symbols": ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP"],
@@ -252,7 +183,8 @@ class SymbolEngine:
         self.last = math.nan
         self.pending: list = []       # 收盘出信号，下一笔成交进场
         self.backfilling = False
-        self.big_usd = BIG_USD.get(inst.split("-")[0], 50_000)
+        self.big_usd = BIG_USD.get(inst.split("-")[0], 50_000)   # 先用默认值，攒够成交后按这个币自己的分布算
+        self._sizes: list = []        # 最近合并后每笔成交的金额，用来算"大单"标准（最大的 0.5%）
         self._agg = None              # 正在合并的一笔（同毫秒、同方向）
         self.ext = {"funding": math.nan, "next_funding": 0, "oi": math.nan, "oi_usd": math.nan,
                     "oi_hist": [], "ls": math.nan, "top_ls": math.nan, "liqs": [], "bigs": [], "obi": math.nan}
@@ -307,7 +239,15 @@ class SymbolEngine:
     def _flush_big(self):
         a = self._agg
         self._agg = None
-        if not a or a["usd"] < self.big_usd:
+        if not a:
+            return
+        self._sizes.append(a["usd"])
+        if len(self._sizes) >= 3000:
+            self._sizes = self._sizes[-3000:]
+        if len(self._sizes) % 300 == 0 and len(self._sizes) >= 600:
+            # 大单标准跟着这个币走：最近成交里金额最大的 0.5%，至少 1 万美元
+            self.big_usd = max(10_000.0, sorted(self._sizes)[int(len(self._sizes) * 0.995)])
+        if a["usd"] < self.big_usd:
             return
         side = 1 if a["buy"] else -1
         for b in self._curs():
@@ -462,7 +402,7 @@ class SymbolEngine:
                 "signals": [s for s in self.signals[-60:] if s.get("tf") == tf][-30:],
                 "ext": {k: v for k, v in self.ext.items() if k != "oi_hist"},
                 "levels": [] if math.isnan(self.last) else [[x, n] for x, n in self.pb.levels(self.last)],
-                "oi_1h": self._oi_change(3600_000)}
+                "oi_1h": self._oi_change(3600_000), "big_usd": self.big_usd}
 
     def summary(self):
         """扫描表一行"""
@@ -498,13 +438,17 @@ class OrderFlowApp:
         self.risk = Risk(self.cfg)
         self.acct = Account(equity=self.cfg["paper_equity"], start_equity=self.cfg["paper_equity"])
         self.paper = PaperBroker()
-        self.live: OkxLiveBroker | None = None
+        self.live: OkxLive | None = None
         self.live_confirmed = False
         self.engines: dict[str, SymbolEngine] = {}
         self.hub = None               # 行情（of_feed.OkxHub），由 of_app 设置
         self.xhub = None
         self.external: set = set()    # 实盘账户里别的程序 / 手动开的仓位（这些币不再开新单）
         self.live_equity = 0.0
+        self.live_avail = 0.0
+        self.live_day, self.live_day_start = "", 0.0
+        self._acct_ts = 0.0
+        self.opening: set = set()     # 实盘：正在下单的币
         self.recent: list = []        # 所有币最近的信号（扫描表用）
         self.log: list[str] = []
         self.history: list[dict] = []
@@ -537,9 +481,7 @@ class OrderFlowApp:
 
     @property
     def broker(self):
-        if self.cfg["mode"] == "live" and self.live_confirmed and self.live is not None:
-            return self.live
-        return self.paper
+        return "live" if (self.cfg["mode"] == "live" and self.live_confirmed and self.live is not None) else "paper"
 
     def enable_live(self, phrase: str):
         if not self.allow_live:
@@ -549,33 +491,73 @@ class OrderFlowApp:
         if phrase.strip() != "我确认实盘":
             return False, "确认口令不对"
         try:
-            self.live = OkxLiveBroker(self.keys, self.proxy, int(self.cfg["max_leverage"]))
+            self.live = OkxLive(self.keys, self.proxy)
         except Exception as e:  # noqa: BLE001
             return False, f"连接欧易失败：{e}"
         self.live_confirmed = True
         self.cfg["mode"] = "live"
-        self.refresh_live()
-        self.say(f"已切换到实盘：账户权益 {self.live_equity:.2f}U；账户里已有仓位的币：{', '.join(sorted(self.external)) or '无'}（这些币不再开新单）")
-        return True, "已切换到实盘"
-
-    def refresh_live(self):
-        """读实盘账户权益和已有仓位（每分钟一次）"""
-        if not (self.live_confirmed and self.live):
-            return
-        try:
-            self.live_equity = self.live.equity()
-            mine = {p.sym for p in self.acct.positions if p.live}
-            self.external = {i for i in self.live.open_positions() if i and i not in mine}
-        except Exception as e:  # noqa: BLE001
-            self.say(f"读取实盘账户失败：{e}")
-
-    def on_signal(self, eng, d):
-        self.recent = (self.recent + [{**d, "inst": eng.inst}])[-100:]
+        self.refresh_live(force=True)
+        mode = "双向持仓（开多开空分开）" if self.live.hedged else "单向持仓"
+        msg = (f"已切换到实盘：账户权益 {self.live_equity:.2f}U，可用 {self.live_avail:.2f}U，{mode}；"
+               f"账户里已有仓位的币：{', '.join(x.split('-')[0] for x in sorted(self.external)) or '无'}（这些币不再开新单）")
+        self.say(msg)
+        of_notify.push("订单流：已切换到实盘", msg)
+        return True, msg
 
     def disable_live(self):
         self.live_confirmed = False
         self.cfg["mode"] = "paper"
-        self.say("已切回模拟盘")
+        self.say("已切回模拟盘（实盘已有的持仓不受影响，止盈止损在交易所照常有效）")
+
+    # ---------------------------------------------------------- 实盘：账户核对（后台每 5 秒）
+    def refresh_live(self, force=False):
+        """（同步）读账户权益、可用保证金、别的仓位。切换实盘时用"""
+        if not (self.live_confirmed and self.live):
+            return
+        try:
+            self.live_equity, self.live_avail = self.live.account()
+            self._acct_ts = time.time()
+            d = time.strftime("%Y-%m-%d", time.gmtime())
+            if self.live_day != d or not self.live_day_start:
+                self.live_day, self.live_day_start = d, self.live_equity
+            mine = {p.sym for p in self.acct.positions if p.live}
+            self.external = {i for i in self.live.positions() if i not in mine}
+        except Exception as e:  # noqa: BLE001
+            self.say(f"读取实盘账户失败：{e}")
+
+    async def reconcile_live(self):
+        """（后台每 5 秒）核对实盘：交易所已经平掉的单（止盈/止损触发）读真实盈亏记账；每 30 秒读一次权益"""
+        if not (self.live_confirmed and self.live):
+            return
+        now = time.time()
+        try:
+            if now - self._acct_ts >= 30:
+                self.live_equity, self.live_avail = await asyncio.to_thread(self.live.account)
+                self._acct_ts = now
+                d = time.strftime("%Y-%m-%d", time.gmtime())
+                if self.live_day != d or not self.live_day_start:
+                    self.live_day, self.live_day_start = d, self.live_equity
+            ex_pos = await asyncio.to_thread(self.live.positions)
+            mine = {p.sym for p in self.acct.positions if p.live}
+            self.external = {i for i in ex_pos if i not in mine and i not in self.opening}
+            for pos in list(self.acct.positions):
+                if not pos.live or pos.busy or now * 1000 - pos.t_open < 15_000 or pos.sym in ex_pos:
+                    continue
+                # 交易所那边已经没有这个仓位：止盈或止损触发了（或你在 App 里手动平了）
+                r = await asyncio.to_thread(self.live.closed_pnl, pos.sym, pos.t_open)
+                if r is None:
+                    if not pos.checked:
+                        pos.checked = now
+                    if now - pos.checked < 60:            # 历史持仓还没出来，等一下再记
+                        continue
+                exit_px = (r or {}).get("exit") or pos.stop
+                why = "止盈" if (exit_px - pos.entry) * pos.side > 0 else "止损"
+                self._record_close(pos, exit_px, why, int(now * 1000), real=r)
+        except Exception as e:  # noqa: BLE001
+            self.say(f"核对实盘账户失败：{e}")
+
+    def on_signal(self, eng, d):
+        self.recent = (self.recent + [{**d, "inst": eng.inst}])[-100:]
 
     # ---------------------------------------------------------- 交易
     def _roll_day(self):
@@ -583,88 +565,203 @@ class OrderFlowApp:
         if d != self.acct.day:
             self.acct.day, self.acct.day_pnl, self.acct.start_equity = d, 0.0, self.acct.equity
 
+    def _day_loss_hit(self):
+        lim = self.cfg["daily_loss_pct"] / 100
+        if self.broker == "live":
+            return self.live_day_start > 0 and (self.live_equity - self.live_day_start) <= -lim * self.live_day_start
+        return self.acct.day_pnl <= -lim * self.acct.start_equity
+
     def try_open(self, eng: SymbolEngine, s, d, price, ts):
+        """出信号后的下一笔成交时调用。检查都过了：模拟盘直接成交；实盘丢到后台线程去下单，不卡行情"""
         self._roll_day()
         if not self.cfg["auto"] or s.kind not in self.cfg["enabled"]:
             return
         if (s.side == 1 and not (s.stop < price < s.target)) or (s.side == -1 and not (s.target < price < s.stop)):
             d["skip"] = "价格已越过止损或止盈"
             return
-        ok, why = self.risk.can_open(self.acct, eng.inst, s.side)
-        if ok and self.broker is not self.paper and eng.inst in self.external:
-            ok, why = False, "账户里这个币已经有别的仓位"
-        if not ok:
-            d["skip"] = why
+        if self._day_loss_hit():
+            d["skip"] = "今天亏损到上限，停止开新单"
             return
-        br = self.broker
-        live_eq = self.live_equity if br is not self.paper else None
-        if br is not self.paper and not live_eq:
+        if len(self.acct.positions) + len(self.opening) >= self.cfg["max_positions"]:
+            d["skip"] = "持仓数已满"
+            return
+        if any(p.sym == eng.inst for p in self.acct.positions) or eng.inst in self.opening:
+            d["skip"] = "这个币已有持仓"
+            return
+        live = self.broker == "live"
+        if live and eng.inst in self.external:
+            d["skip"] = "账户里这个币已经有别的仓位"
+            return
+        if live and not self.live_equity:
             d["skip"] = "还没读到实盘账户权益"
             return
-        qty = self.risk.size(self.acct, price, s.stop, live_eq)
+        qty = self.risk.size(self.acct, price, s.stop, self.live_equity if live else None)
+        hold = PB_HOLD_MS if s.kind in PB_NAMES else self.cfg.get("max_hold_bars", 48) * TF_MS[eng.tf]
+        if not live:
+            fill = price * (1 + s.side * PaperBroker.slip)
+            self._add_position(eng, s, d, Position(eng.inst, s.kind, s.side, qty, fill, s.stop, s.target, ts, ts + hold,
+                                                   "paper", False, risk=abs(fill - s.stop)))
+            return
+        self.opening.add(eng.inst)
+        d["skip"] = "正在下单…"
+        asyncio.get_event_loop().create_task(self._open_live(eng, s, d, qty, price, ts, hold))
+
+    async def _open_live(self, eng, s, d, qty, price, ts, hold):
         try:
-            fill, oid = br.open(eng.inst, s.side, qty, price, s.stop, s.target)
+            lev = int(self.cfg["max_leverage"])
+            n, nmin, cs = self.live.contracts_for(eng.inst, qty)
+            if n < nmin or n <= 0:
+                d["skip"] = f"仓位太小（{n:g} 张 < 最少 {nmin:g} 张），资金不够开这个币"
+                return
+            margin = n * cs * price / lev
+            if margin > self.live_avail * 0.95:
+                d["skip"] = f"可用保证金不够（要 {margin:.2f}U，可用 {self.live_avail:.2f}U）"
+                return
+            await asyncio.to_thread(self.live.prepare, eng.inst, lev)
+            r = await asyncio.to_thread(self.live.open, eng.inst, s.side, n, s.stop, s.target)
+            fill = r["fill"] or price
+            pos = Position(eng.inst, s.kind, s.side, r["contracts"] * cs, fill, s.stop, s.target, ts, ts + hold,
+                           r["order_id"], True, contracts=r["contracts"], algo_id=r["algo_id"], risk=abs(fill - s.stop))
+            d.pop("skip", None)
+            self._add_position(eng, s, d, pos)
+            if not r["algo_id"]:
+                msg = f"{eng.inst} 开仓了，但没查到止盈止损单！请马上到欧易 App 检查这笔仓位"
+                self.say(msg)
+                of_notify.push("订单流：止盈止损可能没挂上", msg)
+            self.live_avail -= margin
         except Exception as e:  # noqa: BLE001
             d["skip"] = f"下单失败：{e}"
-            self.say(f"{eng.inst} 下单失败：{e}")
-            return
+            self.say(f"{eng.inst} 实盘下单失败：{e}")
+            of_notify.push("订单流：下单失败", f"{eng.inst} {e}")
+        finally:
+            self.opening.discard(eng.inst)
+
+    def _add_position(self, eng, s, d, pos):
         if s.kind in PB_NAMES:
             eng.pb.trades_today += 1
-        pos = Position(eng.inst, s.kind, s.side, qty, fill, s.stop, s.target, ts,
-                       ts + (PB_HOLD_MS if s.kind in PB_NAMES else self.cfg.get("max_hold_bars", 48) * TF_MS[eng.tf]),
-                       oid, br is not self.paper)
         self.acct.positions.append(pos)
         d["traded"] = True
-        self.say(f"[{br.name}] 开{'多' if s.side == 1 else '空'} {eng.inst} {ALL_NAMES[s.kind]} 价 {fill:.6g} 数量 {qty:.6g} 止损 {s.stop:.6g} 止盈 {s.target:.6g}")
+        tag = "实盘" if pos.live else "模拟盘"
+        msg = (f"[{tag}] 开{'多' if s.side == 1 else '空'} {eng.inst} {ALL_NAMES[s.kind]} 价 {pos.entry:.6g} "
+               f"数量 {pos.qty:.6g} 止损 {s.stop:.6g} 止盈 {s.target:.6g}")
+        self.say(msg)
+        of_notify.push(f"订单流：开{'多' if s.side == 1 else '空'} {eng.inst.split('-')[0]}", msg)
         self.save()
 
     def check_exits(self, eng: SymbolEngine, price, ts):
+        """每笔成交都会调用。模拟盘：止盈止损、到时间、实战打法 1R 平一半都在这里判断。
+        实盘：止盈止损在交易所执行（后台核对时记账），这里只处理到时间平仓和 1R 平一半"""
         for pos in list(self.acct.positions):
-            if pos.sym != eng.inst:
+            if pos.sym != eng.inst or pos.busy:
+                continue
+            # 实战打法：到 1R 先平一半，剩下的止损移到保本
+            if pos.kind in PB_NAMES and not pos.half_done and pos.risk > 0:
+                one_r = pos.entry + pos.side * pos.risk
+                if (price >= one_r) if pos.side == 1 else (price <= one_r):
+                    if pos.live:
+                        pos.busy = True
+                        asyncio.get_event_loop().create_task(self._half_live(pos, price, ts))
+                    else:
+                        self._half_paper(pos, price * (1 - pos.side * PaperBroker.slip))
+                    continue
+            if pos.live:
+                if ts >= pos.max_until:
+                    pos.busy = True
+                    asyncio.get_event_loop().create_task(self._close_live(pos, "到时间", ts))
                 continue
             why = self.paper.check_exit(pos, price)
             if why is None and ts >= pos.max_until:
                 why = "到时间"
             if why is None:
                 continue
-            br = self.live if (pos.live and self.live) else self.paper
-            try:
-                if pos.live and why in ("止损", "止盈"):
-                    # 实盘的止损止盈挂在交易所，这里只核对交易所那边是不是已经平掉（最多 3 秒问一次）
-                    if time.time() - pos.checked < 3:
-                        continue
-                    pos.checked = time.time()
-                    if self.live.has_position(pos.sym):
-                        continue
-                    exit_px = pos.stop if why == "止损" else pos.target
-                else:
-                    exit_px = br.close(pos, price)
-            except Exception as e:  # noqa: BLE001
-                self.say(f"{pos.sym} 平仓出错：{e}")
-                continue
+            exit_px = {"止损": pos.stop, "止盈": pos.target}.get(why, price)
+            exit_px = exit_px * (1 - pos.side * PaperBroker.slip) if why != "止盈" else exit_px
+            self._record_close(pos, exit_px, why, ts)
+
+    def _half_paper(self, pos, px):
+        half = pos.qty / 2
+        pnl = pos.side * (px - pos.entry) * half - PaperBroker.fee * (pos.entry + px) * half
+        self.acct.equity += pnl
+        self.acct.day_pnl += pnl
+        pos.qty -= half
+        pos.half_done = True
+        pos.stop = pos.entry
+        self.say(f"[模拟盘] {pos.sym} 到 1R 平一半 盈亏 {pnl:+.2f}U，剩下的止损移到保本 {pos.entry:.6g}")
+        self.save()
+
+    async def _half_live(self, pos, price, ts):
+        try:
+            cs = pos.qty / pos.contracts if pos.contracts else 1
+            n_half, nmin, _ = self.live.contracts_for(pos.sym, pos.qty / 2)
+            if n_half < nmin or n_half >= pos.contracts:       # 太小分不了：只把止损移到保本
+                await asyncio.to_thread(self.live.cancel_algo, pos.sym, pos.algo_id)
+                pos.algo_id = await asyncio.to_thread(self.live.place_oco, pos.sym, pos.side, pos.contracts, pos.entry, pos.target)
+            else:
+                await asyncio.to_thread(self.live.cancel_algo, pos.sym, pos.algo_id)
+                px = await asyncio.to_thread(self.live.close, pos.sym, pos.side, n_half)
+                pos.contracts -= n_half
+                pos.qty = pos.contracts * cs
+                pos.algo_id = await asyncio.to_thread(self.live.place_oco, pos.sym, pos.side, pos.contracts, pos.entry, pos.target)
+                self.say(f"[实盘] {pos.sym} 到 1R 平一半（{n_half:g} 张，均价 {px:.6g}），剩下的止损移到保本")
+            pos.stop = pos.entry
+            pos.half_done = True
+            self.save()
+        except Exception as e:  # noqa: BLE001
+            self.say(f"{pos.sym} 平一半/移止损失败：{e}（原来的止盈止损还在）")
+            of_notify.push("订单流：移止损失败", f"{pos.sym} {e}")
+            pos.half_done = True
+        finally:
+            pos.busy = False
+
+    async def _close_live(self, pos, why, ts):
+        try:
+            ex_pos = await asyncio.to_thread(self.live.positions)
+            if pos.sym in ex_pos:
+                await asyncio.to_thread(self.live.close, pos.sym, pos.side, pos.contracts)
+            await asyncio.to_thread(self.live.cancel_algo, pos.sym, pos.algo_id)
+            await asyncio.sleep(1.5)
+            r = await asyncio.to_thread(self.live.closed_pnl, pos.sym, pos.t_open)
+            self._record_close(pos, (r or {}).get("exit") or self.engines[pos.sym].last, why, ts, real=r)
+        except Exception as e:  # noqa: BLE001
+            self.say(f"{pos.sym} 实盘平仓失败：{e}，30 秒后再试")
+            of_notify.push("订单流：平仓失败", f"{pos.sym} {e}")
+            pos.max_until = ts + 30_000
+        finally:
+            pos.busy = False
+
+    def _record_close(self, pos, exit_px, why, ts, real=None):
+        if real:                       # 实盘：用欧易历史持仓里的真实盈亏（含手续费、资金费）
+            pnl = real["pnl"]
+        else:
             fee = PaperBroker.fee * (pos.entry + exit_px) * pos.qty
             pnl = pos.side * (exit_px - pos.entry) * pos.qty - fee
+        if pos in self.acct.positions:
             self.acct.positions.remove(pos)
+        if not pos.live:
             self.acct.equity += pnl
-            self.acct.day_pnl += pnl
-            self.acct.closed += 1
-            self.acct.wins += pnl > 0
-            rec = {"sym": pos.sym, "kind": ALL_NAMES[pos.kind], "side": pos.side, "entry": pos.entry,
-                   "exit": exit_px, "pnl": round(pnl, 4), "why": why, "t_open": pos.t_open, "t_close": ts,
-                   "live": pos.live}
-            self.history.append(rec)
-            with open(TRADE_LOG, "a", encoding="utf-8") as f:
-                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-            if pos.kind in PB_NAMES and eng is not None:
-                eng.pb.record_result(pnl > 0)
-            self.say(f"平仓 {pos.sym} {why} 盈亏 {pnl:+.2f}U")
-            self.save()
+        self.acct.day_pnl += pnl
+        self.acct.closed += 1
+        self.acct.wins += pnl > 0
+        rec = {"sym": pos.sym, "kind": ALL_NAMES[pos.kind], "side": pos.side, "entry": pos.entry,
+               "exit": exit_px, "pnl": round(pnl, 4), "why": why, "t_open": pos.t_open, "t_close": ts,
+               "live": pos.live, "real": bool(real)}
+        self.history.append(rec)
+        with open(TRADE_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        eng = self.engines.get(pos.sym)
+        if pos.kind in PB_NAMES and eng is not None:
+            eng.pb.record_result(pnl > 0)
+        tag = "实盘" if pos.live else "模拟盘"
+        msg = f"[{tag}] 平仓 {pos.sym} {why} 盈亏 {pnl:+.2f}U" + ("（欧易真实盈亏）" if real else "")
+        self.say(msg)
+        of_notify.push(f"订单流：{why} {pos.sym.split('-')[0]} {pnl:+.2f}U", msg)
+        self.save()
 
     def close_all(self):
         for pos in list(self.acct.positions):
+            pos.max_until = 0
             eng = self.engines.get(pos.sym)
             if eng and not math.isnan(eng.last):
-                pos.max_until = 0
                 self.check_exits(eng, eng.last, int(time.time() * 1000))
 
     def state(self, inst, tf=None):
@@ -674,7 +771,9 @@ class OrderFlowApp:
                 "scan": [e.summary() for e in self.engines.values()],
                 "recent": self.recent[-40:],
                 "feed_status": getattr(self.hub, "status", ""), "extras_status": getattr(self.xhub, "status", ""),
-                "external": sorted(self.external), "live_equity": self.live_equity,
+                "external": sorted(self.external), "live_equity": self.live_equity, "live_avail": self.live_avail,
+                "live_day_pnl": (self.live_equity - self.live_day_start) if self.live_day_start else 0.0,
+                "hedged": bool(self.live and self.live.hedged), "notify": of_notify.enabled(),
                 "cfg": self.cfg, "live_ok": self.live_confirmed, "allow_live": self.allow_live,
                 "signal_names": ALL_NAMES, "live_only": sorted(LIVE_ONLY), "pb_kinds": sorted(PB_NAMES),
                 "acct": {**asdict(self.acct), "positions": [asdict(p) for p in self.acct.positions]},

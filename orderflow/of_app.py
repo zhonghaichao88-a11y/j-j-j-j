@@ -20,6 +20,7 @@ from of_core import auto_row_size  # noqa: E402
 from of_engine import OrderFlowApp, SymbolEngine, TF_MS, VIEW_TFS  # noqa: E402
 from of_feed import OkxExtrasHub, OkxHub, REST, get_json, instruments, top_by_volume  # noqa: E402
 import of_v7data  # noqa: E402
+import of_notify  # noqa: E402
 import httpx  # noqa: E402
 
 CFG_FILE = os.path.join(HERE, "of_config.json")
@@ -35,7 +36,8 @@ def load_env():
                 if line and not line.startswith("#") and "=" in line:
                     k, v = line.split("=", 1)
                     env.setdefault(k.strip(), v.strip().strip('"').strip("'"))
-    for k in ("PROXY_URL", "OKX_API_KEY", "OKX_API_SECRET", "OKX_API_PASSPHRASE", "OF_ALLOW_LIVE", "OF_V7_DATA"):
+    for k in ("PROXY_URL", "OKX_API_KEY", "OKX_API_SECRET", "OKX_API_PASSPHRASE", "OF_ALLOW_LIVE", "OF_V7_DATA",
+              "OF_PUSHPLUS_TOKEN", "OF_SERVERCHAN_KEY"):
         if os.environ.get(k):
             env[k] = os.environ[k]
     return env
@@ -47,6 +49,7 @@ KEYS = {"key": ENV.get("OKX_API_KEY", ""), "secret": ENV.get("OKX_API_SECRET", "
         "passphrase": ENV.get("OKX_API_PASSPHRASE", "")}
 cfg = json.load(open(CFG_FILE, encoding="utf-8")) if os.path.exists(CFG_FILE) else {}
 core = OrderFlowApp(cfg, PROXY, KEYS, ENV.get("OF_ALLOW_LIVE") == "1")
+of_notify.setup(ENV, PROXY)
 core.hub = OkxHub(PROXY, os.environ.get("OF_FEED", "auto"))
 core.xhub = OkxExtrasHub(PROXY, core.hub)
 core.hub.on_liq = lambda inst, px, sz, side, ts: core.engines[inst].on_liq(px, sz, side, ts) if inst in core.engines else None
@@ -96,8 +99,29 @@ async def start_symbol(inst: str):
         await seed_derivs(eng, inst)
         seed_from_v7(eng, inst)
         core.engines[inst] = eng
-        core.hub.add(inst, eng.on_trade)
+        # 补当前这根K线的足迹：先把实时成交存起来，拉完最近的历史成交再按时间顺序喂进去，不会乱序
+        buf = []
+        core.hub.add(inst, lambda *t: buf.append(t))
         core.xhub.add(inst, eng)
+        try:
+            tfm = TF_MS[core.cfg["tf"]]
+            now = int(time.time() * 1000)
+            hist = await asyncio.wait_for(core.hub.history_trades(inst, now - now % tfm, max_pages=10), timeout=25)
+            first_live = buf[0][3] if buf else 10 ** 15
+            eng.backfilling = True
+            n = 0
+            for t in hist:
+                ts = int(t["ts"])
+                if ts < first_live:
+                    eng.on_trade(float(t["px"]), float(t["sz"]), t["side"] == "buy", ts)
+                    n += 1
+        except Exception:  # noqa: BLE001
+            pass
+        finally:
+            eng.backfilling = False
+            core.hub.on_trade[inst] = eng.on_trade
+            for t in buf:
+                eng.on_trade(*t)
         core.say(f"{inst} 已接入（信号周期 {core.cfg['tf']}，格子 {rows[core.cfg['tf']]:g}）")
     except Exception as e:  # noqa: BLE001
         core.say(f"{inst} 启动失败：{e}（检查 .env 里的 PROXY_URL）")
@@ -210,11 +234,10 @@ async def book_sampler():
 
 
 async def live_refresher():
-    """实盘：每分钟读一次账户权益和已有仓位"""
+    """实盘：每 5 秒核对一次交易所持仓（止盈止损触发后记真实盈亏），每 30 秒读一次权益"""
     while True:
-        await asyncio.sleep(60)
-        if core.live_confirmed:
-            await asyncio.to_thread(core.refresh_live)
+        await asyncio.sleep(5)
+        await core.reconcile_live()
 
 
 @app.on_event("startup")
@@ -305,6 +328,31 @@ async def coins(body: dict):
         msg.append(f"自动选 {core.cfg['top_n']} 个币，新币正在接入")
     save_cfg()
     return {"ok": True, "msg": "；".join(msg)}
+
+
+@app.post("/api/signal_tf")
+async def signal_tf(body: dict):
+    """换自动交易用的信号周期：所有币重新接入（约 2~3 分钟），持仓不受影响"""
+    tf = body.get("tf")
+    if tf not in TF_MS:
+        return JSONResponse({"ok": False, "msg": "周期不对"})
+    if tf == core.cfg["tf"]:
+        return {"ok": True, "msg": "没变"}
+    core.cfg["tf"] = tf
+    save_cfg()
+    insts = list(core.engines)
+    for inst in insts:
+        core.hub.remove(inst)
+        core.xhub.remove(inst)
+        core.engines.pop(inst, None)
+    core.say(f"信号周期改成 {tf}，正在重新接入 {len(insts)} 个币…")
+
+    async def again():
+        for inst in insts:
+            await start_symbol(inst)
+        core.say("重新接入完成")
+    asyncio.create_task(again())
+    return {"ok": True, "msg": f"信号周期改成 {tf}，正在重新接入，大约 2~3 分钟"}
 
 
 @app.post("/api/close_all")

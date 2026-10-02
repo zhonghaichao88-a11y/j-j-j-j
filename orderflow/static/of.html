@@ -55,6 +55,8 @@ th{color:var(--mute);font-weight:normal}
     <div class="row">自动选成交额前 <input id="topN" type="number" min="1" max="60" style="width:56px"> 个币 <button id="topBtn">应用</button></div>
     <h3>自动交易</h3>
     <div class="row"><label><input type="checkbox" id="auto"> 开启自动交易</label></div>
+    <div class="row">出信号用的周期 <select id="sigTf"><option value="1m">1分钟</option><option value="5m">5分钟</option><option value="15m">15分钟</option><option value="1h">1小时</option></select>
+      <small style="color:var(--mute)">改了要重新接入，约2~3分钟</small></div>
     <div class="warnbox" id="btwarn">打法后面是回测成绩（欧易逐笔成交，扣手续费）。PF 大于 1 才是赚钱。没过关的建议别勾。</div>
     <div id="sigs"></div>
     <h3>风控</h3>
@@ -69,11 +71,11 @@ th{color:var(--mute);font-weight:normal}
     <table><thead><tr><th>币</th><th>方向</th><th>打法</th><th>开仓</th><th>止损</th><th>止盈</th><th>浮盈</th></tr></thead><tbody id="pos"></tbody></table>
     <h3>最近信号</h3>
     <table><thead><tr><th>时间</th><th>打法</th><th>方向</th><th>价</th><th>状态</th></tr></thead><tbody id="sigList"></tbody></table>
-    <h3>成交记录 <span id="wr" style="color:var(--mute)"></span></h3>
+    <h3>成交记录 <span id="wr" style="color:var(--mute)"></span> <small style="color:var(--mute);font-weight:normal">✓ = 欧易读回的真实盈亏</small></h3>
     <table><thead><tr><th>币</th><th>打法</th><th>方向</th><th>原因</th><th>盈亏</th></tr></thead><tbody id="hist"></tbody></table>
     <h3>爆仓（实时）</h3>
     <table><thead><tr><th>时间</th><th>类型</th><th>价</th><th>金额</th></tr></thead><tbody id="liqList"></tbody></table>
-    <h3>大单（实时）</h3>
+    <h3>大单（实时） <small id="bigStd" style="color:var(--mute);font-weight:normal"></small></h3>
     <table><thead><tr><th>时间</th><th>方向</th><th>价</th><th>金额</th></tr></thead><tbody id="bigList"></tbody></table>
     <h3>日志</h3>
     <div id="log"></div>
@@ -293,12 +295,16 @@ function side(){
   const a=S.acct; const dp=a.day_pnl;
   // 实盘显示欧易账户的真实权益；模拟盘显示模拟账户
   $('#eqLabel').textContent = S.live_ok ? '实盘权益' : '模拟权益';
-  $('#eq').textContent = S.live_ok ? (S.live_equity ? S.live_equity.toFixed(2) : '读取中…') : a.equity.toFixed(2);
-  $('#dpnl').innerHTML=`<span class="${dp>=0?'pos':'neg'}">${dp>=0?'+':''}${dp.toFixed(2)}</span>`;
+  $('#eq').textContent = S.live_ok ? (S.live_equity ? S.live_equity.toFixed(2) + `（可用 ${(S.live_avail||0).toFixed(2)}）` : '读取中…') : a.equity.toFixed(2);
+  const dpp = S.live_ok ? (S.live_day_pnl||0) : dp;
+  $('#dpnl').innerHTML=`<span class="${dpp>=0?'pos':'neg'}">${dpp>=0?'+':''}${dpp.toFixed(2)}</span>`;
+  const st=$('#sigTf'); if(st!==document.activeElement) st.value=S.cfg.tf;
+  if(S.view && S.view.big_usd) $('#bigStd').textContent=`（这个币 ≥ ${usd(S.view.big_usd)} 算大单）`;
   $('#mode').className='badge '+(S.live_ok?'live':'paper'); $('#mode').textContent=S.live_ok?'实盘':'模拟盘';
   $('#feed').textContent = (S.feed_status||'') + (S.extras_status && S.extras_status!=='衍生品数据正常' ? ' ｜ '+S.extras_status : '');
   scanTable();
-  $('#liveBox').innerHTML = S.live_ok ? `<div>实盘账户权益 <b>${(S.live_equity||0).toFixed(2)}</b> U</div><div style="color:var(--mute)">账户里已有仓位、不会再开新单的币：${(S.external||[]).map(x=>x.split('-')[0]).join('、')||'无'}</div><button id="liveOff">切回模拟盘</button>`
+  $('#liveBox').innerHTML = S.live_ok ? `<div>实盘账户权益 <b>${(S.live_equity||0).toFixed(2)}</b> U，可用 ${(S.live_avail||0).toFixed(2)} U，${S.hedged?'双向持仓':'单向持仓'}</div>
+    <div style="color:var(--mute)">手机推送：${S.notify?'已开':'没设置（.env 里填 OF_PUSHPLUS_TOKEN 或 OF_SERVERCHAN_KEY）'}</div><div style="color:var(--mute)">账户里已有仓位、不会再开新单的币：${(S.external||[]).map(x=>x.split('-')[0]).join('、')||'无'}</div><button id="liveOff">切回模拟盘</button>`
     : (S.allow_live ? `<div class="warnbox">实盘会用你的欧易账户真实下单。先用模拟盘跑够时间再开。</div><button id="liveOn">切换到实盘…</button>`
        : `<small style="color:var(--mute)">实盘未开启（.env 里加 OF_ALLOW_LIVE=1 并重启才能用）。现在是模拟盘，不会动你的钱。</small>`);
   const on=$('#liveOn'); if(on) on.onclick=async()=>{ const p=prompt('确认用真钱自动交易？请输入：我确认实盘'); if(!p) return; const r=await post('/api/live',{on:true,phrase:p}); alert(r.msg); };
@@ -309,7 +315,7 @@ function side(){
   $('#sigList').innerHTML = sg.map(s=>`<tr><td>${new Date(s.t).toTimeString().slice(0,5)}</td><td>${s.name}</td><td class="${s.side>0?'pos':'neg'}">${s.side>0?'多':'空'}</td><td>${fp(s.price)}</td><td>${s.traded?'已下单':(s.skip||'只提示')}</td></tr>`).join('') || '<tr><td colspan=5 style="color:var(--mute)">还没有信号（要等K线收盘）</td></tr>';
   const h=S.history.slice().reverse(); const w=S.acct.closed? (S.acct.wins/S.acct.closed*100).toFixed(0):'-';
   $('#wr').textContent = `共${S.acct.closed}笔 胜率${w}%`;
-  $('#hist').innerHTML = h.map(t=>`<tr><td>${t.sym.split('-')[0]}</td><td>${t.kind}</td><td>${t.side>0?'多':'空'}</td><td>${t.why}</td><td class="${t.pnl>=0?'pos':'neg'}">${t.pnl.toFixed(2)}</td></tr>`).join('');
+  $('#hist').innerHTML = h.map(t=>`<tr><td>${t.sym.split('-')[0]}</td><td>${t.kind}</td><td>${t.side>0?'多':'空'}</td><td>${t.why}</td><td class="${t.pnl>=0?'pos':'neg'}">${t.pnl.toFixed(2)}${t.real?' ✓':''}</td></tr>`).join('');
   $('#log').textContent = S.log.slice().reverse().join('\n');
 }
 let tf=null, WS=null;
@@ -329,6 +335,7 @@ function markTf(){ const cur=tf||(S&&S.view&&S.view.tf)||'5m'; $('#tfs').querySe
 $('#tfs').querySelectorAll('button').forEach(b=>b.onclick=()=>{ tf=b.dataset.tf; priceOff=0; barOff=0; markTf(); send(); });
 $('#addBtn').onclick=async()=>{ const v=$('#addCoin').value.trim(); if(!v) return; const r=await post('/api/coins',{add:v}); $('#addCoin').value=''; if(!r.ok) alert(r.msg); };
 $('#rmBtn').onclick=async()=>{ if(!inst) return; const r=await post('/api/coins',{remove:inst}); if(!r.ok) alert(r.msg); else inst=null; };
+$('#sigTf').onchange=async()=>{ const r=await post('/api/signal_tf',{tf:$('#sigTf').value}); if(r.msg) alert(r.msg); };
 $('#topBtn').onclick=async()=>{ const n=+$('#topN').value; if(n>0) await post('/api/coins',{top_n:n}); };
 function connect(){
   const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
