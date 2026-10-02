@@ -223,9 +223,10 @@ async def seed_derivs(eng, inst):
             await asyncio.sleep(0.45)
             ls = await get_json(c, "/api/v5/rubik/stat/contracts/long-short-account-ratio-contract", instId=inst, period="5m", limit=100)
             await asyncio.sleep(0.45)
-        oi = sorted((int(r[0]), float(r[2])) for r in oi)
+        oi_usd = sorted((int(r[0]), float(r[3])) for r in oi if len(r) > 3)   # 美元持仓价值：算"持仓量变化"用（和回测口径一致）
+        oi = sorted((int(r[0]), float(r[2])) for r in oi)                     # 币数量：画图用
         ls = sorted((int(r[0]), float(r[1])) for r in ls)
-        eng.ext["oi_hist"] = list(oi)
+        eng.ext["oi_hist"] = list(oi_usd)
         for bld in eng.builders.values():
             for b in bld.bars:
                 end = b.t + bld.tf_ms

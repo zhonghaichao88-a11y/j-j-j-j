@@ -433,7 +433,7 @@ class SymbolEngine:
         self.ext["oi"], self.ext["oi_usd"] = oi_coin, oi_usd
         h = self.ext["oi_hist"]
         if not h or ts > h[-1][0]:
-            h.append((ts, oi_coin))
+            h.append((ts, oi_usd))       # 记美元持仓价值：回测用的币安数据就是持仓价值（价格跌它也跟着降），口径要一致
         self.ext["oi_hist"] = h[-2000:]
         for b in self._curs():
             b.oi = oi_coin
