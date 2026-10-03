@@ -39,7 +39,7 @@ def build(test=False):
         c["dry_run"] = False
     c["max_open_trades"] = n_open
     c["max_entry_position_adjustment"] = n_adj
-    c["pairlists"][0]["number_assets"] = n_pairs
+    c["pairlists"][0]["number_assets"] = 200       # 上限；实际盯几个由选币文件里写几个决定（网页改了马上生效）
     # 选币文件用绝对路径（不依赖从哪个文件夹启动）；Windows 上是 file:///C:/…/user_data/pairs.json
     c["pairlists"][0]["pairlist_url"] = "file:///" + pairs.PATH.replace(os.sep, "/").lstrip("/")
     if os.name != "nt":

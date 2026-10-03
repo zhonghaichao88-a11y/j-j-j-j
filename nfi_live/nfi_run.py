@@ -9,7 +9,8 @@ from collections import deque
 from datetime import datetime, timezone
 import pairs
 import webpage
-from common import HERE, UD, read_proxy, read_settings
+import threading
+from common import HERE, LIMITS, UD, read_proxy, read_settings, write_settings
 
 LOG_DIR = os.path.join(UD, "logs")
 FT_LOG = os.path.join(LOG_DIR, "freqtrade.log")
@@ -80,6 +81,7 @@ class Watcher:
         self.last_ok = 0
         self.warned_api = False
         self.t0 = int(time.time() * 1000)         # 这次启动的时间：之前平掉的单不再报
+        self._settings_lock = threading.Lock()
 
     # ---------------------------------------------------- freqtrade 进程
     def start(self):
@@ -196,7 +198,7 @@ class Watcher:
         except Exception as e:  # noqa: BLE001
             say(f"状态读取失败：{e}")
             return
-        state = "运行中" if cfg.get("state") == "running" else f"状态 {cfg.get('state')}"
+        state = webpage.STATE_CN.get(cfg.get("state"), f"状态 {cfg.get('state')}")
         trades = [t for t in trades if int(t.get("nr_of_successful_entries") or 0) > 0] if isinstance(trades, list) else []
         n_open = len(trades)
         pos = "、".join(f"{short(t['pair'])} {num(t.get('profit_pct'), '{:+.1f}')}%"
@@ -213,6 +215,43 @@ class Watcher:
         say(f"{state}｜盯 {wl.get('length', 0)} 个币｜持仓 {n_open}/{int(cfg.get('max_open_trades') or 0)}：{pos}｜占用保证金 {used:.2f}U｜"
             f"账户 {num(bal.get('total'))}U｜今日(北京8点起) {num(day.get('abs_profit'), '{:+.2f}')}U｜累计 {num(prof.get('profit_all_coin'), '{:+.2f}')}U"
             f"（{prof.get('closed_trade_count', 0)} 笔已平，赢 {prof.get('winning_trades', 0)} 输 {prof.get('losing_trades', 0)}）｜最近一单 {last}")
+
+    def apply_settings(self, new):
+        """网页上改设置：检查范围 → 写 设置.txt → 马上重写选币名单和 freqtrade 设置 → 让 freqtrade 重新读设置（持仓不受影响）。
+        返回给网页显示的一句话"""
+        with self._settings_lock:
+            vals = {}
+            for k, (_, lo, hi) in LIMITS.items():
+                try:
+                    v = int(float(new.get(k, "")))
+                except ValueError:
+                    return f"「{k}」要填数字"
+                if not lo <= v <= hi:
+                    return f"「{k}」要在 {lo}~{hi} 之间"
+                vals[k] = v
+            old = dict(zip(LIMITS, read_settings()))
+            if vals == old:
+                return "设置没有变化"
+            write_settings(vals)
+            try:
+                pairs.write(read_proxy(), vals["扫多少个币"])
+            except Exception as e:  # noqa: BLE001
+                say(f"⚠ 改币数后更新选币名单失败（继续用旧名单）：{e}")
+            p = os.path.join(UD, "config.json")
+            c = json.load(open(p, encoding="utf-8"))
+            c["max_open_trades"] = vals["最多同时几单"]
+            c["max_entry_position_adjustment"] = vals["最多补仓次数"]
+            tmp = p + ".tmp"
+            json.dump(c, open(tmp, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+            os.replace(tmp, p)
+            try:
+                self.api.post("reload_config")
+            except Exception as e:  # noqa: BLE001
+                say(f"⚠ 设置已保存，但没能通知 freqtrade 重新读取（{e}），重启程序后生效")
+                return "设置已保存，重启程序后生效"
+            chg = "，".join(f"{k} {old[k]}→{vals[k]}" for k in vals if vals[k] != old[k])
+            say(f"网页上改了设置：{chg}。freqtrade 正在重新读取设置（大约 1 分钟），已开的仓位不受影响")
+            return f"已保存并生效：{chg}（freqtrade 重新读取设置大约要 1 分钟，已开的仓位不受影响）"
 
     def check_whitelist(self, wl):
         """核对 freqtrade 真的在用我们写的选币名单（不然可能在盯错的币）"""

@@ -31,6 +31,25 @@ def read_proxy():
     return ""
 
 
+LIMITS = {"扫多少个币": (80, 10, 200), "最多同时几单": (6, 1, 20), "最多补仓次数": (3, 0, 10)}   # 默认, 最小, 最大
+
+
+def write_settings(values):
+    """把网页上改的值写回 设置.txt：只改对应那一行，注释和别的行保持不动"""
+    p = os.path.join(HERE, "设置.txt")
+    lines = open(p, encoding="utf-8-sig").read().splitlines() if os.path.exists(p) else []
+    done = set()
+    for i, line in enumerate(lines):
+        k = line.split("=", 1)[0].strip()
+        if not line.lstrip().startswith("#") and "=" in line and k in values:
+            lines[i] = f"{k}={values[k]}"
+            done.add(k)
+    lines += [f"{k}={v}" for k, v in values.items() if k not in done]
+    tmp = p + ".tmp"
+    open(tmp, "w", encoding="utf-8").write("\n".join(lines) + "\n")
+    os.replace(tmp, p)
+
+
 def read_settings():
     """设置.txt → (扫多少个币, 最多同时几单, 最多补仓次数)，超出合理范围就报错，不悄悄改"""
     s = read_kv("设置.txt") or {}
@@ -42,7 +61,7 @@ def read_settings():
         if not lo <= v <= hi:
             raise SystemExit(f"设置.txt 里「{key}={v}」超出范围（{lo}~{hi}）")
         return v
-    return num("扫多少个币", 80, 10, 200), num("最多同时几单", 6, 1, 20), num("最多补仓次数", 3, 0, 10)
+    return tuple(num(k, *LIMITS[k]) for k in ("扫多少个币", "最多同时几单", "最多补仓次数"))
 
 
 def read_keys():
