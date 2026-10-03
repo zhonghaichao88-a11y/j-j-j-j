@@ -17,7 +17,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE.parent / "products"))
+sys.path.insert(0, str(HERE.parent.parent / "products"))
 import kousuan  # noqa: E402  复用口算题题库
 
 W, H = 1080, 1920

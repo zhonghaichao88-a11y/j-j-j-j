@@ -11,13 +11,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 HERE = Path(__file__).parent
-VIDEOS = HERE / "成品视频"
+NOVEL = HERE / "小说推文"
+VIDEOS = NOVEL / "成品视频"
 STATE = HERE / "发布记录.json"
 LOG = HERE / "发布日志.txt"
 
-ACCOUNT = "kousuan"                        # 自动发布工具里的账号代号，随便起
-GRADES = ["一年级上册", "二年级上册"]        # 轮流发布的年级
-PUBLISH_HOUR = 19                          # 每天几点发
+ACCOUNT = "main"                           # 自动发布工具里的账号代号，随便起
+PUBLISH_HOURS = [12, 19]                   # 每天几点发（一天两条：中午和晚上）
+ACTIVITY_TAGS = []                         # 想蹭的活动话题，例如 ["我的追秋实况"]，会加到每条作品
 DAYS_AHEAD = 7                             # 抖音定时发布最远约一周
 DECLARATION = "内容由AI生成"
 
@@ -42,7 +43,7 @@ def log(msg):
 def load_state():
     if STATE.exists():
         return json.loads(STATE.read_text(encoding="utf-8"))
-    return {"published": {}, "next_issue": {}, "grade_turn": 0}
+    return {"published": {}}
 
 
 def save_state(s):
@@ -60,34 +61,31 @@ def read_meta(video):
     return title, tags
 
 
-def next_video(state):
-    """按年级轮流取下一条没发过的视频；没有就现场生成。"""
-    grade = GRADES[state["grade_turn"] % len(GRADES)]
-    state["grade_turn"] += 1
-    issue = state["next_issue"].get(grade, 1)
-    state["next_issue"][grade] = issue + 1
-    video = VIDEOS / f"{grade}_第{issue}期.mp4"
-    if str(video.name) in state["published"]:
-        return next_video(state)
-    if not video.exists():
-        import kousuan_video
-        log(f"生成 {video.name}")
-        kousuan_video.build(grade, issue)
-    return video
+def pending_videos(state):
+    """先把素材里新加的书切集生成，再按书名、集数顺序返回没发过的视频。"""
+    sys.path.insert(0, str(NOVEL))
+    import novel_video
+    for v in novel_video.build_all():
+        log(f"生成 {v.name}")
+    return [v for v in sorted(VIDEOS.glob("*.mp4"))
+            if v.name not in state["published"] and not v.name.startswith("示例")]
 
 
 def free_slots(state, now):
     taken = set(state["published"].values())
     slots = []
-    for d in range(1, DAYS_AHEAD + 1):
-        t = (now + timedelta(days=d)).replace(hour=PUBLISH_HOUR, minute=0, second=0, microsecond=0)
-        if t.strftime("%Y-%m-%d %H:%M") not in taken:
-            slots.append(t)
+    for d in range(0, DAYS_AHEAD + 1):
+        for h in PUBLISH_HOURS:
+            t = (now + timedelta(days=d)).replace(hour=h, minute=0, second=0, microsecond=0)
+            if t > now + timedelta(hours=2) and t <= now + timedelta(days=DAYS_AHEAD) \
+                    and t.strftime("%Y-%m-%d %H:%M") not in taken:
+                slots.append(t)
     return slots
 
 
 def upload(video, when):
     title, tags = read_meta(video)
+    tags = list(dict.fromkeys(tags + ACTIVITY_TAGS))
     cmd = sau_cmd() + ["douyin", "upload-video", "--account", ACCOUNT, "--file", str(video),
                        "--title", title, "--tags", ",".join(tags),
                        "--schedule", when.strftime("%Y-%m-%d %H:%M"), "--declaration", DECLARATION]
@@ -98,29 +96,27 @@ def upload(video, when):
 
 
 def main():
-    sys.path.insert(0, str(HERE))
     state = load_state()
+    videos = pending_videos(state)
     slots = free_slots(state, datetime.now())
+    if not videos:
+        log("没有待发布的视频：请把新的授权小说放进 小说推文/素材/")
+        return
     if not slots:
         log("未来 7 天都已排满，无需操作")
         return
     ok = 0
-    for when in slots:
-        video = next_video(state)
-        if upload(video, when):
-            state["published"][video.name] = when.strftime("%Y-%m-%d %H:%M")
-            save_state(state)
-            log(f"已排期 {video.name} → {when:%m-%d %H:%M} 发布")
-            ok += 1
-        else:
-            # 失败的这期退回去，下次重试
-            grade = video.stem.split("_")[0]
-            state["next_issue"][grade] -= 1
-            state["grade_turn"] -= 1
-            save_state(state)
+    for video, when in zip(videos, slots):
+        if not upload(video, when):
             log("出错后停止。常见原因：登录过期（双击「登录抖音.bat」重新扫码）或需要短信验证。")
             break
-    log(f"本次完成 {ok}/{len(slots)} 条")
+        state["published"][video.name] = when.strftime("%Y-%m-%d %H:%M")
+        save_state(state)
+        log(f"已排期 {video.name} → {when:%m-%d %H:%M} 发布")
+        ok += 1
+    log(f"本次完成 {ok} 条，剩余待发 {len(videos) - ok} 条")
+    if len(videos) - ok < len(PUBLISH_HOURS) * DAYS_AHEAD:
+        log("提醒：存货不到一周，记得往 小说推文/素材/ 加新书")
 
 
 if __name__ == "__main__":
