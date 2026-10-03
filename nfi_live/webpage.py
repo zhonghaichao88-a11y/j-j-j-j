@@ -78,7 +78,8 @@ def render(watcher, run_log):
         err = f"freqtrade 还没准备好（{e}）。刚启动时加载数据要一两分钟，这个页面会自动刷新。"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     out = [f"<!doctype html><html><head><meta charset='utf-8'>"
-           f"<meta name='viewport' content='width=device-width,initial-scale=1'><title>NFI 实盘状态</title><style>{CSS}</style></head><body>"]
+           f"<meta name='viewport' content='width=device-width,initial-scale=1'><title>NFI 实盘状态</title><style>{CSS}</style></head><body>"
+           "<p style='margin:0 0 8px'><a href='/work'>👉 详细工作状态（程序在不在干活、每单细节、下次补仓价、离强平多远）</a></p>"]
     if err:
         out.append(f"<h1>NFI 实盘</h1><div class='sub'>{esc(now)} 刷新</div><p class='warn'>{esc(err)}</p>")
     else:
@@ -145,11 +146,17 @@ def render(watcher, run_log):
 def serve(watcher, run_log):
     class H(BaseHTTPRequestHandler):
         def do_GET(self):
-            if self.path not in ("/", "/index.html"):
+            if self.path not in ("/", "/index.html", "/work"):
                 self.send_error(404)
                 return
             try:
-                body = render(watcher, run_log).encode("utf-8")
+                if self.path == "/work":
+                    import pairs, work_page
+                    from common import read_settings
+                    from nfi_run import PAIRS_EVERY
+                    body = work_page.render_work(watcher, run_log, esc, f2, cls, CSS, read_settings, pairs.PATH, PAIRS_EVERY).encode("utf-8")
+                else:
+                    body = render(watcher, run_log).encode("utf-8")
             except Exception as e:  # noqa: BLE001
                 body = f"<meta charset='utf-8'>页面出错：{html.escape(str(e))}".encode("utf-8")
             try:

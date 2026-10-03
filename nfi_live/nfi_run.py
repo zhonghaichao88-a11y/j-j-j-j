@@ -87,6 +87,7 @@ class Watcher:
         self.slow_said = 0
         self.last_fresh = 0
         self.changed_at = time.time()              # 启动 / 改设置的时间：之后 15 分钟内新币还在加载，不查
+        self.fresh = None                          # 最近一次实算检查结果（给详细工作状态页用）
 
     # ---------------------------------------------------- freqtrade 进程
     def start(self):
@@ -302,6 +303,7 @@ class Watcher:
             else:
                 late.append(short(p))
         n_slow = sum(1 for t, _ in self.slow if time.time() - t < 3600)
+        self.fresh = dict(t=time.time(), ok=ok, total=len(pairs_), late=late, newest=newest)
         t_new = datetime.fromtimestamp(newest / 1000).strftime("%H:%M") if newest else "-"
         if not late:
             say(f"✅ 实算检查：{ok}/{len(pairs_)} 个币都算到了最新K线（{t_new}）；最近 1 小时算得太慢的次数 {n_slow}")
