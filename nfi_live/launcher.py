@@ -1,6 +1,6 @@
 """双击 START_NFI.bat 后真正干活的地方（.bat 里只放英文，避免 Windows 黑窗口把中文当成命令报"不是内部或外部命令"）。
 1 准备运行环境（第一次装 freqtrade）→ 2 检查欧易账户 → 3 生成设置和选币 → 4 启动实盘看门程序（会自动打开网页）"""
-import os, subprocess, sys
+import getpass, os, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WIN = os.name == "nt"
@@ -21,10 +21,15 @@ def ask_keys():
     """第一次启动：直接在黑窗口里粘贴欧易 API（右键或 Ctrl+V 粘贴），存成「欧易子账户密钥.txt」，以后不用再填"""
     print("\n第一次启动，要填欧易「子账户」的 API（在欧易 App / 网页 → 子账户 → API 管理 里创建）。")
     print("创建时权限只勾「读取」和「交易」，千万不要勾「提现」。")
-    print("下面每一项粘贴后按回车（在黑窗口里点右键或按 Ctrl+V 就是粘贴）。直接回车不填就退出。\n")
+    print("下面每一项粘贴后按回车（在黑窗口里点右键或按 Ctrl+V 就是粘贴）。直接回车不填就退出。")
+    print("填完别截图发给别人：Secret Key 和密码泄露了，别人就能用你的账户下单。\n")
     vals = {}
     for key, name in (("API_KEY", "API Key"), ("SECRET_KEY", "Secret Key（密钥）"), ("PASSPHRASE", "Passphrase（创建 API 时自己设的密码）")):
-        v = input(f"{name}：").strip().strip('"').strip("'")
+        if key == "API_KEY":
+            v = input(f"{name}：")
+        else:                                   # 密钥和密码输入时不显示在屏幕上，免得截图泄露（粘贴后看不到字是正常的）
+            v = getpass.getpass(f"{name}（粘贴后屏幕上不显示，直接回车）：")
+        v = v.strip().strip('"').strip("'")
         if key != "PASSPHRASE":
             v = v.replace(" ", "")              # Key / Secret 里不会有空格，复制时多带的去掉；密码原样保留
         if not v:

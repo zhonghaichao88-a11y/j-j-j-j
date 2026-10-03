@@ -279,6 +279,29 @@ class Watcher:
         except Exception as e:  # noqa: BLE001
             say(f"⚠ 选币名单更新失败，继续用上一次的：{e}")
 
+    def tail_errors(self):
+        """freqtrade 退出时把原因显示出来：console.log 最后几行（启动阶段的崩溃多半在这里）+ 日志里最后几条报错"""
+        shown = 0
+        try:
+            lines = open(os.path.join(LOG_DIR, "console.log"), "rb").read()[-20000:].decode("utf-8", "replace").splitlines()
+            tail = [l for l in lines if l.strip()][-12:]
+            if tail:
+                say("freqtrade 最后输出（截图这几行发我）：\n    " + "\n    ".join(l[:220] for l in tail))
+                shown += 1
+        except OSError:
+            pass
+        try:
+            lines = open(FT_LOG, "rb").read()[-200000:].decode("utf-8", "replace").splitlines()
+            errs = [l for l in lines if " - ERROR - " in l or " - CRITICAL - " in l or "Error" in l or "Exception" in l]
+            errs = [l for l in errs if "API Error calling" not in l][-6:]
+            if errs:
+                say("日志里最后的报错：\n    " + "\n    ".join(l[:220] for l in errs))
+                shown += 1
+        except OSError:
+            pass
+        if not shown:
+            say("没找到报错信息，可能是内存不够被系统关掉了。看看任务管理器里内存是不是快满了")
+
     def run(self):
         try:
             webpage.serve(self, RUN_LOG)
@@ -298,6 +321,7 @@ class Watcher:
                 if self.proc.poll() is not None:
                     self.scan_log()
                     say(f"⚠ freqtrade 退出了（代码 {self.proc.returncode}），1 分钟后自动重启")
+                    self.tail_errors()
                     time.sleep(60)
                     self.api = None
                     if not self.start():
