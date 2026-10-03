@@ -97,7 +97,8 @@ class Watcher:
             self.log_pos = os.path.getsize(FT_LOG)
         out = open(os.path.join(LOG_DIR, "console.log"), "ab")
         flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
-        self.proc = subprocess.Popen(ft_cmd(), cwd=HERE, stdout=out, stderr=subprocess.STDOUT, creationflags=flags)
+        env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")   # 中文 Windows 默认按 GBK 读写文件，强制 UTF-8
+        self.proc = subprocess.Popen(ft_cmd(), cwd=HERE, stdout=out, stderr=subprocess.STDOUT, creationflags=flags, env=env)
         say(f"freqtrade 已启动（第 {len(self.starts)} 次），正在加载各个币的历史K线，第一次大约要几分钟…")
         return True
 
@@ -242,7 +243,7 @@ class Watcher:
             c["max_open_trades"] = vals["最多同时几单"]
             c["max_entry_position_adjustment"] = vals["最多补仓次数"]
             tmp = p + ".tmp"
-            json.dump(c, open(tmp, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+            json.dump(c, open(tmp, "w", encoding="utf-8"), indent=2, ensure_ascii=True)   # 中文写成 \uXXXX：中文 Windows 上 freqtrade 按 GBK 读文件也不会出错
             os.replace(tmp, p)
             try:
                 self.api.post("reload_config")

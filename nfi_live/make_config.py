@@ -57,7 +57,7 @@ def build(test=False):
     c["api_server"]["jwt_secret_key"] = old.get("jwt_secret_key") or secrets.token_hex(16)
     c["api_server"]["password"] = old.get("password") or secrets.token_hex(4)
     os.makedirs(UD, exist_ok=True)
-    json.dump(c, open(out, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    json.dump(c, open(out, "w", encoding="utf-8"), indent=2, ensure_ascii=True)   # 中文写成 \uXXXX：中文 Windows 上 freqtrade 按 GBK 读文件也不会出错
     print(f"设置：扫成交额前 {n_pairs} 个币（上市满 30 天）｜最多同时 {n_open} 单｜每单最多补 {n_adj} 次｜只做多｜逐仓 3 倍")
     print(f"选币：{len(top)} 个，成交额最大 {vol[0][1]}（{vol[0][0]/1e6:.0f} 百万U），最小 {vol[-1][1]}（{vol[-1][0]/1e6:.1f} 百万U）")
     print(f"排除了 {len(stocks)} 个股票 / 贵金属等非加密币合约，以及稳定币")

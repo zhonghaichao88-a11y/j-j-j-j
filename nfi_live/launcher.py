@@ -14,7 +14,7 @@ def step(msg):
 
 
 def run(cmd):
-    return subprocess.call(cmd, cwd=HERE)
+    return subprocess.call(cmd, cwd=HERE, env=dict(os.environ, PYTHONUTF8="1"))
 
 
 def ask_keys():
@@ -82,7 +82,7 @@ def main():
         return 1
     step("[3/3] 启动实盘，会自动打开中文状态网页 http://127.0.0.1:8090")
     print("要停止：在这个窗口按 Ctrl+C，等出现「已停止」再关窗口（这样会先撤掉没成交的挂单）")
-    p = subprocess.Popen([VPY, "nfi_run.py"], cwd=HERE)
+    p = subprocess.Popen([VPY, "nfi_run.py"], cwd=HERE, env=dict(os.environ, PYTHONUTF8="1"))
     while True:                                 # 按 Ctrl+C 时等看门程序把撤单、停机做完，不抢先退出
         try:
             return p.wait()
