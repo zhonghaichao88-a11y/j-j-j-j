@@ -186,6 +186,12 @@ class Watcher:
             pnl = float(t.get("close_profit_abs") or t.get("profit_abs") or 0)
             say(f"{'🔵' if pnl >= 0 else '🔴'} 平仓 {short(t['pair'])} 盈亏 {pnl:+.2f}U（{num((t.get('close_profit') or 0) * 100, '{:+.2f}')}%）原因 {t.get('exit_reason')}")
         self.open = cur
+        if cfg.get("state") != "running":           # 还在启动 / 重新读设置：不打"已停止""一个币都没盯"这种误报
+            since = time.time() - (self.starts[-1] if self.starts else time.time())
+            if since > 900 and time.time() - self.last_status >= STATUS_EVERY:
+                say(f"⚠ freqtrade 启动 {since / 60:.0f} 分钟了还没开始工作（状态 {cfg.get('state')}），可能卡住了，截图黑窗口发我")
+                self.last_status = time.time()
+            return
         if time.time() - self.last_status >= STATUS_EVERY:
             self.status_line(cfg, trades)
             self.last_status = time.time()
@@ -304,6 +310,7 @@ class Watcher:
             say("没找到报错信息，可能是内存不够被系统关掉了。看看任务管理器里内存是不是快满了")
 
     def run(self):
+        say("=" * 20 + " 新的一次启动（上面是以前的记录） " + "=" * 20)
         try:
             webpage.serve(self, RUN_LOG)
             say(f"状态网页：http://127.0.0.1:{webpage.PORT}  （正在自动打开浏览器；关掉网页不影响交易）")
