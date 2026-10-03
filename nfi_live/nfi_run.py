@@ -4,7 +4,7 @@
 - 每 6 小时按欧易真实成交额更新一次选币名单
 - freqtrade 意外退出就自动重启（1 小时内最多 5 次，超过就停下等你处理）
 - 关掉黑窗口 = 全部停止（已经开着的仓位留在交易所，下次启动接着管）"""
-import base64, json, os, signal, subprocess, sys, time, urllib.request, webbrowser
+import base64, json, os, signal, subprocess, sys, time, urllib.parse, urllib.request, webbrowser
 from collections import deque
 from datetime import datetime, timezone
 import pairs
@@ -17,6 +17,7 @@ FT_LOG = os.path.join(LOG_DIR, "freqtrade.log")
 RUN_LOG = os.path.join(LOG_DIR, "工作状态.txt")
 API = "http://127.0.0.1:8080/api/v1/"
 STATUS_EVERY, PAIRS_EVERY, POLL = 300, 6 * 3600, 20
+FRESH_WAIT = int(os.environ.get("NFI_FRESH_WAIT", 900))      # 实算检查间隔（秒）；只在开发测试时改
 
 
 def say(msg):
@@ -82,6 +83,10 @@ class Watcher:
         self.warned_api = False
         self.t0 = int(time.time() * 1000)         # 这次启动的时间：之前平掉的单不再报
         self._settings_lock = threading.Lock()
+        self.slow = deque(maxlen=500)              # (时间, 秒)：freqtrade 报的"算得太慢"
+        self.slow_said = 0
+        self.last_fresh = 0
+        self.changed_at = time.time()              # 启动 / 改设置的时间：之后 15 分钟内新币还在加载，不查
 
     # ---------------------------------------------------- freqtrade 进程
     def start(self):
@@ -98,6 +103,7 @@ class Watcher:
         out = open(os.path.join(LOG_DIR, "console.log"), "ab")
         flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
         env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")   # 中文 Windows 默认按 GBK 读写文件，强制 UTF-8
+        self.changed_at = time.time()
         self.proc = subprocess.Popen(ft_cmd(), cwd=HERE, stdout=out, stderr=subprocess.STDOUT, creationflags=flags, env=env)
         say(f"freqtrade 已启动（第 {len(self.starts)} 次），正在加载各个币的历史K线，第一次大约要几分钟…")
         return True
@@ -131,6 +137,17 @@ class Watcher:
             data = f.read()
             self.log_pos = f.tell()
         for raw in data.decode("utf-8", "replace").splitlines():
+            if "Strategy analysis took" in raw:          # freqtrade 自己的报警：一轮计算超过 75 秒（5 分钟K线的 1/4）
+                try:
+                    sec = float(raw.split("Strategy analysis took", 1)[1].split("s,")[0])
+                except ValueError:
+                    sec = 0.0
+                self.slow.append((time.time(), sec))
+                if time.time() - self.slow_said > 1800:
+                    self.slow_said = time.time()
+                    say(f"⚠ 电脑算一轮用了 {sec:.0f} 秒（超过 75 秒就可能漏单）。偶尔一次没关系；"
+                        f"经常出现就在网页把「扫多少个币」调小，或者关掉别的软件")
+                continue
             if " - ERROR - " in raw or " - CRITICAL - " in raw:
                 if "API Error calling" in raw:     # 网页 / 状态查询时机器人还没准备好，不是交易问题
                     continue
@@ -219,6 +236,7 @@ class Watcher:
             last = "还没有"
         used = sum(float(t.get("stake_amount") or 0) for t in trades) if isinstance(trades, list) else 0.0
         self.check_whitelist(wl)
+        self.check_fresh(wl)
         say(f"{state}｜盯 {wl.get('length', 0)} 个币｜持仓 {n_open}/{int(cfg.get('max_open_trades') or 0)}：{pos}｜占用保证金 {used:.2f}U｜"
             f"账户 {num(bal.get('total'))}U｜今日(北京8点起) {num(day.get('abs_profit'), '{:+.2f}')}U｜累计 {num(prof.get('profit_all_coin'), '{:+.2f}')}U"
             f"（{prof.get('closed_trade_count', 0)} 笔已平，赢 {prof.get('winning_trades', 0)} 输 {prof.get('losing_trades', 0)}）｜最近一单 {last}")
@@ -251,6 +269,7 @@ class Watcher:
             tmp = p + ".tmp"
             json.dump(c, open(tmp, "w", encoding="utf-8"), indent=2, ensure_ascii=True)   # 中文写成 \uXXXX：中文 Windows 上 freqtrade 按 GBK 读文件也不会出错
             os.replace(tmp, p)
+            self.changed_at = time.time()
             try:
                 self.api.post("reload_config")
             except Exception as e:  # noqa: BLE001
@@ -259,6 +278,35 @@ class Watcher:
             chg = "，".join(f"{k} {old[k]}→{vals[k]}" for k in vals if vals[k] != old[k])
             say(f"网页上改了设置：{chg}。freqtrade 正在重新读取设置（大约 1 分钟），已开的仓位不受影响")
             return f"已保存并生效：{chg}（freqtrade 重新读取设置大约要 1 分钟，已开的仓位不受影响）"
+
+    def check_fresh(self, wl):
+        """真查一遍：每个币的策略结果是不是算到了最新一根 5 分钟K线（不是只看名单里有几个币）。15 分钟查一次"""
+        if time.time() - self.last_fresh < FRESH_WAIT or time.time() - self.changed_at < FRESH_WAIT:
+            return
+        self.last_fresh = time.time()
+        pairs_ = wl.get("whitelist") or []
+        if not pairs_:
+            return
+        now_ms = time.time() * 1000
+        ok, late, newest = 0, [], 0
+        for p in pairs_:
+            try:
+                d = self.api.get("pair_candles?" + urllib.parse.urlencode({"pair": p, "timeframe": "5m", "limit": 1}))
+            except Exception:  # noqa: BLE001
+                late.append(short(p)); continue
+            stop = int(d.get("data_stop_ts") or 0)
+            newest = max(newest, stop)
+            if stop and now_ms - stop <= 15 * 60 * 1000:     # 最新一根已收盘K线的开盘时间，正常在 5~10 分钟前
+                ok += 1
+            else:
+                late.append(short(p))
+        n_slow = sum(1 for t, _ in self.slow if time.time() - t < 3600)
+        t_new = datetime.fromtimestamp(newest / 1000).strftime("%H:%M") if newest else "-"
+        if not late:
+            say(f"✅ 实算检查：{ok}/{len(pairs_)} 个币都算到了最新K线（{t_new}）；最近 1 小时算得太慢的次数 {n_slow}")
+        else:
+            say(f"⚠ 实算检查：只有 {ok}/{len(pairs_)} 个币算到最新K线，{len(late)} 个落后（如 {'、'.join(late[:8])}）。"
+                f"多半是电脑算不过来，建议在网页把「扫多少个币」调小；最近 1 小时算得太慢 {n_slow} 次")
 
     def check_whitelist(self, wl):
         """核对 freqtrade 真的在用我们写的选币名单（不然可能在盯错的币）"""
