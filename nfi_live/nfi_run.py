@@ -4,10 +4,11 @@
 - 每 6 小时按欧易真实成交额更新一次选币名单
 - freqtrade 意外退出就自动重启（1 小时内最多 5 次，超过就停下等你处理）
 - 关掉黑窗口 = 全部停止（已经开着的仓位留在交易所，下次启动接着管）"""
-import base64, json, os, signal, subprocess, sys, time, urllib.request
+import base64, json, os, signal, subprocess, sys, time, urllib.request, webbrowser
 from collections import deque
 from datetime import datetime, timezone
 import pairs
+import webpage
 from common import HERE, UD, read_proxy, read_settings
 
 LOG_DIR = os.path.join(UD, "logs")
@@ -39,6 +40,7 @@ def ft_cmd():
 class Api:
     def __init__(self):
         c = json.load(open(os.path.join(UD, "config.json"), encoding="utf-8"))["api_server"]
+        self.user, self.pw = c["username"], c["password"]
         self.auth = "Basic " + base64.b64encode(f"{c['username']}:{c['password']}".encode()).decode()
 
     def get(self, path):
@@ -208,6 +210,12 @@ class Watcher:
             say(f"⚠ 选币名单更新失败，继续用上一次的：{e}")
 
     def run(self):
+        try:
+            webpage.serve(self, RUN_LOG)
+            say(f"状态网页：http://127.0.0.1:{webpage.PORT}  （正在自动打开浏览器；关掉网页不影响交易）")
+            webbrowser.open(f"http://127.0.0.1:{webpage.PORT}")
+        except Exception as e:  # noqa: BLE001
+            say(f"⚠ 状态网页没开起来（不影响交易）：{e}")
         if not self.start():
             return 1
         try:
