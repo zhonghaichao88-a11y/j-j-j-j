@@ -87,12 +87,19 @@ def read_keys():
 
 def okx_get(path, params, proxy):
     """欧易公开接口（不用密钥），只用 Python 自带的库"""
-    import json, urllib.parse, urllib.request
+    import json, time, urllib.parse, urllib.request
     url = "https://www.okx.com" + path + "?" + urllib.parse.urlencode(params)
     handlers = [urllib.request.ProxyHandler({"https": proxy, "http": proxy})] if proxy else []
     opener = urllib.request.build_opener(*handlers)
-    with opener.open(urllib.request.Request(url, headers={"User-Agent": "nfi-live"}), timeout=20) as r:
-        d = json.loads(r.read().decode("utf-8"))
+    for attempt in range(3):                   # 代理 / 网络偶尔断一下（SSL EOF、超时）：等 2 秒、4 秒再试，3 次都不行才报错
+        try:
+            with opener.open(urllib.request.Request(url, headers={"User-Agent": "nfi-live"}), timeout=20) as r:
+                d = json.loads(r.read().decode("utf-8"))
+            break
+        except (OSError, ValueError):          # URLError / SSL 错误 / 超时都是 OSError；ValueError = 返回了半截内容
+            if attempt == 2:
+                raise
+            time.sleep(2 * (attempt + 1))
     if str(d.get("code")) != "0":
         raise RuntimeError(f"欧易返回错误：{d.get('msg') or d.get('code')}")
     return d["data"]

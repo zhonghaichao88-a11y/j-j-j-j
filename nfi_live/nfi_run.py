@@ -261,7 +261,8 @@ class Watcher:
             try:
                 pairs.write(read_proxy(), vals["扫多少个币"])
             except Exception as e:  # noqa: BLE001
-                say(f"⚠ 改币数后更新选币名单失败（继续用旧名单）：{e}")
+                self.last_pairs = time.time() - PAIRS_EVERY + 300      # 5 分钟后自动再取一次
+                say(f"⚠ 网络断了一下，新的选币名单没取到，5 分钟后自动重试（这期间先盯旧名单，交易不受影响）：{e}")
             p = os.path.join(UD, "config.json")
             c = json.load(open(p, encoding="utf-8"))
             c["max_open_trades"] = vals["最多同时几单"]
@@ -332,7 +333,8 @@ class Watcher:
             top, _ = pairs.write(read_proxy(), n)
             say(f"选币名单已更新：成交额前 {len(top)} 个币（freqtrade 1 小时内换用新名单；已开的仓位不受影响）")
         except Exception as e:  # noqa: BLE001
-            say(f"⚠ 选币名单更新失败，继续用上一次的：{e}")
+            self.last_pairs = time.time() - PAIRS_EVERY + 600          # 10 分钟后再试，不等 6 小时
+            say(f"⚠ 选币名单这次没取到（多半是网络 / 代理断了一下），继续用上一次的，10 分钟后自动重试：{e}")
 
     def tail_errors(self):
         """freqtrade 退出时把原因显示出来：console.log 最后几行（启动阶段的崩溃多半在这里）+ 日志里最后几条报错"""
