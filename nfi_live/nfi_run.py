@@ -35,8 +35,10 @@ def say(msg):
 def ft_cmd():
     exe = os.path.join(HERE, ".venv", "Scripts", "freqtrade.exe") if os.name == "nt" else os.path.join(HERE, ".venv", "bin", "freqtrade")
     exe = os.environ.get("NFI_FT_EXE", exe)
+    # 有记录器就用记录器（继承原版、买卖逻辑一样，只多记录策略每次的判断给详细工作状态页看）；没有就用原版
+    strat = "NostalgiaForInfinityX7Watch" if os.path.exists(os.path.join(UD, "strategies", "NostalgiaForInfinityX7Watch.py")) else "NostalgiaForInfinityX7"
     return [exe, "trade", "--userdir", "user_data", "--config", os.path.join("user_data", "config.json"),
-            "--strategy", "NostalgiaForInfinityX7", "--logfile", os.path.join("user_data", "logs", "freqtrade.log")]
+            "--strategy", strat, "--logfile", os.path.join("user_data", "logs", "freqtrade.log")]
 
 
 class Api:
