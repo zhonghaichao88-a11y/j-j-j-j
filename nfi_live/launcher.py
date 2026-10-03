@@ -17,6 +17,31 @@ def run(cmd):
     return subprocess.call(cmd, cwd=HERE)
 
 
+def ask_keys():
+    """第一次启动：直接在黑窗口里粘贴欧易 API（右键或 Ctrl+V 粘贴），存成「欧易子账户密钥.txt」，以后不用再填"""
+    print("\n第一次启动，要填欧易「子账户」的 API（在欧易 App / 网页 → 子账户 → API 管理 里创建）。")
+    print("创建时权限只勾「读取」和「交易」，千万不要勾「提现」。")
+    print("下面每一项粘贴后按回车（在黑窗口里点右键或按 Ctrl+V 就是粘贴）。直接回车不填就退出。\n")
+    vals = {}
+    for key, name in (("API_KEY", "API Key"), ("SECRET_KEY", "Secret Key（密钥）"), ("PASSPHRASE", "Passphrase（创建 API 时自己设的密码）")):
+        v = input(f"{name}：").strip().strip('"').strip("'")
+        if key != "PASSPHRASE":
+            v = v.replace(" ", "")              # Key / Secret 里不会有空格，复制时多带的去掉；密码原样保留
+        if not v:
+            print("没有填，已退出。下次双击启动再填。")
+            return False
+        vals[key] = v
+    if len(vals["API_KEY"]) < 20 or len(vals["SECRET_KEY"]) < 20:
+        print("API Key 或 Secret Key 太短了，可能没复制全。已退出，下次双击启动再填。")
+        return False
+    with open(os.path.join(HERE, "欧易子账户密钥.txt"), "w", encoding="utf-8") as f:
+        f.write("# 欧易子账户 API（启动时在黑窗口里填的）。要换 API 就删掉这个文件，下次启动会重新问\n")
+        for k, v in vals.items():
+            f.write(f"{k}={v}\n")
+    print("\n已保存到「欧易子账户密钥.txt」（只在你电脑上）。下面马上用它连欧易检查一下对不对。")
+    return True
+
+
 def main():
     print("=" * 60)
     print(" NFI X7 实盘   只做多 / 逐仓 3 倍 / 每单最多补 3 次")
@@ -42,8 +67,7 @@ def main():
             open(MARK, "w").write("ok\n")
     sys.path.insert(0, HERE)
     from common import key_file
-    if not key_file():
-        print("\n还没有「欧易子账户密钥.txt」：把「欧易子账户密钥_示例.txt」复制一份改名，填好三行再双击启动。")
+    if not key_file() and not ask_keys():
         return 1
     step("[1/3] 检查欧易账户…")
     if run([VPY, "check_account.py"]):

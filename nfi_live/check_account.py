@@ -16,7 +16,7 @@ def main():
         bal = ex.fetch_balance()
         pos = [p for p in ex.fetch_positions() if float(p.get("contracts") or 0) != 0]
     except ccxt.AuthenticationError as e:
-        raise SystemExit(f"密钥不对或没有权限：{e}\n检查「欧易子账户密钥.txt」三行是否填对，API 是否开了「交易」权限")
+        raise SystemExit(f"密钥不对或没有权限：{e}\n要重新填：删掉「欧易子账户密钥.txt」，再双击启动，会重新问你；并确认 API 开了「交易」权限")
     except ccxt.NetworkError as e:
         raise SystemExit(f"连不上欧易：{e}\n检查 代理.txt 里的代理地址，以及代理软件是否开着")
     except ccxt.ExchangeError as e:
@@ -30,7 +30,7 @@ def main():
             hint = "PASSPHRASE（创建 API 时设的密码）不对"
         elif "50110" in txt or "IP" in txt:
             hint = "API 绑定了 IP 白名单，现在这台电脑的 IP 不在里面"
-        raise SystemExit(f"欧易拒绝了：{txt[-160:]}\n{hint}")
+        raise SystemExit(f"欧易拒绝了：{txt[-160:]}\n{hint}\n要重新填：删掉「欧易子账户密钥.txt」，再双击启动，会重新问你")
     lv = str(cfg.get("acctLv"))
     names = {"1": "简单模式", "2": "单币种保证金", "3": "跨币种保证金", "4": "组合保证金"}
     usdt = bal.get("USDT", {}) or {}
