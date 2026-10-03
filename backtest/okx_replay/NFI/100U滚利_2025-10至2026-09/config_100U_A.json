@@ -1,0 +1,103 @@
+{
+ "max_open_trades": 6,
+ "stake_currency": "USDT",
+ "stake_amount": "unlimited",
+ "tradable_balance_ratio": 0.99,
+ "dry_run": true,
+ "dry_run_wallet": 100,
+ "trading_mode": "futures",
+ "fee": 0.0015,
+ "exchange": {
+  "name": "okx",
+  "key": "",
+  "secret": "",
+  "password": "",
+  "ccxt_config": {},
+  "ccxt_async_config": {},
+  "pair_whitelist": [
+   "BTC/USDT:USDT",
+   "ETH/USDT:USDT",
+   "SOL/USDT:USDT",
+   "XRP/USDT:USDT",
+   "SAND/USDT:USDT",
+   "DOGE/USDT:USDT",
+   "PUMP/USDT:USDT",
+   "HYPE/USDT:USDT",
+   "WLD/USDT:USDT",
+   "SUI/USDT:USDT",
+   "NEAR/USDT:USDT",
+   "PEPE/USDT:USDT",
+   "TRUMP/USDT:USDT",
+   "UNI/USDT:USDT",
+   "AAVE/USDT:USDT",
+   "LTC/USDT:USDT",
+   "LINK/USDT:USDT",
+   "ADA/USDT:USDT",
+   "TAO/USDT:USDT",
+   "BCH/USDT:USDT",
+   "FIL/USDT:USDT",
+   "ARB/USDT:USDT",
+   "ONDO/USDT:USDT",
+   "BNB/USDT:USDT",
+   "XPL/USDT:USDT",
+   "AVAX/USDT:USDT",
+   "PENGU/USDT:USDT",
+   "SOON/USDT:USDT",
+   "GALA/USDT:USDT",
+   "ZRO/USDT:USDT"
+  ],
+  "pair_blacklist": []
+ },
+ "pairlists": [
+  {
+   "method": "StaticPairList"
+  }
+ ],
+ "entry_pricing": {
+  "price_side": "same",
+  "use_order_book": false,
+  "price_last_balance": 0.0
+ },
+ "exit_pricing": {
+  "price_side": "same",
+  "use_order_book": false
+ },
+ "dataformat_ohlcv": "feather",
+ "internals": {
+  "process_throttle_secs": 5
+ },
+ "margin_mode": "isolated",
+ "short_entry_signal_params": {
+  "short_entry_condition_501_enable": false,
+  "short_entry_condition_502_enable": false,
+  "short_entry_condition_503_enable": false,
+  "short_entry_condition_504_enable": false,
+  "short_entry_condition_505_enable": false,
+  "short_entry_condition_506_enable": false,
+  "short_entry_condition_541_enable": false,
+  "short_entry_condition_542_enable": false,
+  "short_entry_condition_543_enable": false,
+  "short_entry_condition_544_enable": false,
+  "short_entry_condition_545_enable": false,
+  "short_entry_condition_546_enable": false,
+  "short_entry_condition_561_enable": false,
+  "short_entry_condition_562_enable": false,
+  "short_entry_condition_563_enable": false,
+  "short_entry_condition_592_enable": false,
+  "short_entry_condition_593_enable": false,
+  "short_entry_condition_603_enable": false,
+  "short_entry_condition_605_enable": false,
+  "short_entry_condition_641_enable": false,
+  "short_entry_condition_642_enable": false,
+  "short_entry_condition_661_enable": false,
+  "short_entry_condition_662_enable": false,
+  "short_entry_condition_663_enable": false,
+  "short_entry_condition_664_enable": false,
+  "short_entry_condition_665_enable": false,
+  "short_entry_condition_666_enable": false,
+  "short_entry_condition_667_enable": false,
+  "short_entry_condition_669_enable": false,
+  "short_entry_condition_670_enable": false,
+  "short_entry_condition_671_enable": false
+ }
+}
