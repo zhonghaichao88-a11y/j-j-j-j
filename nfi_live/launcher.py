@@ -40,7 +40,9 @@ def main():
             print("⚠ freqtrade 自带的英文网页没装上（不影响交易，中文状态网页照常能用），下次启动会再试")
         else:
             open(MARK, "w").write("ok\n")
-    if not os.path.exists(os.path.join(HERE, "欧易子账户密钥.txt")):
+    sys.path.insert(0, HERE)
+    from common import key_file
+    if not key_file():
         print("\n还没有「欧易子账户密钥.txt」：把「欧易子账户密钥_示例.txt」复制一份改名，填好三行再双击启动。")
         return 1
     step("[1/3] 检查欧易账户…")

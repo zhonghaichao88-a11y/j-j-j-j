@@ -8,3 +8,5 @@ user_data/*.json
 !user_data/strategies/
 .venv/
 __pycache__/
+欧易子账户密钥.txt.txt
+欧易子账户密钥

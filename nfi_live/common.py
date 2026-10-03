@@ -64,8 +64,19 @@ def read_settings():
     return tuple(num(k, *LIMITS[k]) for k in ("扫多少个币", "最多同时几单", "最多补仓次数"))
 
 
+KEY_NAMES = ("欧易子账户密钥.txt", "欧易子账户密钥.txt.txt", "欧易子账户密钥")   # Windows 隐藏后缀时容易改成 .txt.txt 或没后缀
+
+
+def key_file():
+    for n in KEY_NAMES:
+        if os.path.exists(os.path.join(HERE, n)):
+            return n
+    return None
+
+
 def read_keys():
-    k = read_kv("欧易子账户密钥.txt")
+    n = key_file()
+    k = read_kv(n) if n else None
     if k is None:
         raise SystemExit("没找到「欧易子账户密钥.txt」：把「欧易子账户密钥_示例.txt」复制一份，改名后填好 API 再启动")
     key, sec, pw = k.get("API_KEY", ""), k.get("SECRET_KEY", ""), k.get("PASSPHRASE", "")
