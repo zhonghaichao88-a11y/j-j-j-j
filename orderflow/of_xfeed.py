@@ -283,12 +283,19 @@ class CrossHub:
         out = {"has_binance": bool(m), "has_spot": False, "has_bybit": bool(self.bybit.get(inst))}
 
         def flow(lo, idx_b, idx_q):
+            """数据不完整就不算（返回 nan）：窗口里至少 90% 的分钟有数据，而且最新数据不超过 3 分钟前。
+            否则断线、限频时只用剩下的几分钟算，会把"一小段"误当成"一小时"的主动买卖"""
             b = q = 0.0
+            have, newest = 0, -1
             for k in range(now - lo, now + 1):
                 r = m.get(k)
                 if r and not math.isnan(r[idx_q]):
                     b += r[idx_b]
                     q += r[idx_q]
+                    have += 1
+                    newest = k
+            if have < 0.9 * lo or newest < now - 3:
+                return math.nan, q
             return (2 * b - q) / q if q > 0 else math.nan, q
 
         def perp_all(lo):

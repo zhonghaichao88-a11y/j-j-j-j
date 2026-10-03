@@ -1,3 +1,4 @@
+import time
 import math
 import copy
 import os
@@ -271,7 +272,7 @@ def test_live_time_exit_closes_and_cancels_algo(tmp_path, monkeypatch):
         pos = app.acct.positions[0]
         app.live.pnl[eng.inst] = {"pnl": 1.2, "exit": 100.6, "fee": -0.1, "funding": 0}
         app.check_exits(eng, 100.5, pos.max_until + 1)
-        await asyncio.sleep(1.7)
+        await asyncio.sleep(2.8)
         kinds = [c[0] for c in app.live.calls]
         assert "close" in kinds and ("cancel", eng.inst, "A1") in app.live.calls
         assert app.acct.positions == [] and app.history[-1]["why"] == "到时间"
@@ -603,3 +604,38 @@ def test_momo_tracker_needs_full_history():
     for k in range(100):
         tr.add(k * 300_000, 1.0, 10.0)
     assert all(math.isnan(x) for x in tr.state(99 * 300_000)[:1])              # 不够 24 小时：算不出
+
+
+def test_live_partial_close_keeps_protection_and_retries(tmp_path, monkeypatch):
+    app = _live_app(tmp_path, monkeypatch)
+    eng = FakeEng()
+    app.engines[eng.inst] = eng
+    real_close = app.live.close
+
+    def half_close(inst, side_open, n, algo_id="", mgn="isolated"):     # 交易所只成交一半
+        return real_close(inst, side_open, n / 2, algo_id, mgn)
+    app.live.close = half_close
+
+    async def go():
+        app.try_open(eng, C.Signal("absorption", 1, 99.0, 102.0, 0), {}, 100.0, 0)
+        await asyncio.sleep(0.05)
+        pos = app.acct.positions[0]
+        app.check_exits(eng, 100.5, pos.max_until + 1)
+        await asyncio.sleep(1.5)
+        assert ("cancel", eng.inst, "A1") not in app.live.calls      # 没平干净：止盈止损单留着
+        assert app.acct.positions == [pos] and app.live.pos[eng.inst] == 250   # 仓位还记着，等 30 秒后再平剩下的
+    _run(go)
+
+
+def test_spot_flow_needs_complete_recent_data():
+    import of_xfeed as X
+    h = X.CrossHub.__new__(X.CrossHub)
+    h.min, h.bybit, h.ctx = {}, {}, {}
+    h.cb = {"premium": math.nan, "hist": []}
+    now = int(time.time() // 60)
+    full = {k: [1.0, 2.0, 1.2, 2.0, 1.0, 1.0] for k in range(now - 60, now + 1)}
+    h.min = {"SOL-USDT-SWAP": full}
+    assert abs(X.CrossHub.stats(h, "SOL-USDT-SWAP")["sf_60"] - 0.2) < 1e-9
+    gap = {k: v for k, v in full.items() if k < now - 40}                   # 最近 40 分钟断线没数据
+    h.min = {"SOL-USDT-SWAP": gap}
+    assert math.isnan(X.CrossHub.stats(h, "SOL-USDT-SWAP")["sf_60"])

@@ -1006,9 +1006,13 @@ class OrderFlowApp:
 
     async def _close_live(self, pos, why, ts):
         try:
-            ex_pos = await asyncio.to_thread(self.live.positions)
-            if pos.sym in ex_pos:
-                await asyncio.to_thread(self.live.close, pos.sym, pos.side, pos.contracts, "", pos.mgn)
+            left = self._live_left(await asyncio.to_thread(self.live.positions), pos)
+            if left > 0:                       # 按交易所上实际还剩的张数平（上次只成交一部分时也对）
+                await asyncio.to_thread(self.live.close, pos.sym, pos.side, left, "", pos.mgn)
+                await asyncio.sleep(1.0)
+                left = self._live_left(await asyncio.to_thread(self.live.positions), pos)
+                if left > 0:                   # 没平干净：止盈止损单先留着保护剩下的仓位，30 秒后再平
+                    raise LiveError(f"平仓没成交完，还剩 {left:g} 张")
             await asyncio.to_thread(self.live.cancel_algo, pos.sym, pos.algo_id)
             await asyncio.sleep(1.5)
             r = await asyncio.to_thread(self.live.closed_pnl, pos.sym, pos.t_open)
@@ -1019,6 +1023,11 @@ class OrderFlowApp:
             pos.max_until = ts + 30_000
         finally:
             pos.busy = False
+
+    @staticmethod
+    def _live_left(ex_pos, pos):
+        """交易所上这笔仓位（同方向）还剩多少张"""
+        return sum(abs(p["pos"]) for p in ex_pos.get(pos.sym, []) if (p["pos"] > 0) == (pos.side == 1))
 
     def _record_close(self, pos, exit_px, why, ts, real=None):
         if real:                       # 实盘：用欧易历史持仓里的真实盈亏（含手续费、资金费）
