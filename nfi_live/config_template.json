@@ -1,0 +1,61 @@
+{
+  "max_open_trades": 6,
+  "stake_currency": "USDT",
+  "stake_amount": "unlimited",
+  "tradable_balance_ratio": 0.99,
+  "dry_run": false,
+  "trading_mode": "futures",
+  "margin_mode": "isolated",
+  "max_entry_position_adjustment": 3,
+  "stoploss": -0.3,
+  "cancel_open_orders_on_exit": false,
+  "db_url": "sqlite:///user_data/tradesv3.sqlite",
+  "exchange": {
+    "name": "okx",
+    "key": "",
+    "secret": "",
+    "password": "",
+    "ccxt_config": {},
+    "ccxt_async_config": {},
+    "pair_whitelist": [],
+    "pair_blacklist": [],
+    "enable_ws": false
+  },
+  "pairlists": [
+    {
+      "method": "RemotePairList",
+      "mode": "whitelist",
+      "pairlist_url": "file:///user_data/pairs.json",
+      "number_assets": 80,
+      "refresh_period": 3600,
+      "keep_pairlist_on_failure": true
+    }
+  ],
+  "entry_pricing": {
+    "price_side": "same",
+    "use_order_book": true,
+    "order_book_top": 1,
+    "price_last_balance": 0.0
+  },
+  "exit_pricing": {
+    "price_side": "same",
+    "use_order_book": true,
+    "order_book_top": 1
+  },
+  "api_server": {
+    "enabled": true,
+    "listen_ip_address": "127.0.0.1",
+    "listen_port": 8080,
+    "verbosity": "error",
+    "enable_openapi": false,
+    "jwt_secret_key": "",
+    "CORS_origins": [],
+    "username": "nfi",
+    "password": ""
+  },
+  "bot_name": "NFI-OKX",
+  "initial_state": "running",
+  "internals": {
+    "process_throttle_secs": 5
+  }
+}
