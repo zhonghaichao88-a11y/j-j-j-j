@@ -1,0 +1,50 @@
+{
+ "max_open_trades": -1,
+ "stake_currency": "USDT",
+ "stake_amount": 100,
+ "tradable_balance_ratio": 0.99,
+ "dry_run": true,
+ "dry_run_wallet": 1000000,
+ "trading_mode": "futures",
+ "fee": 0.0015,
+ "exchange": {
+  "name": "okx",
+  "key": "",
+  "secret": "",
+  "password": "",
+  "ccxt_config": {},
+  "ccxt_async_config": {},
+  "pair_whitelist": [
+   "0G/USDT:USDT",
+   "1INCH/USDT:USDT",
+   "2Z/USDT:USDT",
+   "A/USDT:USDT",
+   "AAVE/USDT:USDT",
+   "ACH/USDT:USDT",
+   "ACT/USDT:USDT",
+   "ADA/USDT:USDT",
+   "AERO/USDT:USDT",
+   "AEVO/USDT:USDT"
+  ],
+  "pair_blacklist": []
+ },
+ "pairlists": [
+  {
+   "method": "StaticPairList"
+  }
+ ],
+ "entry_pricing": {
+  "price_side": "same",
+  "use_order_book": false,
+  "price_last_balance": 0.0
+ },
+ "exit_pricing": {
+  "price_side": "same",
+  "use_order_book": false
+ },
+ "dataformat_ohlcv": "feather",
+ "internals": {
+  "process_throttle_secs": 5
+ },
+ "margin_mode": "isolated"
+}
