@@ -43,6 +43,12 @@ class Api:
         self.user, self.pw = c["username"], c["password"]
         self.auth = "Basic " + base64.b64encode(f"{c['username']}:{c['password']}".encode()).decode()
 
+    def post(self, path):
+        req = urllib.request.Request(API + path, data=b"{}", method="POST",
+                                     headers={"Authorization": self.auth, "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return json.loads(r.read().decode("utf-8"))
+
     def get(self, path):
         req = urllib.request.Request(API + path, headers={"Authorization": self.auth})
         with urllib.request.urlopen(req, timeout=10) as r:
@@ -95,7 +101,12 @@ class Watcher:
 
     def stop(self):
         if self.proc and self.proc.poll() is None:
-            say("正在停止 freqtrade（仓位留在交易所，下次启动接着管）…")
+            say("正在停止：先撤掉还没成交的挂单，再关 freqtrade（已成交的仓位留在交易所，下次启动接着管）…")
+            try:                                   # 先让 freqtrade 自己停（这一步会撤未成交挂单），再关进程
+                (self.api or Api()).post("stop")
+                time.sleep(8)
+            except Exception as e:  # noqa: BLE001
+                say(f"⚠ 没能通知 freqtrade 撤单（{e}），下次启动它会自动核对挂单")
             try:
                 if os.name == "nt":
                     self.proc.send_signal(signal.CTRL_BREAK_EVENT)
@@ -149,6 +160,8 @@ class Watcher:
         cur = {}
         for t in trades if isinstance(trades, list) else []:
             tid, n = t["trade_id"], int(t.get("nr_of_successful_entries") or 0)
+            if n == 0:                          # 只是挂着买单、还没成交：不算开仓（没成交会被自动撤掉）
+                continue
             cur[tid] = n
             if tid not in self.open:
                 if self.last_status:                # 启动时已有的仓位不当成新开仓
@@ -184,7 +197,8 @@ class Watcher:
             say(f"状态读取失败：{e}")
             return
         state = "运行中" if cfg.get("state") == "running" else f"状态 {cfg.get('state')}"
-        n_open = len(trades) if isinstance(trades, list) else 0
+        trades = [t for t in trades if int(t.get("nr_of_successful_entries") or 0) > 0] if isinstance(trades, list) else []
+        n_open = len(trades)
         pos = "、".join(f"{short(t['pair'])} {num(t.get('profit_pct'), '{:+.1f}')}%"
                         + (f"(补{int(t.get('nr_of_successful_entries') or 1) - 1})" if int(t.get('nr_of_successful_entries') or 1) > 1 else "")
                         for t in trades) or "无"
@@ -194,9 +208,26 @@ class Watcher:
             last = f"{m} 分钟前" if m < 60 else (f"{m // 60} 小时前" if m < 1440 else f"{m // 1440} 天前")
         else:
             last = "还没有"
-        say(f"{state}｜盯 {wl.get('length', 0)} 个币｜持仓 {n_open}/{int(cfg.get('max_open_trades') or 0)}：{pos}｜"
+        used = sum(float(t.get("stake_amount") or 0) for t in trades) if isinstance(trades, list) else 0.0
+        self.check_whitelist(wl)
+        say(f"{state}｜盯 {wl.get('length', 0)} 个币｜持仓 {n_open}/{int(cfg.get('max_open_trades') or 0)}：{pos}｜占用保证金 {used:.2f}U｜"
             f"账户 {num(bal.get('total'))}U｜今日(北京8点起) {num(day.get('abs_profit'), '{:+.2f}')}U｜累计 {num(prof.get('profit_all_coin'), '{:+.2f}')}U"
             f"（{prof.get('closed_trade_count', 0)} 笔已平，赢 {prof.get('winning_trades', 0)} 输 {prof.get('losing_trades', 0)}）｜最近一单 {last}")
+
+    def check_whitelist(self, wl):
+        """核对 freqtrade 真的在用我们写的选币名单（不然可能在盯错的币）"""
+        try:
+            want = json.load(open(pairs.PATH, encoding="utf-8"))["pairs"]
+        except Exception:  # noqa: BLE001
+            say("⚠ 选币名单文件读不到（user_data\\pairs.json），下次更新时会重新生成")
+            return
+        n, _, _ = read_settings()
+        want = set(want[:n])
+        have = set(wl.get("whitelist") or [])
+        if not have:
+            say("⚠ freqtrade 现在一个币都没盯，检查网络 / 代理；名单文件下次更新会重写")
+        elif len(have & want) < 0.8 * min(len(want), len(have)):
+            say(f"⚠ freqtrade 盯的币和选币名单对不上（只重合 {len(have & want)} 个），1 小时内会自动换成新名单，没换就截图发我")
 
     def refresh_pairs(self):
         if time.time() - self.last_pairs < PAIRS_EVERY:
@@ -240,6 +271,7 @@ class Watcher:
                     say(f"⚠ 状态显示出错（不影响交易）：{e}")
         except KeyboardInterrupt:
             self.stop()
+            say("已停止。现在可以关掉窗口了。")
             return 0
 
 

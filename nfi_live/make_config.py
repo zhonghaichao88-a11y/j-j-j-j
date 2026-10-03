@@ -40,6 +40,10 @@ def build(test=False):
     c["max_open_trades"] = n_open
     c["max_entry_position_adjustment"] = n_adj
     c["pairlists"][0]["number_assets"] = n_pairs
+    # 选币文件用绝对路径（不依赖从哪个文件夹启动）；Windows 上是 file:///C:/…/user_data/pairs.json
+    c["pairlists"][0]["pairlist_url"] = "file:///" + pairs.PATH.replace(os.sep, "/").lstrip("/")
+    if os.name != "nt":
+        c["pairlists"][0]["pairlist_url"] = "file:///" + pairs.PATH
     os.makedirs(UD, exist_ok=True)
     top, vol = pairs.write(proxy, n_pairs)          # 选币名单（之后运行中每 6 小时更新一次）
     c["short_entry_signal_params"] = {k: False for k in short_keys()}

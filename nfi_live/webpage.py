@@ -60,6 +60,8 @@ def render(watcher, run_log):
         out.append(f"<h1>NFI 实盘</h1><div class='sub'>{esc(now)} 刷新</div><p class='warn'>{esc(err)}</p>")
     else:
         cfg, st, bal, prof = data["cfg"], data["st"] if isinstance(data["st"], list) else [], data["bal"], data["prof"]
+        pending = [t for t in st if int(t.get("nr_of_successful_entries") or 0) == 0]       # 挂着还没成交的买单
+        st = [t for t in st if int(t.get("nr_of_successful_entries") or 0) > 0]
         day = (data["day"].get("data") or [{}])[0]
         state = "运行中" if cfg.get("state") == "running" else f"状态：{cfg.get('state')}"
         mode = "<span class='warn'>不下单的测试状态</span>" if cfg.get("dry_run") else "实盘"
@@ -70,10 +72,13 @@ def render(watcher, run_log):
                              ("今日（北京 8 点起）", f2(day.get("abs_profit"), "{:+.2f}"), cls(day.get("abs_profit"))),
                              ("累计盈亏", f2(prof.get("profit_all_coin"), "{:+.2f}"), cls(prof.get("profit_all_coin"))),
                              ("持仓", f"{len(st)} / {int(cfg.get('max_open_trades') or 0)}", ""),
+                             ("占用保证金", f"{sum(float(t.get('stake_amount') or 0) for t in st):.2f}U", ""),
                              ("已平仓", f"{prof.get('closed_trade_count', 0)}（赢 {prof.get('winning_trades', 0)} 输 {prof.get('losing_trades', 0)}）", ""),
                              ("最近一单", ago(prof.get("latest_trade_timestamp")) if prof.get("latest_trade_timestamp") else "还没有", "")):
             out.append(f"<div class='card'><span class='sub'>{esc(name)}</span><b class='{c}'>{esc(val)}</b></div>")
         out.append("</div><h2>持仓</h2>")
+        if pending:
+            out.append("<p class='sub'>挂着还没成交的买单：" + "、".join(esc(str(t.get('pair')).split('/')[0]) for t in pending) + "（没成交会自动撤）</p>")
         if st:
             out.append("<div class='wrap'><table><tr><th>币</th><th>开仓</th><th>均价</th><th>现价</th><th>投入(U)</th><th>补仓</th><th>浮盈亏</th></tr>")
             for t in st:

@@ -7,8 +7,8 @@
   "trading_mode": "futures",
   "margin_mode": "isolated",
   "max_entry_position_adjustment": 3,
-  "stoploss": -0.3,
-  "cancel_open_orders_on_exit": false,
+  "stoploss": -0.99,
+  "cancel_open_orders_on_exit": true,
   "db_url": "sqlite:///user_data/tradesv3.sqlite",
   "exchange": {
     "name": "okx",
