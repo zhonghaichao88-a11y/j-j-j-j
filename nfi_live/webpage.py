@@ -152,11 +152,14 @@ def serve(watcher, run_log):
                 body = render(watcher, run_log).encode("utf-8")
             except Exception as e:  # noqa: BLE001
                 body = f"<meta charset='utf-8'>页面出错：{html.escape(str(e))}".encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except (ConnectionError, OSError):     # 浏览器刷新 / 关页面时断开连接，正常现象，不打报错
+                pass
 
         def do_POST(self):
             if self.path != "/settings":
@@ -178,6 +181,12 @@ def serve(watcher, run_log):
         def log_message(self, *a):          # 不在黑窗口刷访问记录
             pass
 
-    srv = ThreadingHTTPServer(("127.0.0.1", PORT), H)
+    class Quiet(ThreadingHTTPServer):
+        daemon_threads = True
+
+        def handle_error(self, request, client_address):     # 网页连接出的任何小错都不刷到黑窗口（不影响交易）
+            pass
+
+    srv = Quiet(("127.0.0.1", PORT), H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
