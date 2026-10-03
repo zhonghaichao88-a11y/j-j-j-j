@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 import pairs
 import webpage
 import threading
-from common import HERE, LIMITS, UD, read_proxy, read_settings, write_settings
+from common import HERE, LIMITS, RUNNING_MSG, UD, port_busy, read_proxy, read_settings, take_lock, write_settings
 
 LOG_DIR = os.path.join(UD, "logs")
 FT_LOG = os.path.join(LOG_DIR, "freqtrade.log")
@@ -310,6 +310,10 @@ class Watcher:
             say("没找到报错信息，可能是内存不够被系统关掉了。看看任务管理器里内存是不是快满了")
 
     def run(self):
+        self.lock = take_lock()
+        if self.lock is None or port_busy(8080) or port_busy(webpage.PORT):
+            print(RUNNING_MSG, flush=True)
+            return 1
         say("=" * 20 + " 新的一次启动（上面是以前的记录） " + "=" * 20)
         try:
             webpage.serve(self, RUN_LOG)

@@ -48,19 +48,21 @@ def build(test=False):
     top, vol = pairs.write(proxy, n_pairs)          # 选币名单（之后运行中每 6 小时更新一次）
     c["short_entry_signal_params"] = {k: False for k in short_keys()}
     stocks = okx_non_crypto(proxy)
-    c["exchange"]["pair_blacklist"] = STATIC_BLACKLIST + [f"{b}/USDT:USDT" for b in stocks]
+    official = pairs.blacklist()                    # NFI 官方欧易黑名单（包里自带一份）
+    c["exchange"]["pair_blacklist"] = STATIC_BLACKLIST + official + [f"{b}/USDT:USDT" for b in stocks]
     if proxy:
         for k in ("ccxt_config", "ccxt_async_config"):
-            c["exchange"][k] = {"httpsProxy": proxy}
+            c["exchange"][k]["httpsProxy"] = proxy
     out = os.path.join(UD, "config.json")
     old = json.load(open(out, encoding="utf-8")).get("api_server", {}) if os.path.exists(out) else {}
     c["api_server"]["jwt_secret_key"] = old.get("jwt_secret_key") or secrets.token_hex(16)
     c["api_server"]["password"] = old.get("password") or secrets.token_hex(4)
     os.makedirs(UD, exist_ok=True)
     json.dump(c, open(out, "w", encoding="utf-8"), indent=2, ensure_ascii=True)   # 中文写成 \uXXXX：中文 Windows 上 freqtrade 按 GBK 读文件也不会出错
-    print(f"设置：扫成交额前 {n_pairs} 个币（上市满 30 天）｜最多同时 {n_open} 单｜每单最多补 {n_adj} 次｜只做多｜逐仓 3 倍")
+    print(f"设置：扫成交额前 {n_pairs} 个币（上市满 60 天）｜最多同时 {n_open} 单｜每单最多补 {n_adj} 次｜只做多｜逐仓 3 倍")
     print(f"选币：{len(top)} 个，成交额最大 {vol[0][1]}（{vol[0][0]/1e6:.0f} 百万U），最小 {vol[-1][1]}（{vol[-1][0]/1e6:.1f} 百万U）")
-    print(f"排除了 {len(stocks)} 个股票 / 贵金属等非加密币合约，以及稳定币")
+    print(f"排除了 {len(stocks)} 个股票 / 贵金属等非加密币合约、稳定币，以及 NFI 官方黑名单（{len(official)} 组）")
+    print("下单：跟 NFI 官方设置一样，买单挂卖一价、卖单挂买一价（基本马上成交），买单 3 分钟 / 卖单 2 分钟没成交自动撤掉重来")
     print("代理:", proxy or "(没填，直连)")
     print("网页: http://127.0.0.1:8080   账号: nfi   密码:", c["api_server"]["password"])
     return c

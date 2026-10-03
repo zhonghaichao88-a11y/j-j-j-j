@@ -96,3 +96,35 @@ def okx_get(path, params, proxy):
     if str(d.get("code")) != "0":
         raise RuntimeError(f"欧易返回错误：{d.get('msg') or d.get('code')}")
     return d["data"]
+
+
+RUNNING_MSG = ("❌ NFI 已经在运行了（另一个黑窗口还开着，或者上次没关干净）。同一个账户开两个会重复下单，所以这次不启动。\n"
+               "   先关掉所有 NFI 黑窗口；还不行就打开任务管理器，结束所有 python / freqtrade 进程，再双击启动。\n"
+               "   （极少数情况：别的软件占用了本机 8080 / 8090 / 8091 端口，也会这样，截图发我）")
+
+
+def port_busy(port):
+    """本机这个端口有程序在用 → True（8080 = freqtrade，8090 = 状态网页，8091 = 看门程序的锁）"""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def already_running():
+    return any(port_busy(p) for p in (8080, 8090, 8091))
+
+
+def take_lock():
+    """看门程序活着就一直占着 8091 端口：第二个启动会发现端口被占而拒绝启动。进程退出（哪怕崩溃）端口自动释放"""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if os.name == "nt":
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    try:
+        s.bind(("127.0.0.1", 8091))
+        s.listen(1)
+    except OSError:
+        s.close()
+        return None
+    return s

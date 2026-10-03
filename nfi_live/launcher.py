@@ -71,7 +71,10 @@ def main():
         else:
             open(MARK, "w").write("ok\n")
     sys.path.insert(0, HERE)
-    from common import key_file
+    from common import RUNNING_MSG, already_running, key_file
+    if already_running():                       # 防止同一个账户跑两个机器人（会重复下单）
+        print(RUNNING_MSG)
+        return 1
     if not key_file() and not ask_keys():
         return 1
     step("[1/3] 检查欧易账户…")
