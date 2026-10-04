@@ -408,7 +408,7 @@ async def _connect_all():
 
 @app.get("/")
 async def index():
-    return FileResponse(os.path.join(HERE, "static", "of.html"))
+    return FileResponse(os.path.join(HERE, "static", "of.html"), headers={"Cache-Control": "no-store"})   # 不让浏览器缓存旧页面，覆盖更新后刷新就能看到
 
 
 @app.get("/api/ready")
