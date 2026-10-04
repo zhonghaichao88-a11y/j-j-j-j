@@ -298,7 +298,7 @@ DEFAULT_CFG = {
     "auto": False,              # 自动交易总开关
     "mode": "paper",            # paper / live
     "risk_pct": 0.5,            # 每单最多亏权益的 0.5%
-    "old_margin_pct": 20,       # 旧打法每单保证金最多用权益的 20%（止损太近时自动缩小仓位，不再因为保证金不够开不了）
+    "old_size_pct": 10,         # 旧打法每笔用权益的 10% 开仓（和新打法一样）
     "max_leverage": 3,
     "margin_mode": "isolated",  # 实盘保证金模式：isolated 逐仓 / cross 全仓（网页上选）
     "btc_ma_days": 200,         # 大盘过滤：BTC 昨收在这么多天均线上方才开做多打法；0 = 不过滤
@@ -975,9 +975,9 @@ class OrderFlowApp:
             fc = combo_cfg(self.cfg, s.kind)
             eq = self.live_equity if live else self.acct.equity
             qty = min(eq * fc["size_pct"] / 100 / price, eq * self.cfg["max_leverage"] / price)
-        else:                                  # 旧打法按止损倒推仓位；止损贴得很近时会推到杠杆上限、要的保证金接近全部权益，开不出来。
-            eq = self.live_equity if live else self.acct.equity     # 所以每单保证金最多用权益的 old_margin_pct%，超了就把仓位缩小（亏损只会更少）
-            qty = min(qty, eq * self.cfg["max_leverage"] * self.cfg.get("old_margin_pct", 20) / 100 / price)
+        else:                                  # 旧打法也和新打法一样：每笔固定用权益的 old_size_pct%（默认 10%）开仓，不再按止损倒推（止损太近会推出很大的仓位、保证金不够开不了）
+            eq = self.live_equity if live else self.acct.equity
+            qty = min(eq * self.cfg.get("old_size_pct", 10) / 100 / price, eq * self.cfg["max_leverage"] / price)
         if s.kind in PB_NAMES:
             hold = PB_HOLD_MS
         elif s.kind == "flush_spot":

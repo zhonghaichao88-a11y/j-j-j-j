@@ -75,7 +75,7 @@ th{color:var(--mute);font-weight:normal}
     <div class="row">拿 <input id="sq_hold_h" type="number" step="1" style="width:50px"> 小时　每笔用权益 <input id="sq_size_pct" type="number" step="1" style="width:50px"> %　止损 = 涨幅 × <input id="sq_stop_x" type="number" step="0.5" style="width:50px"></div>
     <div class="row"><button id="saveSq">保存</button> <small style="color:var(--mute)">保存后马上生效</small></div>
     <h3>风控</h3>
-    <div class="row">每单最多亏权益 <input id="risk_pct" type="number" step="0.1"> %</div>
+    <div class="row">每单最多亏权益 <input id="risk_pct" type="number" step="0.1"> % <small style="color:var(--mute)">（现在没用了：所有打法都按"每笔用权益 10%"开仓）</small></div>
     <div class="row">最大杠杆 <input id="max_leverage" type="number" step="1"> 倍</div>
     <div class="row">保证金模式 <select id="margin_mode"><option value="isolated">逐仓（每单单独算，一单爆仓不影响别的）</option><option value="cross">全仓（所有单共用账户的钱）</option></select></div>
     <div class="row"><small style="color:var(--mute)">只影响以后开的新单；已经开着的单保持原来的模式</small></div>

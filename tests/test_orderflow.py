@@ -620,10 +620,11 @@ def test_live_partial_close_keeps_protection_and_retries(tmp_path, monkeypatch):
         app.try_open(eng, C.Signal("absorption", 1, 99.0, 102.0, 0), {}, 100.0, 0)
         await asyncio.sleep(0.05)
         pos = app.acct.positions[0]
+        n0 = app.live.pos[eng.inst]
         app.check_exits(eng, 100.5, pos.max_until + 1)
         await asyncio.sleep(1.5)
         assert ("cancel", eng.inst, "A1") not in app.live.calls      # 没平干净：止盈止损单留着
-        assert app.acct.positions == [pos] and app.live.pos[eng.inst] == 250   # 仓位还记着，等 30 秒后再平剩下的
+        assert app.acct.positions == [pos] and app.live.pos[eng.inst] == n0 / 2   # 仓位还记着，等 30 秒后再平剩下的
     _run(go)
 
 
@@ -794,8 +795,8 @@ def test_pick_symbols_skips_stock_contracts(monkeypatch):
     assert out == ["BTC-USDT-SWAP", "ETH-USDT-SWAP"]
 
 
-def test_old_strategy_tight_stop_shrinks_instead_of_skipping(tmp_path, monkeypatch):
-    """旧打法止损贴得很近：以前仓位推到杠杆上限、保证金要 1000U > 可用，开不出来；现在保证金最多用权益 20%，照样开"""
+def test_old_strategy_uses_fixed_10pct_size(tmp_path, monkeypatch):
+    """旧打法止损贴得很近：以前按止损倒推，仓位推到杠杆上限、保证金不够开不出来；现在和新打法一样每笔用权益 10%"""
     monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
     app = _live_app(tmp_path, monkeypatch, enabled=["big_follow"], risk_pct=10, max_leverage=10)
     eng = FakeEng()
@@ -807,6 +808,5 @@ def test_old_strategy_tight_stop_shrinks_instead_of_skipping(tmp_path, monkeypat
         await asyncio.sleep(0.05)
         assert d.get("traded"), d
         pos = app.acct.positions[0]
-        margin = pos.qty * 100.0 / 10
-        assert margin <= 1000 * 0.20 + 1e-6 and margin > 150
+        assert abs(pos.qty * 100.0 - 1000 * 0.10) < 1.0          # 仓位价值 = 权益 10%
     _run(go)
