@@ -363,7 +363,7 @@ def test_cross_venue_liquidation_goes_into_bars(tmp_path, monkeypatch):
 def test_flush_spot_signal_and_paper_trade(tmp_path, monkeypatch):
     monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
     monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
-    app = E.OrderFlowApp({"auto": True, "enabled": ["flush_spot"]}, None, None, False)
+    app = E.OrderFlowApp({"auto": True, "enabled": ["flush_spot"], "flush_filters": {"oi24": False}}, None, None, False)
     app.btc_bull = True                          # 大盘多头
 
     class X:          # 假的全网数据：币安现货 1 小时主动买 > 卖 10%
@@ -543,7 +543,7 @@ def test_btc_regime_gate_blocks_long_combos_in_bear(tmp_path, monkeypatch):
     monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
     monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
     monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
-    app = E.OrderFlowApp({"auto": True, "enabled": ["flush_spot"], "btc_ma_days": 200}, None, None, False)
+    app = E.OrderFlowApp({"auto": True, "enabled": ["flush_spot"], "btc_ma_days": 200, "flush_filters": {"oi24": False}}, None, None, False)
     eng = E.SymbolEngine(app, "SOL-USDT-SWAP", "5m", {t: 0.01 for t in E.VIEW_TFS}, 1.0)
     sig = C.Signal("flush_spot", 1, 90.0, 120.0, 0)
     for bull, opened in ((None, False), (False, False), (True, True)):
@@ -554,7 +554,7 @@ def test_btc_regime_gate_blocks_long_combos_in_bear(tmp_path, monkeypatch):
         if not opened:
             assert "大盘过滤" in d["skip"]
     # 关掉过滤（0）就不管大盘
-    app2 = E.OrderFlowApp({"auto": True, "enabled": ["flush_spot"], "btc_ma_days": 0}, None, None, False)
+    app2 = E.OrderFlowApp({"auto": True, "enabled": ["flush_spot"], "btc_ma_days": 0, "flush_filters": {"oi24": False}}, None, None, False)
     app2.btc_bull = False
     app2.try_open(eng, sig, {}, 100.0, 0)
     assert len(app2.acct.positions) == 1
@@ -639,3 +639,33 @@ def test_spot_flow_needs_complete_recent_data():
     gap = {k: v for k, v in full.items() if k < now - 40}                   # 最近 40 分钟断线没数据
     h.min = {"SOL-USDT-SWAP": gap}
     assert math.isnan(X.CrossHub.stats(h, "SOL-USDT-SWAP")["sf_60"])
+
+
+def test_flush_orderflow_filters():
+    """清洗接盘的订单流过滤：默认开"持仓量 24 小时"；没数据 / 数据太旧 / 不满足都不开，满足才开；只管清洗接盘"""
+    import time
+    app = E.OrderFlowApp({}, None, None, False)
+    assert app.cfg["flush_filters"]["oi24"] is True
+
+    class Eng:
+        inst = "SOL-USDT-SWAP"
+
+        def xstats(self):
+            return {"pf_1440": -0.03}
+    e, now = Eng(), time.time() * 1000
+    assert "还没读到" in app.flush_filter_block(e)
+    app.oi24["SOL-USDT-SWAP"] = (0.05, now)
+    assert "不满足" in app.flush_filter_block(e)
+    app.oi24["SOL-USDT-SWAP"] = (-0.02, now)
+    assert app.flush_filter_block(e) == ""
+    app.oi24["SOL-USDT-SWAP"] = (-0.02, now - 3 * 3600_000)            # 3 小时前的数据算太旧
+    assert "还没读到" in app.flush_filter_block(e)
+    app.oi24["SOL-USDT-SWAP"] = (-0.02, now)
+    app.cfg["flush_filters"] = {"oi24": True, "pf24": True, "btc_oi24": True}
+    app.oi24["BTC-USDT-SWAP"] = (0.01, now)
+    assert "BTC" in app.flush_filter_block(e)
+    app.oi24["BTC-USDT-SWAP"] = (0.0, now)
+    assert app.flush_filter_block(e) == ""
+    app.cfg["flush_filters"] = {}
+    app.oi24.clear()
+    assert app.flush_filter_block(e) == ""                               # 全关 = 不过滤

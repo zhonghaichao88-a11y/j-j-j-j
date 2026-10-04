@@ -21,6 +21,14 @@ from of_live import OkxLive, LiveError
 
 # 全网组合打法（2024-01 ~ 2026-03、104 个币长数据检验过，见 分析/长数据2024-2026/）
 FLUSH_NAMES = {"flush_spot": "清洗接盘（现货）", "squeeze_long": "轧空追多"}
+# 清洗接盘的订单流过滤（门槛只用 2024 年的单子定：去掉 2024 年表现最差的那三分之一；见 分析/策略实验室/flush_of_filters.py）
+# 币安 111 个币检验（2025-01 ~ 2026-09，考试期）：不过滤 PF 1.13；大盘过滤 1.30；持仓量 24h 1.37；两个一起 1.71
+FLUSH_OF_FILTERS = {
+    "oi24": ("持仓量 24 小时涨幅不超过 1.7%（杠杆已经清得比较干净）", 0.0167,
+             "考试 PF 1.37、新币 1.50、最近半年 0.99；和大盘过滤一起用 1.71"),
+    "pf24": ("币安合约 24 小时主动卖比买多 1.9% 以上", -0.0194, "考试 PF 1.27、最近半年 0.98"),
+    "btc_oi24": ("BTC 持仓量 24 小时涨幅不超过 0.24%（全市场没在加杠杆）", 0.0024, "考试 PF 1.19、最近半年 0.98"),
+}
 # 清洗接盘（严格版，拿 12 小时，挂单进场）：104 个币 1314 笔，胜率 53%，每笔 +0.89%，PF 1.40，2024/2025/2026 都赚；
 # 新加的 58 个币（没用来定参数）上每笔 +0.62%，PF 1.26
 FLUSH = {"drop": 0.02,          # 1 小时跌超 2%
@@ -261,6 +269,7 @@ DEFAULT_CFG = {
     "max_leverage": 3,
     "margin_mode": "isolated",  # 实盘保证金模式：isolated 逐仓 / cross 全仓（网页上选）
     "btc_ma_days": 200,         # 大盘过滤：BTC 昨收在这么多天均线上方才开做多打法；0 = 不过滤
+    "flush_filters": {"oi24": True, "pf24": False, "btc_oi24": False},   # 清洗接盘的订单流过滤（网页上开关）
     "max_positions": 2,
     "guard_n": 20,              # 自动刹车：看每个打法最近多少笔
     "guard_pf": 0.8,            # 最近这些笔的盈亏比低于这个就自动暂停该打法
@@ -677,6 +686,7 @@ class OrderFlowApp:
     def __init__(self, cfg: dict, proxy: str | None, keys: dict | None, allow_live: bool):
         self.cfg = dict(DEFAULT_CFG, **cfg)
         self.proxy, self.keys, self.allow_live = proxy, keys, allow_live
+        self.oi24: dict = {}          # 每个币 24 小时持仓量（美元价值）变化：inst -> (变化, 读到的时间毫秒)，of_app 每 10 分钟更新
         self.risk = Risk(self.cfg)
         self.acct = Account(equity=self.cfg["paper_equity"], start_equity=self.cfg["paper_equity"])
         self.paper = PaperBroker()
@@ -827,6 +837,29 @@ class OrderFlowApp:
             return self.live_day_start > 0 and (self.live_equity - self.live_day_start) <= -lim * self.live_day_start
         return self.acct.day_pnl <= -lim * self.acct.start_equity
 
+    def flush_filter_values(self, eng):
+        """清洗接盘几个订单流过滤现在的读数（nan = 还没读到或数据太旧）"""
+        now = time.time() * 1000
+        def fresh(x):
+            return x[0] if x and now - x[1] < 2 * 3600_000 else math.nan
+        return {"oi24": fresh(self.oi24.get(eng.inst)), "pf24": eng.xstats().get("pf_1440", math.nan),
+                "btc_oi24": fresh(self.oi24.get("BTC-USDT-SWAP"))}
+
+    def flush_filter_block(self, eng):
+        """开着的过滤里有一个不满足就返回原因；全满足返回空"""
+        on = {k for k, v in (self.cfg.get("flush_filters") or {}).items() if v and k in FLUSH_OF_FILTERS}
+        if not on:
+            return ""
+        vals = self.flush_filter_values(eng)
+        for k in sorted(on):
+            name, th, _ = FLUSH_OF_FILTERS[k]
+            v = vals[k]
+            if math.isnan(v):
+                return f"订单流过滤：还没读到「{name}」的数据，先不开"
+            if v > th:
+                return f"订单流过滤：不满足「{name}」（现在 {v:+.2%}）"
+        return ""
+
     def try_open(self, eng: SymbolEngine, s, d, price, ts):
         self._try_open(eng, s, d, price, ts)
         why = d.get("skip")
@@ -849,6 +882,11 @@ class OrderFlowApp:
             d["skip"] = (f"大盘过滤：BTC 在 {n_ma} 天均线下方（空头），做多打法暂停" if self.btc_bull is False
                          else "大盘过滤：还没读到 BTC 日线，先不开")
             return
+        if s.kind == "flush_spot":
+            why = self.flush_filter_block(eng)
+            if why:
+                d["skip"] = why
+                return
         if self._day_loss_hit():
             d["skip"] = "今天亏损到上限，停止开新单"
             return
@@ -1107,6 +1145,8 @@ class OrderFlowApp:
                 "live_day_pnl": (self.live_equity - self.live_day_start) if self.live_day_start else 0.0,
                 "hedged": bool(self.live and self.live.hedged), "notify": of_notify.enabled(),
                 "cfg": self.cfg, "btc_info": self.btc_info, "btc_bull": self.btc_bull, "live_ok": self.live_confirmed, "allow_live": self.allow_live,
+                "flush_filters_def": {k: {"name": v[0], "th": v[1], "bt": v[2]} for k, v in FLUSH_OF_FILTERS.items()},
+                "flush_filter_vals": ({k: (None if math.isnan(x) else x) for k, x in self.flush_filter_values(eng).items()} if eng else {}),
                 "signal_names": ALL_NAMES, "live_only": sorted(LIVE_ONLY), "pb_kinds": sorted(PB_NAMES),
                 "acct": {**asdict(self.acct), "positions": [asdict(p) for p in self.acct.positions]},
                 "last": {k: e.last for k, e in self.engines.items()},

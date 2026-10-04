@@ -67,7 +67,7 @@ STARTING: set = set()
 def save_cfg():
     """保存设置（自动刹车改了打法勾选也会调用）"""
     keep = {k: core.cfg[k] for k in ("symbols", "tf", "enabled", "auto", "risk_pct", "max_leverage",
-                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "momo", "margin_mode", "guard_n", "guard_pf", "btc_ma_days")
+                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "momo", "margin_mode", "guard_n", "guard_pf", "btc_ma_days", "flush_filters")
             if k in core.cfg}
     json.dump(keep, open(CFG_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
@@ -320,6 +320,29 @@ async def btc_regime():
         await asyncio.sleep(3600 if ok else 60)
 
 
+async def oi24_loop():
+    """清洗接盘的订单流过滤：每 10 分钟读一次每个币（和 BTC）的 1 小时持仓量历史，算 24 小时变化（美元价值，和回测口径一致）"""
+    while True:
+        insts = sorted(set(core.engines) | {"BTC-USDT-SWAP"})
+        bad = 0
+        for inst in insts:
+            try:
+                async with RUBIK_SEM, httpx.AsyncClient(proxy=PROXY, timeout=15) as c:
+                    rows = await get_json(c, "/api/v5/rubik/stat/contracts/open-interest-history", instId=inst, period="1H", limit=30)
+                    await asyncio.sleep(0.45)
+                h = sorted((int(r[0]), float(r[3])) for r in rows if len(r) > 3 and float(r[3]) > 0)
+                if len(h) >= 25:
+                    t1, v1 = h[-1]
+                    old = [v for t, v in h if t <= t1 - 24 * 3600_000]
+                    if old:
+                        core.oi24[inst] = (v1 / old[-1] - 1, time.time() * 1000)
+            except Exception:  # noqa: BLE001
+                bad += 1
+        if bad and bad == len(insts):
+            core.say("订单流过滤：读持仓量历史失败，10 分钟后重试")
+        await asyncio.sleep(600)
+
+
 async def live_refresher():
     """实盘：每 5 秒核对一次交易所持仓（止盈止损触发后记真实盈亏），每 30 秒读一次权益"""
     while True:
@@ -338,6 +361,7 @@ async def _startup():
     asyncio.create_task(core.xx.run())
     asyncio.create_task(heartbeat())
     asyncio.create_task(btc_regime())
+    asyncio.create_task(oi24_loop())
     lp = [p.sym.split("-")[0] for p in core.acct.positions if p.live]
     if lp:
         core.say(f"提醒：上次还有 {len(lp)} 笔实盘持仓（{', '.join(lp)}），请在网页上重新切到实盘，程序才能按时帮你平仓")
@@ -400,6 +424,13 @@ async def set_cfg(body: dict):
                 asyncio.create_task(_regime_once())
         except (TypeError, ValueError):
             pass
+    if isinstance(body.get("flush_filters"), dict):
+        from of_engine import FLUSH_OF_FILTERS
+        cur = dict(core.cfg.get("flush_filters") or {})
+        for k, v in body["flush_filters"].items():
+            if k in FLUSH_OF_FILTERS:
+                cur[k] = bool(v)
+        core.cfg["flush_filters"] = cur
     if body.get("margin_mode") in ("isolated", "cross"):
         core.cfg["margin_mode"] = body["margin_mode"]
     from of_engine import FLUSH, SQUEEZE, MOMO

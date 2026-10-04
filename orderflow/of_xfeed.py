@@ -326,6 +326,7 @@ class CrossHub:
                 out["div_" + tag] = out["sf_" + tag] - perp
             else:
                 out["div_" + tag] = math.nan
+        out["pf_1440"], out["perp_usd_1440"] = flow(1440, 0, 1)      # 币安合约 24 小时主动买卖（清洗接盘的订单流过滤用）
         # 现货占比：最近 4 小时 vs 最近 24 小时
         def share(lo):
             s = f = 0.0
