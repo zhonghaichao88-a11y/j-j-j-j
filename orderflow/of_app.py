@@ -67,7 +67,7 @@ STARTING: set = set()
 def save_cfg():
     """保存设置（自动刹车改了打法勾选也会调用）"""
     keep = {k: core.cfg[k] for k in ("symbols", "tf", "enabled", "auto", "risk_pct", "max_leverage",
-                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "momo", "margin_mode", "guard_n", "guard_pf", "btc_ma_days", "flush_filters", "trap")
+                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "momo", "margin_mode", "guard_n", "guard_pf", "btc_ma_days", "flush_filters")
             if k in core.cfg}
     json.dump(keep, open(CFG_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
@@ -286,11 +286,14 @@ REGIME_LAST = {"bull": "x"}
 async def _regime_once():
     """读 BTC 日线，算大盘是多头还是空头（做多打法只在多头时开）。读失败返回 False"""
     n = int(core.cfg.get("btc_ma_days", 0) or 0)
-    need = max(n, 200)                                     # 多头摊平做空固定看 200 天线，不管"大盘过滤"怎么设
+    if n <= 0:
+        core.btc_bull, core.btc_info = None, ""
+        REGIME_LAST["bull"] = "x"
+        return True
     try:
         async with httpx.AsyncClient(proxy=PROXY, timeout=15) as c:
             rows = await get_json(c, "/api/v5/market/history-candles", instId="BTC-USDT-SWAP", bar="1Dutc", limit=100)
-            while len(rows) < need + 2:                       # 一次最多 100 根，往前翻页
+            while len(rows) < n + 2:                       # 一次最多 100 根，往前翻页
                 more = await get_json(c, "/api/v5/market/history-candles", instId="BTC-USDT-SWAP", bar="1Dutc",
                                       limit=100, after=min(int(r[0]) for r in rows))
                 if not more:
@@ -300,12 +303,6 @@ async def _regime_once():
     except Exception as e:  # noqa: BLE001
         core.say(f"读 BTC 日线失败（{e}），1 分钟后重试")
         return False
-    b200, _, _ = btc_regime_calc(rows, 200)
-    core.btc_bear200 = None if b200 is None else (not b200)
-    if n <= 0:
-        core.btc_bull, core.btc_info = None, ""
-        REGIME_LAST["bull"] = "x"
-        return True
     bull, px, ma = btc_regime_calc(rows, n)
     core.btc_bull = bull
     core.btc_info = ("大盘：读不到足够的 BTC 日线，做多打法先不开" if bull is None else
@@ -436,8 +433,8 @@ async def set_cfg(body: dict):
         core.cfg["flush_filters"] = cur
     if body.get("margin_mode") in ("isolated", "cross"):
         core.cfg["margin_mode"] = body["margin_mode"]
-    from of_engine import FLUSH, SQUEEZE, MOMO, TRAP
-    for key, base in (("flush", FLUSH), ("squeeze", SQUEEZE), ("momo", MOMO), ("trap", TRAP)):     # 组合打法的参数，只收认识的数字
+    from of_engine import FLUSH, SQUEEZE, MOMO
+    for key, base in (("flush", FLUSH), ("squeeze", SQUEEZE), ("momo", MOMO)):     # 组合打法的参数，只收认识的数字
         if isinstance(body.get(key), dict):
             cur = dict(base, **(core.cfg.get(key) or {}))
             for k, v in body[key].items():
