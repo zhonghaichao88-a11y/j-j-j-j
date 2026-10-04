@@ -220,7 +220,8 @@ def render_work(watcher, run_log, esc, f2, cls, css, read_settings, pairs_path, 
     wtr = (watch or {}).get("trades") or {}
     if watch is None:
         out.append("<p class='warn'>还没有策略判断记录（user_data/nfi_watch.json）：刚启动或没有持仓时是正常的，有持仓后几十秒内会出现</p>")
-    elif now - float(watch.get("updated") or 0) > 600:
+    elif now - float(watch.get("updated") or 0) > 600 and st and \
+            now - float((d.get("health") or {}).get("bot_startup_ts") or now) > 900:   # 刚启动的 15 分钟内在加载数据，不报
         out.append(f"<p class='bad'>策略判断记录 {int((now - float(watch.get('updated') or 0)) / 60)} 分钟没更新了（有持仓时应该每十几秒更新），截图发我</p>")
     out.append(f"<h2>3. 持仓详情（{len(st)} / {int(cfg.get('max_open_trades') or 0)}）</h2>")
     if not st:
@@ -234,7 +235,7 @@ def render_work(watcher, run_log, esc, f2, cls, css, read_settings, pairs_path, 
         w = wtr.get(str(t.get("trade_id"))) or {}
         out.append(f"<h3 style='margin:14px 0 6px'>{esc(pair)} · {esc(mode_name(t.get('enter_tag')))}"
                    f"<span class='sub'>（信号编号 {esc(t.get('enter_tag'))}）</span></h3><div class='wrap'><table>")
-        info = [("开仓时间", f"{esc(str(t.get('open_date'))[:16])}（已拿 {dur(now - int(t.get('open_timestamp') or 0) / 1000)}）"),
+        info = [("开仓时间", f"{hm(int(t.get('open_timestamp') or 0) / 1000)}（电脑本地时间；已拿 {dur(now - int(t.get('open_timestamp') or 0) / 1000)}）"),
                 ("均价 → 现价", f"{f2(avg, '{:.6g}')} → {f2(cur, '{:.6g}')}（币价 <span class='{cls(move)}'>{move:+.2f}%</span>）"),
                 ("浮盈亏", f"<span class='{cls(t.get('profit_abs'))}'>{f2(t.get('profit_abs'), '{:+.2f}')}U（按保证金 {f2(t.get('profit_pct'), '{:+.2f}')}%，3 倍杠杆）</span>"),
                 ("投入保证金", f"{f2(t.get('stake_amount'))}U（仓位价值约 {float(t.get('stake_amount') or 0) * float(t.get('leverage') or 1):.2f}U）"),
