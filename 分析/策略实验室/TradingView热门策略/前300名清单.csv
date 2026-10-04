@@ -1,0 +1,301 @@
+﻿点赞,周期(分钟),名字,处理,链接
+48602,60,"Bollinger + RSI, Double Strategy (by ChartArt) v1.1",已移植测试,https://www.tradingview.com/script/uCV8I4xA-Bollinger-RSI-Double-Strategy-by-ChartArt-v1-1/
+15053,60,3Commas Bot,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/MvlwAzSg-3Commas-Bot/
+14248,60,Buy&Sell Strategy depends on AO+Stoch+RSI+ATR by SerdarYILMAZ,已移植测试,https://www.tradingview.com/script/RpYoQCVJ-Buy-Sell-Strategy-depends-on-AO-Stoch-RSI-ATR-by-SerdarYILMAZ/
+11028,15,Flawless Victory Strategy - 15min BTC Machine Learning Strategy,已移植测试,https://www.tradingview.com/script/i3Uc79fF-Flawless-Victory-Strategy-15min-BTC-Machine-Learning-Strategy/
+9004,60,Bjorgum Double Tap,机器学习/复杂打分（参数和状态太多，没法保证移植一致）,https://www.tradingview.com/script/rLkjr2sQ-Bjorgum-Double-Tap/
+8869,60,"Bollinger + RSI, Double Strategy Long-Only (by ChartArt) v1.2",没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/HDSdFMa3-Bollinger-RSI-Double-Strategy-Long-Only-by-ChartArt-v1-2/
+8738,60,Twin Optimized Trend Tracker Strategy TOTT,已移植测试,https://www.tradingview.com/script/eENf7NpJ/
+7964,60,"MACD + Stochastic, Double Strategy (by ChartArt)",已移植测试,https://www.tradingview.com/script/G5ro3y87-MACD-Stochastic-Double-Strategy-by-ChartArt/
+7141,5,Super Scalper - 5 Min 15 Min,已移植测试,https://www.tradingview.com/script/4ORGCiTh-Super-Scalper-5-Min-15-Min/
+7010,60,"Stochastic + RSI, Double Strategy (by ChartArt)",已移植测试,https://www.tradingview.com/script/IGJPEi7L-Stochastic-RSI-Double-Strategy-by-ChartArt/
+6485,45,"Bollinger + RSI, Double Strategy (by ChartArt)",没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/zopumZ8a-Bollinger-RSI-Double-Strategy-by-ChartArt/
+6377,60,Daily Close Comparison Strategy (by ChartArt via sirolf2009),已移植测试,https://www.tradingview.com/script/XK8XbDhT-Daily-Close-Comparison-Strategy-by-ChartArt-via-sirolf2009/
+5831,60,Lorentzian Classification Strategy ,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/SfyBCHIJ/
+5403,60,Pivot Point SuperTrend [Backtest],已移植测试,https://www.tradingview.com/script/DwdC6FT4-Pivot-Point-SuperTrend-Backtest/
+5245,60,QQE MOD + SSL Hybrid + Waddah Attar Explosion,已移植测试,https://www.tradingview.com/script/YCob5r03-QQE-MOD-SSL-Hybrid-Waddah-Attar-Explosion/
+5088,60,VWAP + Fibo Dev Extensions Strategy,已移植测试,https://www.tradingview.com/script/EaBACrDi/
+5074,15,Bollinger Band with RSI,已移植测试,https://www.tradingview.com/script/pKOaIHpb-Bollinger-Band-with-RSI/
+5038,30,ICT Master Suite [Trading IQ],机器学习/复杂打分（参数和状态太多，没法保证移植一致）,https://www.tradingview.com/script/ABYnIcdl-ICT-Master-Suite-Trading-IQ/
+4751,15,72s Strat: Backtesting Adaptive HMA+ pt.1,已移植测试,https://www.tradingview.com/script/FrjeeWdl-72s-Strat-Backtesting-Adaptive-HMA-pt-1/
+4539,15,VWAP Trendfollow Strategy [wbburgin],已移植测试,https://www.tradingview.com/script/XoR8rQaW-VWAP-Trendfollow-Strategy-wbburgin/
+4273,60,Bollinger Bands Breakout Strategy,已移植测试,https://www.tradingview.com/script/GKgxKjlC-Bollinger-Bands-Breakout-Strategy/
+4214,60,[STRATEGY][RS]MicuRobert EMA cross V2,已移植测试,https://www.tradingview.com/script/6YthKHw1-STRATEGY-RS-MicuRobert-EMA-cross-V2/
+4190,5,RSI versus SMA (no repaint),已移植测试,https://www.tradingview.com/script/wDLCPh1I-RSI-versus-SMA-no-repaint/
+3930,5,ICT Entry V2 [TS_Indie],股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/wm9e7Wca-ICT-Entry-V2-TS-Indie/
+3824,1,Moving Average Cross and/or Bbands bot,1~3 分钟 + 多周期，没有对应数据,https://www.tradingview.com/script/Nb7PYc7W-Moving-Average-Cross-and-or-Bbands-bot/
+3780,1,"Scalping with Williams %R, MACD, and SMA (1m)",已移植测试,https://www.tradingview.com/script/975ByLQ5-Scalping-with-Williams-R-MACD-and-SMA-1m/
+3660,2,Grab Trading System,已移植测试,https://www.tradingview.com/script/1HAKnNRc-Grab-Trading-System/
+3586,30,Ichimoku TK Cross > EMA200 Crypto Strategy,已移植测试,https://www.tradingview.com/script/88TwdvFZ-Ichimoku-TK-Cross-EMA200-Crypto-Strategy/
+3572,60,Powertrend - Volume Range Filter Strategy [wbburgin],已移植测试,https://www.tradingview.com/script/45FlB2qH-Powertrend-Volume-Range-Filter-Strategy-wbburgin/
+3433,60,Solution Zigma - Fibonacci Impulse,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/k1GLeZco-Solution-Zigma-Fibonacci-Impulse/
+3429,30,Fibonacci + RSI - Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/Ouv7XVfc-Fibonacci-RSI-Strategy/
+3417,5,Scalping Trading System bot Crypto and Stocks,已移植测试,https://www.tradingview.com/script/YotdMm0M-Scalping-Trading-System-bot-Crypto-and-Stocks/
+3407,60,Strategy based on Squeeze Momentum Indicator [LazyBear],已移植测试,https://www.tradingview.com/script/qp9BoNyS-Strategy-based-on-Squeeze-Momentum-Indicator-LazyBear/
+3379,1,Crypto Scalper Divergence Macd Psar Ema 200,已移植测试,https://www.tradingview.com/script/84YDnJ9V-Crypto-Scalper-Divergence-Macd-Psar-Ema-200/
+3350,5,Forex Master v4.0 (EUR/USD Mean-Reversion Algorithm),已移植测试,https://www.tradingview.com/script/AIZqyS45-Forex-Master-v4-0-EUR-USD-Mean-Reversion-Algorithm/
+3342,15,V Bottom & V Top Pattern [Misu],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/6qmzhNzi-V-Bottom-V-Top-Pattern-Misu/
+3243,5,[STRATEGY][RS]Spot/Binary Scalper V0,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/PMqutqKQ-STRATEGY-RS-Spot-Binary-Scalper-V0/
+3232,60,Simple profitable trading strategy,已移植测试,https://www.tradingview.com/script/QoNKoXwW-Simple-profitable-trading-strategy/
+3139,5,Crypto BOT lower timeframes,已移植测试,https://www.tradingview.com/script/IS7yz9s4-Crypto-BOT-lower-timeframes/
+3135,60,Trendline Breaks with Multi Fibonacci Supertrend Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/aVzNdTMg-Trendline-Breaks-with-Multi-Fibonacci-Supertrend-Strategy/
+3112,60,Profit Maximizer Strategy,已移植测试,https://www.tradingview.com/script/7yn5dteO-Profit-Maximizer-Strategy/
+3111,15,BTC bot,已移植测试,https://www.tradingview.com/script/DPBeZbMP-BTC-bot/
+2881,60,EMA Cross Strategy,已移植测试,https://www.tradingview.com/script/fAxX6kbm-EMA-Cross-Strategy/
+2775,15,FTSMA - Trend is your frend,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/wffJotUo-FTSMA-Trend-is-your-frend/
+2749,60,Band-Zigzag - TrendFollower Strategy [Trendoscope],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/9FsHYtrq-Band-Zigzag-TrendFollower-Strategy-Trendoscope/
+2668,5,[STRATEGY][RS]Open Session Breakout Trader,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/mIvVYU42-STRATEGY-RS-Open-Session-Breakout-Trader/
+2644,30,Dynamic Swing Anchored VWAP STRAT (Zeiierman/PineIndicators),没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/gjFSGRCo-Dynamic-Swing-Anchored-VWAP-STRAT-Zeiierman-PineIndicators/
+2529,15,CRYPTO 3EMA Strategy with Take Profit & Stop Loss based on ATR,已移植测试,https://www.tradingview.com/script/9bA3Z56w-CRYPTO-3EMA-Strategy-with-Take-Profit-Stop-Loss-based-on-ATR/
+2524,30,TradePro's Trading Idea Cipher Divergence EMA Pb Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/ywcSiaaV/
+2466,1,3C QFL Mean reversal,代码 500 行以上的综合系统（几十个开关），没法保证移植一致,https://www.tradingview.com/script/SDRM0bBY-3C-QFL-Mean-reversal/
+2449,60,UT Bot v2 - ATR Trailing Stop,已移植测试,https://www.tradingview.com/script/lDGmh7ou-UT-Bot-v2-ATR-Trailing-Stop/
+2422,30,MACD Strategy with trailing ATR stop,已移植测试,https://www.tradingview.com/script/2jDHQAJc-MACD-Strategy-with-trailing-ATR-stop/
+2408,30,RSI-VWAP Indicator %,已移植测试,https://www.tradingview.com/script/d0FZtMLp/
+2407,1,3x SuperTrend Strategy (Mel0nTek) V1,已移植测试,https://www.tradingview.com/script/FUnOi1Nx-3x-SuperTrend-Strategy-Mel0nTek-V1/
+2364,5,ORB Heikin Ashi SPY 5min Correlation Strategy,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/QpJvYDzb-ORB-Heikin-Ashi-SPY-5min-Correlation-Strategy/
+2331,15,ATR GOD Strategy by TradeSmart (PineConnector-compatible),股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/Je04kGO0-ATR-GOD-Strategy-by-TradeSmart-PineConnector-compatible/
+2318,15,RSI and ATR Trend Reversal SL/TP,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/hZLgJ29l-RSI-and-ATR-Trend-Reversal-SL-TP/
+2315,60,Y-Profit Maximizer Strategy with Exit Points,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/6ZFa2t7o/
+2315,1,Scalping with Bill Williams Alligator,已移植测试,https://www.tradingview.com/script/b2ShO5Fv-Scalping-with-Bill-Williams-Alligator/
+2309,5,CamarillaStrategy -V1 - H4 and L4 breakout - exits added,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/tBJNISwj-CamarillaStrategy-V1-H4-and-L4-breakout-exits-added/
+2298,1,Extreme Scalping,已移植测试,https://www.tradingview.com/script/qVTgdPBT-Extreme-Scalping/
+2289,5,ICT Entry V1 [TS_Indie],股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/mVdZBLJ7-ICT-Entry-V1-TS-Indie/
+2282,15,[DS]Entry_Exit_TRADE.V01-Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/RO4rB2HF/
+2272,60,Trend Surfers - Premium Breakout + Alerts,已移植测试,https://www.tradingview.com/script/w91kwvnX-Trend-Surfers-Premium-Breakout-Alerts/
+2231,15,Squeeze Momentum Strategy [LazyBear] Buy Sell TP SL Alerts,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/lEQZl0vE-Squeeze-Momentum-Strategy-LazyBear-Buy-Sell-TP-SL-Alerts/
+2225,5,Quasimodo Pattern Strategy Back Test [TradingFinder] QM Trading,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/7WpyJVvp-Quasimodo-Pattern-Strategy-Back-Test-TradingFinder-QM-Trading/
+2184,15,RSI Trend Crypto,已移植测试,https://www.tradingview.com/script/Ru7qOVtp-RSI-Trend-Crypto/
+2172,5,Hulk Strategy x35 Leverage 5m chart w/Alerts,已移植测试,https://www.tradingview.com/script/oGUYuz4N-Hulk-Strategy-x35-Leverage-5m-chart-w-Alerts/
+2154,5,BB+AO STRAT,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/ibq1TYLX-BB-AO-STRAT/
+2145,60,MACD + BB + RSI Strategy [Alorse],已移植测试,https://www.tradingview.com/script/6xo9yMmT-MACD-BB-RSI-Strategy-Alorse/
+2134,30,Gold/Silver 30m Only Strategy Buy/Sell Signals,已移植测试,https://www.tradingview.com/script/lx4O1PPu-Gold-Silver-30m-Only-Strategy-Buy-Sell-Signals/
+2126,5,5min MACD scalp by Joel,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/qN11DuKy-5min-MACD-scalp-by-Joel/
+2056,60,Swing Hull/rsi/EMA Strategy,已移植测试,https://www.tradingview.com/script/syRkfqhT-Swing-Hull-rsi-EMA-Strategy/
+1972,30,LUBE,已移植测试,https://www.tradingview.com/script/i9tJOtjl-LUBE/
+1960,5,RSI Binary Strategy,已移植测试,https://www.tradingview.com/script/1jTE6hJz-RSI-Binary-Strategy/
+1908,30,Multi Timeframe RSI Buy Sell Strategy [TradeDots],已移植测试,https://www.tradingview.com/script/kfj6EdjQ-Multi-Timeframe-RSI-Buy-Sell-Strategy-TradeDots/
+1899,1,"Forex Scalping 1min Bollinger Bands, RSI and ADX Trading System",已移植测试,https://www.tradingview.com/script/sR1hePBi-Forex-Scalping-1min-Bollinger-Bands-RSI-and-ADX-Trading-System/
+1893,60,EMA Crossover Strategy,已移植测试,https://www.tradingview.com/script/sxJejjdy-EMA-Crossover-Strategy/
+1893,45,Order Block Volumatic FVG Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/PjH7wg3n/
+1884,15,TSI CCI Hull with profit$$$,已移植测试,https://www.tradingview.com/script/qwN8CGrU-TSI-CCI-Hull-with-profit/
+1876,60,ATR Parabolic SAR Strategy [QuantNomad],已移植测试,https://www.tradingview.com/script/LKfHdoNv-ATR-Parabolic-SAR-Strategy-QuantNomad/
+1870,60,Traling.SL.Target,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/4jxYYaGU-Traling-SL-Target/
+1858,60,"EWO,RSI advanced Signals Strategy - Exhaustion Filter",没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/B7MQqWes-EWO-RSI-advanced-Signals-Strategy-Exhaustion-Filter/
+1838,60,Noro's Bands Scalper Strategy v1.6,已移植测试,https://www.tradingview.com/script/nWSGZciA-noro-s-bands-scalper-strategy-v1-6/
+1836,60,Moving Average Band Strategy,机器学习/复杂打分（参数和状态太多，没法保证移植一致）,https://www.tradingview.com/script/wwi02rpz-Moving-Average-Band-Strategy/
+1832,1,"TICK Scalping strategy, SPY 1 min",股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/yiBwexdm-TICK-Scalping-strategy-SPY-1-min/
+1787,15,Machine Learning: SuperTrend Strategy TP/SL [YinYangAlgorithms],机器学习/复杂打分（参数和状态太多，没法保证移植一致）,https://www.tradingview.com/script/9Mm3qKME-Machine-Learning-SuperTrend-Strategy-TP-SL-YinYangAlgorithms/
+1767,60,FTB Strategy (Automated),股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/gcu6zUkw-FTB-Strategy-Automated/
+1739,1,PMax on Rsi w/T3 *Strategy*,已移植测试,https://www.tradingview.com/script/ZLcmWQtj-PMax-on-Rsi-w-T3-Strategy/
+1737,15,"MULTIPLE TIME-FRAME STRATEGY(TREND, MOMENTUM, ENTRY) ",没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/gciwtPOi-MULTIPLE-TIME-FRAME-STRATEGY-TREND-MOMENTUM-ENTRY/
+1736,1,yuthavithi volatility based force trade scalper strategy,已移植测试,https://www.tradingview.com/script/FN3ZkHZA-yuthavithi-volatility-based-force-trade-scalper-strategy/
+1734,5,Strategy Myth-Busting #20 - HalfTrend+HullButterfly - [MYN],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/lL04fUNr-Strategy-Myth-Busting-20-HalfTrend-HullButterfly-MYN/
+1718,5,Session Breakout Scalper Trading Bot,代码 500 行以上的综合系统（几十个开关），没法保证移植一致,https://www.tradingview.com/script/7abDoROC-Session-Breakout-Scalper-Trading-Bot/
+1708,60,Tripple super Trend + EMA + RSI Strategy,已移植测试,https://www.tradingview.com/script/aCbQTE0W/
+1693,45,Instrument-Z (3Commas Bot),机器学习/复杂打分（参数和状态太多，没法保证移植一致）,https://www.tradingview.com/script/1OX9Wu8g-Instrument-Z-3Commas-Bot/
+1686,15,VXD Cloud Edition,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/OKKz3vDv-VXD-Cloud-Edition/
+1681,30,Breakout Trend Follower Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/9uvZIPnH-Breakout-Trend-Follower-Strategy/
+1679,60,*Backtesting System,代码 500 行以上的综合系统（几十个开关），没法保证移植一致,https://www.tradingview.com/script/GRTkk75x-Backtesting-System/
+1674,5,Renko Intraday Strategy,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/j0iaMxsl-renko-intraday-strategy/
+1637,10,3 EMA + RSI with Trail Stop [Free990] (LOW TF),已移植测试,https://www.tradingview.com/script/mgD7xBuw-3-EMA-RSI-with-Trail-Stop-Free990-LOW-TF/
+1630,15,Two Take Profit Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/OZnjwvZv-Two-Take-Profit-Strategy/
+1623,60,Maximized Scalping On Trend (by Coinrule),已移植测试,https://www.tradingview.com/script/XAiEh7nb-Maximized-Scalping-On-Trend-by-Coinrule/
+1613,15,Simple and Profitable Scalping Strategy (ForexSignals TV),没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/x4za4NFZ-Simple-and-Profitable-Scalping-Strategy-ForexSignals-TV/
+1612,5,XAUUSD Scalping AGRESIV,已移植测试,https://www.tradingview.com/script/5q4PsY3a-XAUUSD-Scalping-AGRESIV/
+1599,15,TradersAI_UTBot,已移植测试,https://www.tradingview.com/script/QDxGi5Ux-TradersAI-UTBot/
+1582,15,MA Bollinger Bands + RSI ,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/2MMNHl97-MA-Bollinger-Bands-RSI/
+1582,60,DEMA ATR Strategy [PrimeAutomation],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/rqRd3f62-DEMA-ATR-Strategy-PrimeAutomation/
+1566,15,TradeIQ - Crazy Scalping Trading Strategy [Kaspricci],机器学习/复杂打分（参数和状态太多，没法保证移植一致）,https://www.tradingview.com/script/R7OSA2ar/
+1550,30,Divergence IQ [TradingIQ],代码 500 行以上的综合系统（几十个开关），没法保证移植一致,https://www.tradingview.com/script/hgcTVYeX-Divergence-IQ-TradingIQ/
+1545,15,888 BOT #backtest,代码 500 行以上的综合系统（几十个开关），没法保证移植一致,https://www.tradingview.com/script/futPZepe/
+1530,15,Crypto ZigZag RSI strategy 15min,已移植测试,https://www.tradingview.com/script/LhpfQMtP-Crypto-ZigZag-RSI-strategy-15min/
+1518,30,RSI Strategy [PrimeAutomation],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/RiQzLLoh-RSI-Strategy-PrimeAutomation/
+1512,1,Trend Trader Strategy with MACD,已移植测试,https://www.tradingview.com/script/dUNRiEBG-Trend-Trader-Strategy-with-MACD/
+1507,15,RSI on VWAP Upgraded strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/Q5TPHHLs/
+1505,60,JS-TechTrading: VWAP Momentum_Pullback Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/uhdaobby-JS-TechTrading-VWAP-Momentum-Pullback-Strategy/
+1484,60,Qullamaggie Breakout V2,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/5bTajWQM-Qullamaggie-Breakout-V2/
+1471,15, BTC 15 min,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/xGk5K4DE-BTC-15-min/
+1463,60,RSI Divergence Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/ASVRhqFM/
+1461,60,"MACD + RSI + EMA + SMA + Ichimoku + overbought + buy, sell +Doji",没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/DNjH5QA9-MACD-RSI-EMA-SMA-Ichimoku-overbought-buy-sell-Doji/
+1456,5,SUPPORT RESISTANCE STRATEGY [5MIN TF],股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/KOfsPM9h-SUPPORT-RESISTANCE-STRATEGY-5MIN-TF/
+1448,30,CHOP Zone Entry Strategy + DMI/PSAR Exit,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/GrP0zABg-CHOP-Zone-Entry-Strategy-DMI-PSAR-Exit/
+1443,15,Two Take Profits and Two Stop Loss,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/tGTV8MkY-Two-Take-Profits-and-Two-Stop-Loss/
+1430,1,Stochastic RSI Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/22FnhBk9-Stochastic-RSI-Strategy/
+1427,60,Triple EMA + QQE Trend Following Strategy [TradeDots],股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/M4y5HT3h-Triple-EMA-QQE-Trend-Following-Strategy-TradeDots/
+1410,15,Gap Filling Strategy ,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/ghocsiv7-Gap-Filling-Strategy/
+1403,30,Super 8 - 30M BTC,代码 500 行以上的综合系统（几十个开关），没法保证移植一致,https://www.tradingview.com/script/zFPZofwt/
+1378,1,PowerHouse SwiftEdge AI v2.10 Strategy,机器学习/复杂打分（参数和状态太多，没法保证移植一致）,https://www.tradingview.com/script/xR8aIjgP-PowerHouse-SwiftEdge-AI-v2-10-Strategy/
+1371,5,EmperorBTC's VWAP Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/wmJ1ovZQ-EmperorBTC-s-VWAP-Strategy/
+1367,60,Fractal Breakout Strategy [KL],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/agyP7x3R-Fractal-Breakout-Strategy-KL/
+1346,1,SPY 1 Minute Day Trader,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/7zXPSx9G-SPY-1-Minute-Day-Trader/
+1341,1,VWAPStrategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/t1lk7Uvk-VWAPStrategy/
+1339,60,Buy&Sell Bullish Engulfing - The Quant Science,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/0moOi6G5-Buy-Sell-Bullish-Engulfing-The-Quant-Science/
+1330,60,2Mars - MA / BB / SuperTrend,代码 500 行以上的综合系统（几十个开关），没法保证移植一致,https://www.tradingview.com/script/Y68meyX1-2mars-ma-bb-supertrend/
+1323,1,Joint Conditions Strategy Suite + TradingConnector alerts bot,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/2SMDLIj7-Joint-Conditions-Strategy-Suite-TradingConnector-alerts-bot/
+1321,15,EMA Crossover Strategy with Take Profit and Candle Highlighting,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/B7umqU7W-EMA-Crossover-Strategy-with-Take-Profit-and-Candle-Highlighting/
+1292,60,Orion Algo Strategy v2.0,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/1QOQnMVn-Orion-Algo-Strategy-v2-0/
+1274,5,Fibonacci 5 Candles Retracement,代码 500 行以上的综合系统（几十个开关），没法保证移植一致,https://www.tradingview.com/script/EbAcK7HY/
+1268,15,Chande Momentum Oscillator (CMO) Buy Sell Strategy [TradeDots],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/MNBZqC72-Chande-Momentum-Oscillator-CMO-Buy-Sell-Strategy-TradeDots/
+1256,15,ORB Strategy [LuciTech],股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/10yYqaY7-ORB-Strategy-LuciTech/
+1251,1,3 Candle Strike Stretegy,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/zqbs2shU-3-Candle-Strike-Stretegy/
+1244,60,Triangular Hull Moving Average [BigBeluga X PineIndicators],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/gMeYb8Dp-Triangular-Hull-Moving-Average-BigBeluga-X-PineIndicators/
+1244,5,DAX Shooter 5M Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/CfgKji30/
+1243,60,Mega crypto bot strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/o9VK7ifK-Mega-crypto-bot-strategy/
+1241,60,Elliott Wave with Supertrend Exit - Strategy [presentTrading],代码 500 行以上的综合系统（几十个开关），没法保证移植一致,https://www.tradingview.com/script/hlOgflm1-Elliott-Wave-with-Supertrend-Exit-Strategy-presentTrading/
+1229,5,Pro Trading Art Open Range Breakout Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/wkwvEkmS-Pro-Trading-Art-Open-Range-Breakout-Strategy/
+1221,5,DRM Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/08eSyDlq-DRM-Strategy/
+1216,15,Universal Breakout Strategy [KedArc Quant],股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/tSoUhlM9-Universal-Breakout-Strategy-KedArc-Quant/
+1205,1,Ema Scalp,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/kUncyS8L-Ema-Scalp/
+1200,60,Ichimoku with MACD/ CMF/ TSI ,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/Pjsgs9JO-Ichimoku-with-MACD-CMF-TSI/
+1198,3,Forex Fractal EMA Scalper,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/pgsJGhIg-Forex-Fractal-EMA-Scalper/
+1191,60,Hybrid: RSI + Breakout + Dashboard,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/aAszLZWi-Hybrid-RSI-Breakout-Dashboard/
+1188,60,Combo Backtest 123 Reversal & RSI,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/IuTkaU1w-Combo-Backtest-123-Reversal-RSI/
+1185,5,RSI Overbought Oversold Divergence Strategy w/ Buy/Sell Signals,代码 500 行以上的综合系统（几十个开关），没法保证移植一致,https://www.tradingview.com/script/d92hvFQx-RSI-Overbought-Oversold-Divergence-Strategy-w-Buy-Sell-Signals/
+1183,5,Simple RSI strategy,已移植测试,https://www.tradingview.com/script/CqjfRFhX-Simple-RSI-strategy/
+1182,60,Coral Trend Pullback Strategy (TradeIQ),没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/kc6Itas8-Coral-Trend-Pullback-Strategy-TradeIQ/
+1180,5,RSI and Smoothed RSI Bull Div Strategy [BigBitsIO],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/NC603cui-RSI-and-Smoothed-RSI-Bull-Div-Strategy-BigBitsIO/
+1178,5,Strategy Myth-Busting #6 - PSAR+MA+SQZMOM+HVI - [MYN],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/wkb7JqzN-Strategy-Myth-Busting-6-PSAR-MA-SQZMOM-HVI-MYN/
+1173,60,BEST Trailing Stop Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/NOGqbIcu-BEST-Trailing-Stop-Strategy/
+1169,1,NQ/MNQ Super Scalper [BACKTEST],股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/6ve1ax1D-NQ-MNQ-Super-Scalper-BACKTEST/
+1167,60,Noro's Trend MAs Strategy v2.0,已移植测试,https://www.tradingview.com/script/01KhVWQx-noro-s-trend-mas-strategy-v2-0/
+1165,15,Moving Average Scalper,已移植测试,https://www.tradingview.com/script/PfBSgqMw-Moving-Average-Scalper/
+1162,5,Strategy - Bobo Intraday Swing Bot with filters,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/rLNCQUqm-Strategy-Bobo-Intraday-Swing-Bot-with-filters/
+1151,60,[Sniper] SSL Hybrid + QQE MOD + Waddah Attar Strategy,代码 500 行以上的综合系统（几十个开关），没法保证移植一致,https://www.tradingview.com/script/FxJdGwmG/
+1150,60,Grover Llorens Activator Strategy Analysis,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/VuYM89Tw-Grover-Llorens-Activator-Strategy-Analysis/
+1144,5,VWMA with kNN Machine Learning: MFI/ADX,机器学习/复杂打分（参数和状态太多，没法保证移植一致）,https://www.tradingview.com/script/73oLZ8IM-VWMA-with-kNN-Machine-Learning-MFI-ADX/
+1141,15,ATR Trend Strategy with Moving Average | Fixed TP/SL version,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/fM3YQz8i-ATR-Trend-Strategy-with-Moving-Average-Fixed-TP-SL-version/
+1140,5,Fibonacci Trend Reversal Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/cZa2pcyV-Fibonacci-Trend-Reversal-Strategy/
+1136,45,Multi-X by HamidBox,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/LZ1KzR4f-Multi-X-by-HamidBox/
+1134,15,EMA Cross + RSI + ADX - Autotrade Strategy V2,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/e7XQPek8-EMA-Cross-RSI-ADX-Autotrade-Strategy-V2/
+1125,1,Momentum Sequence Strategy+ [Herman],代码 500 行以上的综合系统（几十个开关），没法保证移植一致,https://www.tradingview.com/script/mmrInMTp-Momentum-Sequence-Strategy-Herman/
+1122,60,PercentX Trend Follower [Trendoscope],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/WKgRAD0V-PercentX-Trend-Follower-Trendoscope/
+1120,15,Uhl MA System - Strategy Analysis,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/4S9Yz3DB-Uhl-MA-System-Strategy-Analysis/
+1109,3,Octopus Nest Strategy ,1~3 分钟 + 多周期，没有对应数据,https://www.tradingview.com/script/2EEuy0st-Octopus-Nest-Strategy/
+1089,5,"Gold ORB Strategy (15-min Range, 5-min Entry)",没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/oYW9gdag-Gold-ORB-Strategy-15-min-Range-5-min-Entry/
+1077,15,TASC 2026.03 One Percent A Week,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/nVECqIQx-TASC-2026-03-One-Percent-A-Week/
+1075,45,Divergence for Many [Dimkud - v5],代码 500 行以上的综合系统（几十个开关），没法保证移植一致,https://www.tradingview.com/script/C8cpBFWm-Divergence-for-Many-Dimkud-v5/
+1074,60,EMA Cross + Divergence strategy (Div. signals by The Divergent),没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/x5Rl4RAz-EMA-Cross-Divergence-strategy-Div-signals-by-The-Divergent/
+1066,1,Follow the Trend - Trade Pullbacks,1~3 分钟 + 多周期，没有对应数据,https://www.tradingview.com/script/HJgxw5dy-Follow-the-Trend-Trade-Pullbacks/
+1063,5,Trendline Breakout Strategy [KedArc Quant] ,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/grMQIRAr-Trendline-Breakout-Strategy-KedArc-Quant/
+1059,30,SuperTrend Multi Time Frame Long and Short Trading Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/nXIb4hOt-SuperTrend-Multi-Time-Frame-Long-and-Short-Trading-Strategy/
+1057,60,Camarilla Pivot Points V2 Backtest,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/MXkclJVM-Camarilla-Pivot-Points-V2-Backtest/
+1052,3,Double Bottom and Top Hunter,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/tkyuZRbN/
+1029,5,Momentum Reversal / Dip Buyer [Score Based],股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/uwTtGSAR-Momentum-Reversal-Dip-Buyer-Score-Based/
+1025,15,Reversal Trading Bot Strategy[BullByte],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/cXVnf1WH-Reversal-Trading-Bot-Strategy-BullByte/
+1022,60,Optimized Heikin Ashi Strategy with Buy/Sell Options,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/f4SEwIH3-Optimized-Heikin-Ashi-Strategy-with-Buy-Sell-Options/
+1015,60,Smart Money Pivot Strategy [Jason Kasei],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/IMTwV7U8/
+1012,5,5 ema strategy,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/EaZHR7q6-5-ema-strategy/
+1011,5,Boom Hunter + Hull Suite + Volatility Oscillator Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/McuqT8px-Boom-Hunter-Hull-Suite-Volatility-Oscillator-Strategy/
+1006,60,Crypto Squeeze Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/I3YaZmDO-Crypto-Squeeze-Strategy/
+1002,15,Smart Money Index (SMI) Backtest,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/YyNeevML-Smart-Money-Index-SMI-Backtest/
+1000,60,Smart Money Concept Strategy - Uncle Sam,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/KUeL7SY5-Smart-Money-Concept-Strategy-Uncle-Sam/
+997,15,QuantCat Intraday Strategy (15M),没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/68EaMFyt-QuantCat-Intraday-Strategy-15M/
+997,15,Nifty Volume profile + VWAP + EMA ,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/MIi3WUU2-Nifty-Volume-profile-VWAP-EMA/
+996,60,"Smart Trader,Episode 1, by Ata Sabanci  | Unified Matrix",机器学习/复杂打分（参数和状态太多，没法保证移植一致）,https://www.tradingview.com/script/f09TPuYj-Smart-Trader-Episode-1-by-Ata-Sabanci-Unified-Matrix/
+987,60,All in One Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/6vHRkdsf-All-in-One-Strategy/
+985,15,"2x take profit, move stop loss to entry",没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/0Blrq2NA-2x-take-profit-move-stop-loss-to-entry/
+972,1,EMA RSI ATR Hidden Div Strat - 1 Min,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/itKnLY6I/
+971,60,Kitchen [ilovealgotrading],股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/T2juFbHt-Kitchen-ilovealgotrading/
+969,3,3Commas Bollinger Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/zaMgoLFt-3Commas-Bollinger-Strategy/
+969,60,Supertrend Advance Pullback Strategy,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/IRCgOETG-Supertrend-Advance-Pullback-Strategy/
+968,60,Pivot Point SuperTrend Strategy +TrendFilter,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/WpJ5ym7u-Pivot-Point-SuperTrend-Strategy-TrendFilter/
+968,5,"Top 40 High Low Strategy for SPY, 5min",股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/3BFuBf4F-Top-40-High-Low-Strategy-for-SPY-5min/
+962,45,14/28 Day SMA Divergence and RSI - No Repaint,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/BWHP25CQ-14-28-Day-SMA-Divergence-and-RSI-No-Repaint/
+961,30,Previous Day High and Low Breakout Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/dn6ogsKO/
+959,60,Super Trend 2 MACD,已移植测试,https://www.tradingview.com/script/Yal3QxFW-Super-Trend-2-MACD/
+954,5,BollingerBands Strat + pending order alerts via TradingConnector,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/a5CmxEJq-BollingerBands-Strat-pending-order-alerts-via-TradingConnector/
+951,15,"MACD, RSI, & RVOL Strategy",没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/7GmXKfig-MACD-RSI-RVOL-Strategy/
+942,15,Double Supertrend,已移植测试,https://www.tradingview.com/script/RyY2VKLD-Double-Supertrend/
+941,15,Simple Moving Average Crossover,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/WEALnfiN-Simple-Moving-Average-Crossover/
+939,60,Pivot Point Reversal + RSI Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/3UcIwSrE-Pivot-Point-Reversal-RSI-Strategy/
+937,60,RSI of VWAP,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/OUzp2NR6-RSI-of-VWAP/
+931,1,BSL/SSL Sweep + FVG Strategy Jobin (c) ,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/TQZdIvcg-BSL-SSL-Sweep-FVG-Strategy-Jobin-c/
+929,5,Combined Strategy Trading Bot (RSI ADX 20SMA),已移植测试,https://www.tradingview.com/script/7wrshs1q-Combined-Strategy-Trading-Bot-RSI-ADX-20SMA/
+928,15,London BreakOut Classic,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/Fh42LHOM-London-BreakOut-Classic/
+927,3,RSI Strategy with alerts via TradingConnector to Forex,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/kQY2gaLx-RSI-Strategy-with-alerts-via-TradingConnector-to-Forex/
+924,15,Enhanced OB Retest Strategy v7.0,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/jsQQPsfa-Enhanced-OB-Retest-Strategy-v7-0/
+924,15,Growth Producer,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/I2oKm8nF-Growth-Producer/
+924,60,CCI+EMA Strategy with Percentage or ATR TP/SL [Alifer],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/hHfPXUTx-CCI-EMA-Strategy-with-Percentage-or-ATR-TP-SL-Alifer/
+920,5, OBV Pyr,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/sAP5k4bs-OBV-Pyr/
+918,15,Stochastic Trend,已移植测试,https://www.tradingview.com/script/hk9a7099-Stochastic-Trend/
+918,15,Optimized RSI Strategy - Buy The Dips (by Coinrule),已移植测试,https://www.tradingview.com/script/Pm1WAtyI-Optimized-RSI-Strategy-Buy-The-Dips-by-Coinrule/
+917,60,Forex Master (EUR/USD),没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/Figho5B3-Forex-Master-EUR-USD/
+914,60,v2.0—Tristan's Multi-Indicator Reversal Strategy,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/MmfqVjSS-v2-0-Tristan-s-Multi-Indicator-Reversal-Strategy/
+912,60,"The Flash-Strategy (Momentum-RSI, EMA-crossover, ATR)",没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/XKgLfo15-The-Flash-Strategy-Momentum-RSI-EMA-crossover-ATR/
+910,30,WOMBO COMBO: EMA & VWAP & MACD & BB & STC,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/2mVl2d9h-WOMBO-COMBO-EMA-VWAP-MACD-BB-STC/
+910,1,Customizable OCC Non Repainting Scalper Bot v7.0b,1~3 分钟 + 多周期，没有对应数据,https://www.tradingview.com/script/ZLyHPGfK-Customizable-OCC-Non-Repainting-Scalper-Bot-v7-0b/
+909,15,Ichimoku Kinko Hyo Cloud + QQE,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/0IY0ERtK-Ichimoku-Kinko-Hyo-Cloud-QQE/
+906,60,Hash Ribbons Backtest - Bitcoin Beats YT,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/4d0HQmoy-Hash-Ribbons-Backtest-Bitcoin-Beats-YT/
+905,60,Adaptive Zero Lag EMA v2,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/Q7h83i1t-Adaptive-Zero-Lag-EMA-v2/
+901,5,ORB SESSIONS,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/ErwhAFlr-ORB-SESSIONS/
+897,5,Gold Scalping Strategy with Precise Entries,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/wO3Es23F-Gold-Scalping-Strategy-with-Precise-Entries/
+894,15,TradePro's 2 EMA + Stoch RSI + ATR Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/BUsgoYjm-TradePro-s-2-EMA-Stoch-RSI-ATR-Strategy/
+892,60,Squeeze Momentum on Reversal Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/Fckzv8iH-Squeeze-Momentum-on-Reversal-Strategy/
+891,60,VWAP and RSI strategy,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/oDnkONvx-VWAP-and-RSI-strategy/
+869,1,Customizable Non-Repainting HTF MACD MFI Scalper Bot Strategy v2,1~3 分钟 + 多周期，没有对应数据,https://www.tradingview.com/script/GOvvlTUT-Customizable-Non-Repainting-HTF-MACD-MFI-Scalper-Bot-Strategy-v2/
+869,60,Multi Supertrend with no-repaint HTF option strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/DrNY2LOA-Multi-Supertrend-with-no-repaint-HTF-option-strategy/
+864,5,Strategy Myth-Busting #1 - UT Bot+STC+Hull [MYN],股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/s1ufMqI5-Strategy-Myth-Busting-1-UT-Bot-STC-Hull-MYN/
+859,60,Strategy MACD vs BB,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/muzLmNwb-Strategy-MACD-vs-BB/
+855,5,Fabio Valentini Pro Scalper [PickMyTrade],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/ybr8iE0K-Fabio-Valentini-Pro-Scalper-PickMyTrade/
+848,60,Squeeze Momentum Strategy based on Indicator [LazyBear][Bitduke],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/5tuGpzpd-Squeeze-Momentum-Strategy-based-on-Indicator-LazyBear-Bitduke/
+847,5,TICK strategy for SPY options,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/5NpphIlt-TICK-strategy-for-SPY-options/
+844,60,[Advanced] Hilega-Milega Indicator,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/rQZMXkcZ-Advanced-Hilega-Milega-Indicator/
+838,5,Camarilla Strategy - breakouts of H4 and L4,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/11Of2i0P-Camarilla-Strategy-breakouts-of-H4-and-L4/
+833,30,Price Action + Bollinger Strategy ,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/ExBZnqPc-Price-Action-Bollinger-Strategy/
+818,1,[Pt] Premarket Breakout Strategy,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/0LJUxO7T-Pt-Premarket-Breakout-Strategy/
+817,60,Noro's RiskTurtle Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/cUBda2di-noro-s-riskturtle-strategy/
+816,15,MACD EMA - TradingRush Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/8WbIRZkS/
+816,5,Hull Moving Average vs Candle,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/lc6FSl0Z-Hull-Moving-Average-vs-Candle/
+806,60,VWAP and BB strategy [EEMANI],股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/oZYSB6Ui-VWAP-and-BB-strategy-EEMANI/
+800,1,MTF Diagonally Layered RSI - 1 minute Bitcoin Bot [wbburgin],1~3 分钟 + 多周期，没有对应数据,https://www.tradingview.com/script/z1fsrtce-MTF-Diagonally-Layered-RSI-1-minute-Bitcoin-Bot-wbburgin/
+799,5,Breaks and Retests - Free990,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/800ndgbX-Breaks-and-Retests-Free990/
+799,45,Market Trend Levels Non-Repainting [BigBeluga X PineIndicators],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/v0XszvRG-Market-Trend-Levels-Non-Repainting-BigBeluga-X-PineIndicators/
+794,60,Bollinger Bands strategy with RSI and MACD v1.0 ,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/CEzU8qc0/
+793,5,NIFTY 50 5mint Strategy,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/VUldc7Rr-NIFTY-50-5mint-Strategy/
+793,60,Golden Triangle Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/YC0Fpmus-Golden-Triangle-Strategy/
+787,30,Pure Morning 2.0 - Candlestick Pattern Doji Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/TsR0HZC3/
+783,1,Customizable Non-Repainting HTF MACD MFI Scalper Bot Strategy,1~3 分钟 + 多周期，没有对应数据,https://www.tradingview.com/script/X4Ix7Tbw-Customizable-Non-Repainting-HTF-MACD-MFI-Scalper-Bot-Strategy/
+777,15,YinYang RSI Volume Trend Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/cO34DTxx-YinYang-RSI-Volume-Trend-Strategy/
+776,1,ICT 10AM First FVG Daily Strategy,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/Za5HKgrL-ICT-10AM-First-FVG-Daily-Strategy/
+773,15,Strategy Myth-Busting #12 - OSGFC+SuperTrend - [MYN],股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/eg9wcYuj-Strategy-Myth-Busting-12-OSGFC-SuperTrend-MYN/
+772,30,GetTrendStrategy 370 30 min,已移植测试,https://www.tradingview.com/script/pVPE2jc5/
+766,60,Momentum Strategy (BTC/USDT; 1h) - MACD (with source code),没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/b7zn25L6-Momentum-Strategy-BTC-USDT-1h-MACD-with-source-code/
+766,15,TradingGroundhog - Strategy & Wavetrend V2,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/Qwy0Fi3g/
+765,15,Breakout Scalper,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/kX8dnXYH-Breakout-Scalper/
+763,60,Adaptive Fibonacci Pullback System -FibonacciFlux,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/bOcHnaiQ-Adaptive-Fibonacci-Pullback-System-FibonacciFlux/
+763,3,Liquidity Sweep Breakout - LSB,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/MN4tJCT5-Liquidity-Sweep-Breakout-LSB/
+762,5,VoVix DEVMA,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/sZ4986mM-VoVix-DEVMA/
+761,3,BTFD strategy [3min],已移植测试,https://www.tradingview.com/script/qRwx46ZQ-BTFD-strategy-3min/
+760,1,Bollinger Bands + EMA 9,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/Ff0DNTh1-Bollinger-Bands-EMA-9/
+758,5,Strategy: Range Breakout,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/pEf6ohWk-Strategy-Range-Breakout/
+756,30,Kaufman Adaptive Moving Average (KAMA) Strategy [TradeDots],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/rm6K3yV6-Kaufman-Adaptive-Moving-Average-KAMA-Strategy-TradeDots/
+753,60,scalping against trapped countertrend,已移植测试,https://www.tradingview.com/script/mEJH90Q5-scalping-against-trapped-countertrend/
+753,30,Simple RSI and SMA Long and Short (by Coinrule),已移植测试,https://www.tradingview.com/script/Clpg5ju2-Simple-RSI-and-SMA-Long-and-Short-by-Coinrule/
+751,1,Precision Trading Strategy: Golden Edge,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/SD5jYZuC-Precision-Trading-Strategy-Golden-Edge/
+751,3,20 / 200 SMA Strategy - ,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/ZqnuKIAw-20-200-SMA-Strategy/
+749,60,Triple EMA + RSI + ATR,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/HERuuRt5/
+747,15,McGinley T3 Flow Campaign [NICK789] v.1,代码 500 行以上的综合系统（几十个开关），没法保证移植一致,https://www.tradingview.com/script/Hrc7Gfqe-McGinley-T3-Flow-Campaign-NICK789-v-1/
+745,15,ATR_RSI_Strategy v2 with no repaint [liwei666],已移植测试,https://www.tradingview.com/script/mqh6UJ9p-ATR-RSI-Strategy-v2-with-no-repaint-liwei666/
+741,60,Senkou Span Cross Strategy [Krypt],已移植测试,https://www.tradingview.com/script/ZmQSRFQ4-Senkou-Span-Cross-Strategy-Krypt/
+739,60,Rob Booker - ADX Breakout updated to pinescript V5,已移植测试,https://www.tradingview.com/script/qoaam9SI-Rob-Booker-ADX-Breakout-updated-to-pinescript-V5/
+739,1,TDI Hedge Strategy,1~3 分钟 + 多周期，没有对应数据,https://www.tradingview.com/script/Ad7SuWW5-TDI-Hedge-Strategy/
+736,45,Best SuperTrend BTCUSD,已移植测试,https://www.tradingview.com/script/xsofIOja-Best-SuperTrend-BTCUSD/
+733,60,Volume Difference Delta Cycle Oscillator,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/SseQ02vi-Volume-Difference-Delta-Cycle-Oscillator/
+732,5,Chaikin Money Flow + MACD + ATR,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/YQHVveUQ/
+729,60,EMA_cumulativeVolume_crossover[Strategy V2],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/mUKDFKzn-EMA-cumulativeVolume-crossover-Strategy-V2/
+727,60,QuantNomad - Pivot Reversal Strategy - XBTUSD - 1h,已移植测试,https://www.tradingview.com/script/wiymwK0X-QuantNomad-Pivot-Reversal-Strategy-XBTUSD-1h/
+727,60,Gradient Trend Filter STRATEGY [ChartPrime/PineIndicators],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/Va06tXWV-Gradient-Trend-Filter-STRATEGY-ChartPrime-PineIndicators/
+721,15,Williams Fractals Strategy,已移植测试,https://www.tradingview.com/script/WVajplfL-Williams-Fractals-Strategy/
+721,15,Andean Scalping,代码 500 行以上的综合系统（几十个开关），没法保证移植一致,https://www.tradingview.com/script/Fj0ldM0e-Andean-Scalping/
+718,15,Volume-Weighted Supertrend Strategy [wbburgin],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/wIqc0VyB-Volume-Weighted-Supertrend-Strategy-wbburgin/
+711,15,LANZ Strategy 2.0 [Backtest],股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/YFZE9yFC/
+710,60,Amazing Crossover System - 100+ pips per day!,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/Qd1agKJX-Amazing-Crossover-System-100-pips-per-day/
+702,15,Long-Only Opening Range Breakout (ORB) with Pivot Points,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/6kDE9bLA-Long-Only-Opening-Range-Breakout-ORB-with-Pivot-Points/
+700,60,Qullamaggie Breakout,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/cDCAPrd1-Qullamaggie-Breakout/
+699,30,RSI Divergence X Ichimoku Cloud X 200EMA,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/IDBU7W3o-RSI-Divergence-X-Ichimoku-Cloud-X-200EMA/
+698,15,15 Minute Gold Trend-Following Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/9morbD5t-15-Minute-Gold-Trend-Following-Strategy/
+695,15,ThinkTech AI Signals,股票/期货/外汇的交易时段打法（开盘区间、伦敦时段等），币 24 小时没法照搬,https://www.tradingview.com/script/xJJYblbA-ThinkTech-AI-Signals/
+691,30,Momentum Strategy (BTC/USDT; 30m) - STOCH RSI (with source code),已移植测试,https://www.tradingview.com/script/79Tn4cQY-Momentum-Strategy-BTC-USDT-30m-STOCH-RSI-with-source-code/
+690,60,RSI of MACD Strategy  [Long only],没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/WfaaCqaN-RSI-of-MACD-Strategy-Long-only/
+685,30,MACD Signal with RSI Indicating Strategy,没移植：排名靠后，多数是上面同类指标（均线/RSI/布林/超级趋势）的变体，或依赖没公开的库,https://www.tradingview.com/script/eYF1FQ2T-MACD-Signal-with-RSI-Indicating-Strategy/
