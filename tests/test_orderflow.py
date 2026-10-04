@@ -792,3 +792,21 @@ def test_pick_symbols_skips_stock_contracts(monkeypatch):
     monkeypatch.setitem(A.core.cfg, "top_n", 2)
     out = _run(A._pick_symbols)
     assert out == ["BTC-USDT-SWAP", "ETH-USDT-SWAP"]
+
+
+def test_old_strategy_tight_stop_shrinks_instead_of_skipping(tmp_path, monkeypatch):
+    """旧打法止损贴得很近：以前仓位推到杠杆上限、保证金要 1000U > 可用，开不出来；现在保证金最多用权益 20%，照样开"""
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = _live_app(tmp_path, monkeypatch, enabled=["big_follow"], risk_pct=10, max_leverage=10)
+    eng = FakeEng()
+    app.engines[eng.inst] = eng
+
+    async def go():
+        d = {}
+        app.try_open(eng, C.Signal("big_follow", 1, 99.95, 100.1, 0), d, 100.0, 0)   # 止损只差 0.05%
+        await asyncio.sleep(0.05)
+        assert d.get("traded"), d
+        pos = app.acct.positions[0]
+        margin = pos.qty * 100.0 / 10
+        assert margin <= 1000 * 0.20 + 1e-6 and margin > 150
+    _run(go)
