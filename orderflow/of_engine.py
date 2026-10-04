@@ -12,7 +12,7 @@ import math
 import os
 import threading
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 
 from of_core import Bar, Detector, Signal, SIGNAL_NAMES, LIVE_ONLY, auto_row_size, volume_profile, imbalances, stacked
 from of_playbook import Playbook, PB_NAMES
@@ -63,6 +63,9 @@ MOMO = {"rise": 0.20,           # 24 小时涨超 20%
 # 币安 2022-01 ~ 2026-09（38 + 111 币）：2297 笔，胜率 58%，每笔 +0.25%，PF 1.17；2022 / 2023 / 2024 / 2025 上 / 2025 下以后
 # PF 1.20 / 1.30 / 1.21 / 1.00 / 1.18，5 段都不亏；同条件随机做空 0.99；去掉最赚 5 个币 1.10。见 分析/策略实验室/s29_*.py、做空候选_记录.md
 TRAP_NAMES = {"trap_short": "多头摊平做空"}
+# 旧打法（吸收、大单跟随等）的出场：fixed=0 用原版（结构止损，很近，止盈 2 倍）；fixed=1 像新打法：固定止损 stop_pct%，
+# 止盈 tp_pct%（0 = 不设），最多拿 hold_h 小时。回测：两种都没有稳定赚钱的组合（见 分析/策略实验室/旧打法完整重测）
+OLD_EXIT = {"fixed": 0, "stop_pct": 5.0, "tp_pct": 0.0, "hold_h": 48.0}
 TRAP = {"drop": 0.05,           # 24 小时跌超 5%
         "oi_rise": 0.05,        # 持仓量 24 小时涨超 5%（越跌越加仓）
         "stop": 0.05,           # 止损：进场价上方 5%
@@ -299,6 +302,7 @@ DEFAULT_CFG = {
     "mode": "paper",            # paper / live
     "risk_pct": 0.5,            # 每单最多亏权益的 0.5%
     "old_size_pct": 10,         # 旧打法每笔用权益的 10% 开仓（和新打法一样）
+    "old_exit": dict(OLD_EXIT), # 旧打法的出场方式
     "max_leverage": 3,
     "margin_mode": "isolated",  # 实盘保证金模式：isolated 逐仓 / cross 全仓（网页上选）
     "btc_ma_days": 200,         # 大盘过滤：BTC 昨收在这么多天均线上方才开做多打法；0 = 不过滤
@@ -938,6 +942,13 @@ class OrderFlowApp:
         self._roll_day()
         if not self.cfg["auto"] or s.kind not in self.cfg["enabled"]:
             return
+        oe = {**OLD_EXIT, **(self.cfg.get("old_exit") or {})}
+        old_fixed = s.kind not in COMBO_NAMES and bool(oe["fixed"]) and oe["stop_pct"] > 0
+        if old_fixed:                          # 旧打法改用固定止损：按现价重算止损止盈
+            sp, tp = oe["stop_pct"] / 100, oe["tp_pct"] / 100
+            s = replace(s, stop=price * (1 - s.side * sp),
+                        target=price * (1 + s.side * tp) if tp > 0 else (price * 10 if s.side > 0 else price * 0.1))
+            d["stop"], d["target"] = s.stop, s.target
         if (s.side == 1 and not (s.stop < price < s.target)) or (s.side == -1 and not (s.target < price < s.stop)):
             d["skip"] = "价格已越过止损或止盈"
             return
@@ -978,7 +989,9 @@ class OrderFlowApp:
         else:                                  # 旧打法也和新打法一样：每笔固定用权益的 old_size_pct%（默认 10%）开仓，不再按止损倒推（止损太近会推出很大的仓位、保证金不够开不了）
             eq = self.live_equity if live else self.acct.equity
             qty = min(eq * self.cfg.get("old_size_pct", 10) / 100 / price, eq * self.cfg["max_leverage"] / price)
-        if s.kind in PB_NAMES:
+        if old_fixed:
+            hold = oe["hold_h"] * 3600_000
+        elif s.kind in PB_NAMES:
             hold = PB_HOLD_MS
         elif s.kind == "flush_spot":
             hold = flush_cfg(self.cfg)["hold_h"] * 3600_000

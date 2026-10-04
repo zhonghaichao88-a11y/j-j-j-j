@@ -67,7 +67,7 @@ STARTING: set = set()
 def save_cfg():
     """保存设置（自动刹车改了打法勾选也会调用）"""
     keep = {k: core.cfg[k] for k in ("symbols", "tf", "enabled", "auto", "risk_pct", "max_leverage",
-                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "momo", "margin_mode", "guard_n", "guard_pf", "btc_ma_days", "flush_filters", "trap", "old_size_pct")
+                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "momo", "margin_mode", "guard_n", "guard_pf", "btc_ma_days", "flush_filters", "trap", "old_size_pct", "old_exit")
             if k in core.cfg}
     json.dump(keep, open(CFG_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
@@ -450,8 +450,8 @@ async def set_cfg(body: dict):
         core.cfg["flush_filters"] = cur
     if body.get("margin_mode") in ("isolated", "cross"):
         core.cfg["margin_mode"] = body["margin_mode"]
-    from of_engine import FLUSH, SQUEEZE, MOMO, TRAP
-    for key, base in (("flush", FLUSH), ("squeeze", SQUEEZE), ("momo", MOMO), ("trap", TRAP)):     # 组合打法的参数，只收认识的数字
+    from of_engine import FLUSH, SQUEEZE, MOMO, TRAP, OLD_EXIT
+    for key, base in (("flush", FLUSH), ("squeeze", SQUEEZE), ("momo", MOMO), ("trap", TRAP), ("old_exit", OLD_EXIT)):     # 组合打法的参数，只收认识的数字
         if isinstance(body.get(key), dict):
             cur = dict(base, **(core.cfg.get(key) or {}))
             for k, v in body[key].items():

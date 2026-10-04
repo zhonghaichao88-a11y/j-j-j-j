@@ -810,3 +810,29 @@ def test_old_strategy_uses_fixed_10pct_size(tmp_path, monkeypatch):
         pos = app.acct.positions[0]
         assert abs(pos.qty * 100.0 - 1000 * 0.10) < 1.0          # 仓位价值 = 权益 10%
     _run(go)
+
+
+def test_old_strategy_fixed_exit_option(tmp_path, monkeypatch):
+    """旧打法选"像新打法"：止损按现价 5%、不设止盈、拿 48 小时；关掉时还是原版结构止损"""
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = _live_app(tmp_path, monkeypatch, enabled=["big_follow"],
+                    old_exit={"fixed": 1, "stop_pct": 5, "tp_pct": 0, "hold_h": 48})
+    eng = FakeEng()
+    app.engines[eng.inst] = eng
+
+    async def go():
+        d = {}
+        app.try_open(eng, C.Signal("big_follow", -1, 100.05, 99.9, 0), d, 100.0, 0)     # 原版止损只差 0.05%
+        await asyncio.sleep(0.05)
+        pos = app.acct.positions[0]
+        assert abs(pos.stop - 105.0) < 1e-9 and pos.target < 20                       # 空单：止损 +5%，止盈放到够不到
+        assert pos.max_until - pos.t_open == 48 * 3_600_000
+        opens = [c for c in app.live.calls if c[0] == "open"]
+        assert abs(opens[0][4] - 105.0) < 1e-9                                         # 交易所上挂的也是 5% 止损
+        app.cfg["old_exit"] = {"fixed": 0}
+        eng2 = FakeEng("ETH-USDT-SWAP"); app.engines[eng2.inst] = eng2
+        app.try_open(eng2, C.Signal("big_follow", 1, 99.0, 102.0, 0), {}, 100.0, 0)
+        await asyncio.sleep(0.05)
+        p2 = [p for p in app.acct.positions if p.sym == eng2.inst][0]
+        assert p2.stop == 99.0 and p2.target == 102.0
+    _run(go)
