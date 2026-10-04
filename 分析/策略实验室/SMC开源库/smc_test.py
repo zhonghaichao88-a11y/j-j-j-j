@@ -67,8 +67,6 @@ def run(df, L, causal):
                 continue
             fill = None
             for f in range(t + 1, t + 1 + W):
-                if (side > 0 and l[f] <= stop) or (side < 0 and h[f] >= stop):
-                    break                                                 # 先打到止损位置 → 不做
                 if (side > 0 and l[f] <= edge) or (side < 0 and h[f] >= edge):
                     fill = (f, min(o[f], edge) if side > 0 else max(o[f], edge)); break
             if fill is None:
