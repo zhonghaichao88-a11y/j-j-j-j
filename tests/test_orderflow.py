@@ -669,3 +669,40 @@ def test_flush_orderflow_filters():
     app.cfg["flush_filters"] = {}
     app.oi24.clear()
     assert app.flush_filter_block(e) == ""                               # 全关 = 不过滤
+
+
+def test_trap_short_open_and_cover_on_flush(tmp_path, monkeypatch):
+    """多头摊平做空：条件全满足 → 做空（每笔 10%、止损 5%、最多 48 小时）；多头被清洗（1 小时跌超 2%、持仓量 1 小时降超 3%）→ 平；不受大盘过滤影响"""
+    import time
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = E.OrderFlowApp({"auto": True, "enabled": ["trap_short"], "btc_ma_days": 200, "flush_filters": {}}, None, None, False)
+    app.btc_bull = True                                                        # 大盘多头也照做（不用大盘过滤）
+    eng = E.SymbolEngine(app, "SOL-USDT-SWAP", "5m", {t: 0.0001 for t in E.VIEW_TFS}, 1.0)
+    app.engines = {eng.inst: eng}
+    t0, now = 20 * 86_400_000, time.time() * 1000
+    for k in range(25 * 12, 0, -1):
+        eng.momo.add(t0 - k * 300_000, 1.0, 100.0)                            # 过去 25 小时价格 1.0
+    app.oi24[eng.inst] = (0.08, now)
+    app.lsz[eng.inst] = (0.5, now)
+    eng.ext["funding"] = 0.0001
+    eng.ext["oi_hist"] = [(t0 - 3_600_000, 1e6)]
+    for k in range(3):
+        eng.on_trade(0.93 - k * 0.001, 10, False, t0 + k * 300_000)           # 跌到 0.93（-7%）
+    eng.on_trade(0.928, 1, False, t0 + 2 * 300_000 + 500)
+    sig = [s for s in eng.signals if s["kind"] == "trap_short"]
+    pos = app.acct.positions
+    assert len(sig) == 1 and len(pos) == 1 and pos[0].side == -1 and pos[0].kind == "trap_short"
+    assert pos[0].max_until - pos[0].t_open == 48 * 3_600_000
+    assert abs(pos[0].stop - sig[0]["price"] * 1.05) < 1e-9
+    assert abs(pos[0].qty * pos[0].entry - 1000 * 0.10) < 1.0
+    for k in range(3, 6):                                                      # 还没清洗：继续拿着、不加仓
+        eng.on_trade(0.925, 10, False, t0 + k * 300_000)
+    assert len(app.acct.positions) == 1 and len([s for s in eng.signals if s["kind"] == "trap_short"]) == 1
+    eng.ext["oi_hist"] = [(t0 + 5 * 300_000 - 3_600_000, 1e6), (t0 + 6 * 300_000, 0.95e6)]   # 持仓量 1 小时 -5%
+    app.oi24[eng.inst] = (0.01, time.time() * 1000)                           # 清洗后持仓量 24 小时不再大涨：平完不再开（条件还满足时回测和程序都会再开）
+    for k in range(6, 19):                                                     # 1 小时内跌到 0.89（比 12 根前低 2% 以上）
+        eng.on_trade(0.925 - (k - 5) * 0.003, 10, False, t0 + k * 300_000)
+    assert app.acct.positions == []
+    assert app.history and "多头被清洗" in app.history[-1]["why"] and app.history[-1]["pnl"] > 0

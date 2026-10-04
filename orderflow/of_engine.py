@@ -58,14 +58,46 @@ MOMO = {"rise": 0.20,           # 24 小时涨超 20%
         "stop": 0.15,           # 止损：进场价下方 15%
         "hold_h": 24,           # 拿 24 小时
         "size_pct": 5.0}        # 每笔用权益的 5%（回测：10% 时最大回撤 55%，5% 时 33%）
-COMBO_NAMES = {**FLUSH_NAMES, **MOMO_NAMES}
+# 多头摊平做空（2026-10 加，过关）：这个币 24 小时跌超 5%、持仓量 24 小时涨超 5%、资金费率 > 0、这个币散户多空人数比偏多（7 天 z > 0）
+# → 下一笔成交做空；看到多头被清洗（1 小时跌超 2% 且持仓量 1 小时降超 3%）就平，最多拿 48 小时；止损 5%。不用大盘过滤。
+# 币安 2022-01 ~ 2026-09（38 + 111 币）：2297 笔，胜率 58%，每笔 +0.25%，PF 1.17；2022 / 2023 / 2024 / 2025 上 / 2025 下以后
+# PF 1.20 / 1.30 / 1.21 / 1.00 / 1.18，5 段都不亏；同条件随机做空 0.99；去掉最赚 5 个币 1.10。见 分析/策略实验室/s29_*.py、做空候选_记录.md
+TRAP_NAMES = {"trap_short": "多头摊平做空"}
+TRAP = {"drop": 0.05,           # 24 小时跌超 5%
+        "oi_rise": 0.05,        # 持仓量 24 小时涨超 5%（越跌越加仓）
+        "stop": 0.05,           # 止损：进场价上方 5%
+        "hold_h": 48,           # 最多拿 48 小时
+        "flush_drop": 0.02,     # 平仓：1 小时跌超 2% ……
+        "flush_oi": 0.03,       # …… 且持仓量 1 小时降超 3%（多头被清洗）
+        "size_pct": 10.0}       # 每笔用权益的 10%
+COMBO_NAMES = {**FLUSH_NAMES, **MOMO_NAMES, **TRAP_NAMES}
 
 
 def momo_cfg(cfg):
     return {**MOMO, **(cfg.get("momo") or {})}
 
 
+def trap_cfg(cfg):
+    return {**TRAP, **(cfg.get("trap") or {})}
+
+
+def trap_entry_ok(r24, oi24, fund, lsz, tc):
+    """多头摊平做空的进场条件（程序和核对脚本共用）；有一个读不到就不算"""
+    if any(x is None or math.isnan(x) for x in (r24, oi24, fund, lsz)):
+        return False
+    return r24 < -tc["drop"] and oi24 > tc["oi_rise"] and fund > 0 and lsz > 0
+
+
+def trap_exit_ok(r60, oi60, tc):
+    """多头被清洗 → 平空"""
+    if any(x is None or math.isnan(x) for x in (r60, oi60)):
+        return False
+    return r60 < -tc["flush_drop"] and oi60 < -tc["flush_oi"]
+
+
 def combo_cfg(cfg, kind):
+    if kind == "trap_short":
+        return trap_cfg(cfg)
     return flush_cfg(cfg) if kind == "flush_spot" else squeeze_cfg(cfg) if kind == "squeeze_long" else momo_cfg(cfg)
 
 
@@ -278,6 +310,7 @@ DEFAULT_CFG = {
     "top_n": 20,                # symbols="auto" 时按 24 小时成交额自动选几个币
     "flush": dict(FLUSH),       # 清洗接盘的参数（网页上可以改）
     "momo": dict(MOMO),         # 追强势币的参数（网页上可以改）
+    "trap": dict(TRAP),         # 多头摊平做空的参数
     "squeeze": dict(SQUEEZE),   # 轧空追多的参数（网页上可以改）
 }
 
@@ -314,6 +347,7 @@ class SymbolEngine:
         self._flush_t = 0             # 上次"清洗接盘"信号的时间（同一个币持有期内只做一次）
         self._squeeze_t = 0           # 上次"轧空追多"信号的时间
         self._momo_t = 0              # 上次"追强势币"信号的时间
+        self._trap_t = 0              # 上次"多头摊平做空"信号的时间
         self.momo = MomoTracker()
 
     def _wire(self):
@@ -361,6 +395,36 @@ class SymbolEngine:
             s = Signal("momo_long", 1, bar.c * (1 - mc["stop"]), bar.c * 10.0, bar.t,
                        f"24小时 {r24:+.1%}，1小时 {r60:+.1%}，放量 {vx:.1f} 倍")
             d = {"t": bar.t, "tf": "5m", "kind": s.kind, "name": ALL_NAMES[s.kind], "side": 1, "stop": s.stop,
+                 "target": s.target, "price": bar.c, "note": s.note, "traded": False}
+            self.signals = (self.signals + [d])[-200:]
+            self.app.on_signal(self, d)
+            self.pending.append((s, d))
+
+    def trap_state(self, t):
+        """多头摊平做空要的读数：(24 小时涨跌, 持仓量 24 小时变化, 资金费率, 散户多空比 7 天 z)；读不到或太旧是 nan"""
+        r24, _, _ = self.momo.state(t)
+        now = time.time() * 1000
+        fresh = lambda x: x[0] if x and now - x[1] < 2 * 3600_000 else math.nan
+        return r24, fresh(self.app.oi24.get(self.inst)), self.ext.get("funding", math.nan), fresh(self.app.lsz.get(self.inst))
+
+    def _check_trap(self, b5):
+        """先看手里的摊平空单要不要平（多头被清洗），再看要不要开新的。和回测一样：同一个币手里有单时不再开"""
+        tc = trap_cfg(self.app.cfg)
+        bar = b5[-1]
+        r60, oi60, _ = self.flush_state(b5)
+        held = [p for p in self.app.acct.positions if p.sym == self.inst and p.kind == "trap_short"]
+        if held and trap_exit_ok(r60, oi60, tc):
+            for p in held:
+                self.app.close_now(self, p, bar.c, f"多头被清洗（1小时 {r60:+.1%}，持仓 {oi60:+.1%}），平空", bar.t)
+            return
+        if held or any(p.sym == self.inst for p in self.app.acct.positions) or bar.t == self._trap_t:
+            return
+        r24, oi24, fund, lsz = self.trap_state(bar.t)
+        if trap_entry_ok(r24, oi24, fund, lsz, tc):
+            self._trap_t = bar.t
+            s = Signal("trap_short", -1, bar.c * (1 + tc["stop"]), bar.c * 0.1, bar.t,
+                       f"24小时 {r24:+.1%}，持仓 24 小时 {oi24:+.1%}，资金费 {fund:+.4%}，散户多空比 z {lsz:+.1f}（多头越跌越补）")
+            d = {"t": bar.t, "tf": "5m", "kind": s.kind, "name": ALL_NAMES[s.kind], "side": -1, "stop": s.stop,
                  "target": s.target, "price": bar.c, "note": s.note, "traded": False}
             self.signals = (self.signals + [d])[-200:]
             self.app.on_signal(self, d)
@@ -492,6 +556,7 @@ class SymbolEngine:
             if not self.backfilling:
                 self._check_flush(b5)
                 self._check_momo(lb)
+                self._check_trap(b5)
         mrow = self.okx_min.setdefault(ts // 60000, [0.0, 0.0])
         mrow[0 if is_buy else 1] += qty * price
         if len(self.okx_min) > 400:
@@ -686,6 +751,7 @@ class OrderFlowApp:
     def __init__(self, cfg: dict, proxy: str | None, keys: dict | None, allow_live: bool):
         self.cfg = dict(DEFAULT_CFG, **cfg)
         self.proxy, self.keys, self.allow_live = proxy, keys, allow_live
+        self.lsz: dict = {}           # 每个币散户多空人数比 7 天 z 分数：inst -> (z, 读到的时间毫秒)，of_app 每 10 分钟更新
         self.oi24: dict = {}          # 每个币 24 小时持仓量（美元价值）变化：inst -> (变化, 读到的时间毫秒)，of_app 每 10 分钟更新
         self.risk = Risk(self.cfg)
         self.acct = Account(equity=self.cfg["paper_equity"], start_equity=self.cfg["paper_equity"])
@@ -912,7 +978,7 @@ class OrderFlowApp:
             hold = PB_HOLD_MS
         elif s.kind == "flush_spot":
             hold = flush_cfg(self.cfg)["hold_h"] * 3600_000
-        elif s.kind in ("squeeze_long", "momo_long"):
+        elif s.kind in ("squeeze_long", "momo_long", "trap_short"):
             hold = combo_cfg(self.cfg, s.kind)["hold_h"] * 3600_000
         else:
             hold = self.cfg.get("max_hold_bars", 48) * TF_MS[eng.tf]
@@ -1006,6 +1072,18 @@ class OrderFlowApp:
             exit_px = {"止损": pos.stop, "止盈": pos.target}.get(why, price)
             exit_px = exit_px * (1 - pos.side * PaperBroker.slip) if why != "止盈" else exit_px
             self._record_close(pos, exit_px, why, ts)
+
+    def close_now(self, eng, pos, price, why, ts):
+        """打法自己决定马上平仓（比如摊平空单看到多头被清洗）：模拟盘按现价加滑点记账；实盘丢到后台去平"""
+        if pos.busy:
+            return
+        if pos.live:
+            if not (self.live_confirmed and self.live):
+                return
+            pos.busy = True
+            asyncio.get_event_loop().create_task(self._close_live(pos, why, ts))
+            return
+        self._record_close(pos, price * (1 - pos.side * PaperBroker.slip), why, ts)
 
     def _half_paper(self, pos, px):
         half = pos.qty / 2

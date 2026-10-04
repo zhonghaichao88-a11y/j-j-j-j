@@ -67,7 +67,7 @@ STARTING: set = set()
 def save_cfg():
     """保存设置（自动刹车改了打法勾选也会调用）"""
     keep = {k: core.cfg[k] for k in ("symbols", "tf", "enabled", "auto", "risk_pct", "max_leverage",
-                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "momo", "margin_mode", "guard_n", "guard_pf", "btc_ma_days", "flush_filters")
+                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "momo", "margin_mode", "guard_n", "guard_pf", "btc_ma_days", "flush_filters", "trap")
             if k in core.cfg}
     json.dump(keep, open(CFG_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
@@ -321,7 +321,8 @@ async def btc_regime():
 
 
 async def oi24_loop():
-    """清洗接盘的订单流过滤：每 10 分钟读一次每个币（和 BTC）的 1 小时持仓量历史，算 24 小时变化（美元价值，和回测口径一致）"""
+    """每 10 分钟：读每个币（和 BTC）的 1 小时持仓量历史，算 24 小时变化（美元价值，和回测口径一致）；
+    再读散户多空人数比历史算 7 天 z 分数。清洗接盘的订单流过滤、多头摊平做空都用这些"""
     while True:
         insts = sorted(set(core.engines) | {"BTC-USDT-SWAP"})
         bad = 0
@@ -336,6 +337,17 @@ async def oi24_loop():
                     old = [v for t, v in h if t <= t1 - 24 * 3600_000]
                     if old:
                         core.oi24[inst] = (v1 / old[-1] - 1, time.time() * 1000)
+                if inst != "BTC-USDT-SWAP" or inst in core.engines:
+                    # 散户多空人数比：2 小时一个点，取最近 7 天（84 个点）算 z 分数（多头摊平做空用）
+                    async with RUBIK_SEM, httpx.AsyncClient(proxy=PROXY, timeout=15) as c:
+                        ls = await get_json(c, "/api/v5/rubik/stat/contracts/long-short-account-ratio-contract", instId=inst, period="2H", limit=84)
+                        await asyncio.sleep(0.45)
+                    v = [float(r[1]) for r in sorted(ls, key=lambda r: int(r[0])) if len(r) > 1]
+                    if len(v) >= 60:
+                        mu = sum(v) / len(v)
+                        sd = (sum((x - mu) ** 2 for x in v) / (len(v) - 1)) ** 0.5
+                        if sd > 0:
+                            core.lsz[inst] = ((v[-1] - mu) / sd, time.time() * 1000)
             except Exception:  # noqa: BLE001
                 bad += 1
         if bad and bad == len(insts):
@@ -433,8 +445,8 @@ async def set_cfg(body: dict):
         core.cfg["flush_filters"] = cur
     if body.get("margin_mode") in ("isolated", "cross"):
         core.cfg["margin_mode"] = body["margin_mode"]
-    from of_engine import FLUSH, SQUEEZE, MOMO
-    for key, base in (("flush", FLUSH), ("squeeze", SQUEEZE), ("momo", MOMO)):     # 组合打法的参数，只收认识的数字
+    from of_engine import FLUSH, SQUEEZE, MOMO, TRAP
+    for key, base in (("flush", FLUSH), ("squeeze", SQUEEZE), ("momo", MOMO), ("trap", TRAP)):     # 组合打法的参数，只收认识的数字
         if isinstance(body.get(key), dict):
             cur = dict(base, **(core.cfg.get(key) or {}))
             for k, v in body[key].items():
