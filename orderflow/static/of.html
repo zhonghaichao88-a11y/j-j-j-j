@@ -79,7 +79,7 @@ th{color:var(--mute);font-weight:normal}
     <div class="row">最大杠杆 <input id="max_leverage" type="number" step="1"> 倍</div>
     <div class="row">保证金模式 <select id="margin_mode"><option value="isolated">逐仓（每单单独算，一单爆仓不影响别的）</option><option value="cross">全仓（所有单共用账户的钱）</option></select></div>
     <div class="row"><small style="color:var(--mute)">只影响以后开的新单；已经开着的单保持原来的模式</small></div>
-    <div class="row">大盘过滤 <select id="btc_ma_days"><option value="200">BTC 在 200 天均线上方才做多（推荐）</option><option value="150">BTC 在 150 天均线上方才做多</option><option value="100">BTC 在 100 天均线上方才做多</option><option value="0">不用大盘过滤（只用下面勾选的订单流过滤）</option></select></div>
+    <div class="row">大盘过滤 <select id="btc_ma_days"><option value="200">BTC 在 200 天均线上方才做多（推荐）</option><option value="150">BTC 在 150 天均线上方才做多</option><option value="100">BTC 在 100 天均线上方才做多</option><option value="0">不用大盘过滤（不建议：2022 年熊市只用订单流过滤是亏的）</option></select></div>
     <div class="row"><small id="btc_info" style="color:var(--mute)"></small></div>
     <div class="row"><b>清洗接盘的订单流过滤</b> <small style="color:var(--mute)">勾上的全部满足才开单；不影响别的打法</small></div>
     <div id="ffBox"></div>
