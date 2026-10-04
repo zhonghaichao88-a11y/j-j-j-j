@@ -754,3 +754,41 @@ def test_trap_short_live_opens_short_and_auto_closes(tmp_path, monkeypatch):
         assert any(c[0] == "close" for c in app.live.calls) and app.acct.positions == []
         assert app.history[-1]["why"] == "到时间"
     _run(go)
+
+
+def test_live_skip_inside_order_task_is_printed(tmp_path, monkeypatch):
+    """实盘下单前最后一步发现保证金不够 / 仓位太小，黑窗口要打出"没开：…原因"，不能只有信号没下文"""
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = _live_app(tmp_path, monkeypatch, enabled=["big_follow"])
+    eng = FakeEng()
+    app.engines[eng.inst] = eng
+    app.live_avail = 5.0
+
+    async def go():
+        d = {}
+        app.try_open(eng, C.Signal("big_follow", 1, 99.0, 102.0, 0), d, 100.0, 0)
+        await asyncio.sleep(0.05)
+        assert "可用保证金不够" in d["skip"]
+        assert any("没开：BTC" in l and "可用保证金不够" in l for l in app.log)
+        app.live_avail = 1000.0
+        app.live.contracts_for = lambda inst, q: (0.0, 1.0, 1.0)
+        d2 = {}
+        app.try_open(eng, C.Signal("big_follow", 1, 99.0, 102.0, 0), d2, 100.0, 0)
+        await asyncio.sleep(0.05)
+        assert any("没开：BTC" in l and "仓位太小" in l for l in app.log)
+    _run(go)
+
+
+def test_pick_symbols_skips_stock_contracts(monkeypatch):
+    """自动选币不要股票合约（欧易 instCategory=3）、黄金等（4）"""
+    import of_app as A
+    async def fake_top(proxy, n):
+        return ["BTC-USDT-SWAP", "SNDK-USDT-SWAP", "ETH-USDT-SWAP", "AAPL-USDT-SWAP", "XAU-USDT-SWAP", "SOL-USDT-SWAP"][:n]
+    monkeypatch.setattr(A, "top_by_volume", fake_top)
+    monkeypatch.setattr(A, "INSTS", {"BTC-USDT-SWAP": {"instCategory": "1"}, "SNDK-USDT-SWAP": {"instCategory": "3"},
+                                     "ETH-USDT-SWAP": {"instCategory": "1"}, "AAPL-USDT-SWAP": {"instCategory": "3"},
+                                     "XAU-USDT-SWAP": {"instCategory": "4"}, "SOL-USDT-SWAP": {"instCategory": "1"}})
+    monkeypatch.setitem(A.core.cfg, "symbols", "auto")
+    monkeypatch.setitem(A.core.cfg, "top_n", 2)
+    out = _run(A._pick_symbols)
+    assert out == ["BTC-USDT-SWAP", "ETH-USDT-SWAP"]

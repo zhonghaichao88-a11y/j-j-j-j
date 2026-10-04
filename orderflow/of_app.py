@@ -208,7 +208,12 @@ async def _pick_symbols():
         return [s for s in syms if s in INSTS]
     n = int(core.cfg.get("top_n", 20))
     try:
-        out = await top_by_volume(PROXY, n)
+        out = await top_by_volume(PROXY, n + 60)
+        crypto = lambda x: str((INSTS.get(x) or {}).get("instCategory") or "1") == "1"   # 1=加密币；股票、黄金等合约不要（回测只测过加密币）
+        skipped = [x for x in out if not crypto(x)]
+        out = [x for x in out if crypto(x)][:n]
+        if skipped:
+            core.say(f"跳过股票等非加密币合约 {len(skipped)} 个：{', '.join(x.split('-')[0] for x in skipped[:15])}")
         core.say(f"按 24 小时成交额自动选了 {len(out)} 个币：{', '.join(x.split('-')[0] for x in out)}")
         return out
     except Exception as e:  # noqa: BLE001

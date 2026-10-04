@@ -997,11 +997,13 @@ class OrderFlowApp:
             n, nmin, cs = self.live.contracts_for(eng.inst, qty)
             if n < nmin or n <= 0:
                 d["skip"] = f"仓位太小（{n:g} 张 < 最少 {nmin:g} 张），资金不够开这个币"
+                self.say(f"没开：{eng.inst.split('-')[0]} {ALL_NAMES.get(s.kind, s.kind)}——{d['skip']}")
                 return
             mgn = "cross" if self.cfg.get("margin_mode") == "cross" else "isolated"
             margin = n * cs * price / lev
             if margin > self.live_avail * 0.95:
                 d["skip"] = f"可用保证金不够（要 {margin:.2f}U，可用 {self.live_avail:.2f}U）"
+                self.say(f"没开：{eng.inst.split('-')[0]} {ALL_NAMES.get(s.kind, s.kind)}——{d['skip']}")
                 return
             await asyncio.to_thread(self.live.prepare, eng.inst, lev, mgn)
             r = await asyncio.to_thread(self.live.open, eng.inst, s.side, n, s.stop, s.target, mgn)
