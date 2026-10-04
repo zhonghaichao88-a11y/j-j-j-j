@@ -23,6 +23,36 @@ form.set button{background:#2e7d32;color:#fff;border:0;border-radius:4px;padding
 .msg{margin-top:8px}"""
 
 
+CACHE = {}          # 接口路径 -> (时间, 数据)：freqtrade 一时忙不过来时，网页先显示上一次的数据
+
+
+BUSY = {"until": 0.0}
+
+
+def cget(api, path):
+    """问 freqtrade 要数据（最多等 10 秒）；超时就用上一次（15 分钟内）的。返回 (数据, 几秒前的)。
+    有一次超时后 20 秒内直接用旧数据，不再一个个去等，网页不会卡几分钟"""
+    cached = CACHE.get(path)
+    if time.time() < BUSY["until"] and cached and time.time() - cached[0] < 900:
+        return cached[1], time.time() - cached[0]
+    try:
+        d = api.get(path, timeout=10)
+        CACHE[path] = (time.time(), d)
+        return d, 0
+    except Exception:  # noqa: BLE001
+        BUSY["until"] = time.time() + 20
+        if cached and time.time() - cached[0] < 900:
+            return cached[1], time.time() - cached[0]
+        raise
+
+
+def stale_note(age):
+    if age <= 0:
+        return ""
+    return (f"<p class='warn'>freqtrade 正忙（在算行情），这次没来得及回答网页，下面是 {int(age)} 秒前的数据。"
+            f"偶尔出现没关系；经常出现说明币太多、电脑算不过来，可以在设置里把「扫多少个币」调小。</p>")
+
+
 def esc(x):
     return html.escape(str(x))
 
@@ -67,19 +97,21 @@ def settings_form():
 
 def render(watcher, run_log):
     api = watcher.api
-    data, err = {}, ""
+    data, err, age = {}, "", 0
     try:
         if api is None:
             raise RuntimeError("还在启动")
         for k, path in (("cfg", "show_config"), ("st", "status"), ("bal", "balance"), ("prof", "profit"),
                         ("day", "daily?timescale=1"), ("wl", "whitelist"), ("tr", "trades?limit=20&order_by_id=false")):
-            data[k] = api.get(path)
+            data[k], a = cget(api, path)
+            age = max(age, a)
     except Exception as e:  # noqa: BLE001
         err = f"freqtrade 还没准备好（{e}）。刚启动时加载数据要一两分钟，这个页面会自动刷新。"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     out = [f"<!doctype html><html><head><meta charset='utf-8'>"
            f"<meta name='viewport' content='width=device-width,initial-scale=1'><title>NFI 实盘状态</title><style>{CSS}</style></head><body>"
            "<p style='margin:0 0 8px'><a href='/work'>👉 详细工作状态（程序在不在干活、每单细节、下次补仓价、离强平多远）</a></p>"]
+    out.append(stale_note(age))
     if err:
         out.append(f"<h1>NFI 实盘</h1><div class='sub'>{esc(now)} 刷新</div><p class='warn'>{esc(err)}</p>")
     else:
@@ -154,7 +186,7 @@ def serve(watcher, run_log):
                     import pairs, work_page
                     from common import read_settings
                     from nfi_run import PAIRS_EVERY
-                    body = work_page.render_work(watcher, run_log, esc, f2, cls, CSS, read_settings, pairs.PATH, PAIRS_EVERY).encode("utf-8")
+                    body = work_page.render_work(watcher, run_log, esc, f2, cls, CSS, read_settings, pairs.PATH, PAIRS_EVERY, cget, stale_note).encode("utf-8")
                 else:
                     body = render(watcher, run_log).encode("utf-8")
             except Exception as e:  # noqa: BLE001

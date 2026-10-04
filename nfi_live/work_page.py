@@ -126,21 +126,27 @@ def rebuy_plan(t, max_adj, rules=None):
     return f"已补 {done} 次，最多 {limit} 次", prices
 
 
-def render_work(watcher, run_log, esc, f2, cls, css, read_settings, pairs_path, pairs_every):
+def render_work(watcher, run_log, esc, f2, cls, css, read_settings, pairs_path, pairs_every, cget=None, stale_note=None):
     api = watcher.api
     now = time.time()
     out = [f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
            f"<title>NFI 详细工作状态</title><style>{css}.ok{{color:#26a69a}}.bad{{color:#ef5350}}td.l{{white-space:normal}}</style></head><body>"
            f"<h1>NFI 详细工作状态</h1><div class='sub'><a href='/'>← 回到首页</a>｜{datetime.now():%Y-%m-%d %H:%M:%S} 刷新（每 30 秒）</div>"]
-    d, err = {}, ""
+    d, err, age = {}, "", 0
     try:
         if api is None:
             raise RuntimeError("还在启动")
         for k, path in (("cfg", "show_config"), ("st", "status"), ("bal", "balance"), ("health", "health"),
                         ("wl", "whitelist"), ("days", "daily?timescale=7"), ("prof", "profit")):
-            d[k] = api.get(path)
+            if cget:
+                d[k], a = cget(api, path)
+                age = max(age, a)
+            else:
+                d[k] = api.get(path)
     except Exception as e:  # noqa: BLE001
         err = str(e)
+    if stale_note:
+        out.append(stale_note(age))
 
     # ---------- 1 程序在不在干活
     out.append("<h2>1. 程序在不在干活</h2><div class='wrap'><table>")

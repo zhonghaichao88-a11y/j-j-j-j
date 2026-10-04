@@ -53,9 +53,10 @@ class Api:
         with urllib.request.urlopen(req, timeout=15) as r:
             return json.loads(r.read().decode("utf-8"))
 
-    def get(self, path):
+    def get(self, path, timeout=30):
+        """freqtrade 算行情时会顾不上回答（币多、电脑慢时一轮要几十秒），所以默认多等一会儿"""
         req = urllib.request.Request(API + path, headers={"Authorization": self.auth})
-        with urllib.request.urlopen(req, timeout=10) as r:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read().decode("utf-8"))
 
 
@@ -243,8 +244,14 @@ class Watcher:
             day = self.api.get("daily?timescale=1")["data"][0]
             wl = self.api.get("whitelist")
         except Exception as e:  # noqa: BLE001
-            say(f"状态读取失败：{e}")
+            self.status_fail = getattr(self, "status_fail", 0) + 1
+            if self.status_fail >= 3:
+                say(f"⚠ 连续 {self.status_fail} 次（{self.status_fail * 5} 分钟）读不到 freqtrade 的状态，多半是币太多电脑算不过来，"
+                    f"建议在网页把「扫多少个币」调小（交易本身还在跑）：{e}")
+            else:
+                say(f"freqtrade 正忙（在算行情），这次状态没读到，交易不受影响：{e}")
             return
+        self.status_fail = 0
         state = webpage.STATE_CN.get(cfg.get("state"), f"状态 {cfg.get('state')}")
         trades = [t for t in trades if int(t.get("nr_of_successful_entries") or 0) > 0] if isinstance(trades, list) else []
         n_open = len(trades)
@@ -313,10 +320,15 @@ class Watcher:
             return
         now_ms = time.time() * 1000
         ok, late, newest = 0, [], 0
+        fails = 0
         for p in pairs_:
             try:
-                d = self.api.get("pair_candles?" + urllib.parse.urlencode({"pair": p, "timeframe": "5m", "limit": 1}))
+                d = self.api.get("pair_candles?" + urllib.parse.urlencode({"pair": p, "timeframe": "5m", "limit": 1}), timeout=10)
             except Exception:  # noqa: BLE001
+                fails += 1
+                if fails >= 3:                     # freqtrade 正忙：这轮先不查，15 分钟后再查，别把它拖得更慢
+                    say("实算检查：freqtrade 正忙，这次先跳过，15 分钟后再查（交易不受影响）")
+                    return
                 late.append(short(p)); continue
             stop = int(d.get("data_stop_ts") or 0)
             newest = max(newest, stop)
