@@ -59,6 +59,26 @@ class Api:
             return json.loads(r.read().decode("utf-8"))
 
 
+def open_browser(url):
+    """自动打开网页：先用 Python 自带的方法，不行再用 Windows 的「打开」和 start 命令（有的电脑第一种会静默失败）"""
+    try:
+        if webbrowser.open(url):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    if os.name == "nt":
+        try:
+            os.startfile(url)              # noqa: S606  用系统默认浏览器打开
+            return True
+        except OSError:
+            pass
+        try:
+            return subprocess.call(f'start "" "{url}"', shell=True) == 0
+        except OSError:
+            pass
+    return False
+
+
 def short(pair):
     return str(pair).split("/")[0]
 
@@ -372,7 +392,8 @@ class Watcher:
         try:
             webpage.serve(self, RUN_LOG)
             say(f"状态网页：http://127.0.0.1:{webpage.PORT}  （正在自动打开浏览器；关掉网页不影响交易）")
-            webbrowser.open(f"http://127.0.0.1:{webpage.PORT}")
+            if not open_browser(f"http://127.0.0.1:{webpage.PORT}"):
+                say(f"⚠ 浏览器没能自动打开（不影响交易）：自己打开浏览器，地址栏输入 127.0.0.1:{webpage.PORT} 回车")
         except Exception as e:  # noqa: BLE001
             say(f"⚠ 状态网页没开起来（不影响交易）：{e}")
         if not self.start():
