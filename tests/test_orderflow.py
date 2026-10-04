@@ -706,3 +706,51 @@ def test_trap_short_open_and_cover_on_flush(tmp_path, monkeypatch):
         eng.on_trade(0.925 - (k - 5) * 0.003, 10, False, t0 + k * 300_000)
     assert app.acct.positions == []
     assert app.history and "多头被清洗" in app.history[-1]["why"] and app.history[-1]["pnl"] > 0
+
+
+def test_trap_short_live_opens_short_and_auto_closes(tmp_path, monkeypatch):
+    """实盘（假交易所）：多头摊平做空 → 开空并挂 5% 止损；多头被清洗 → 程序自己平空、撤掉止损单；另一单拿满 48 小时 → 到时间自己平"""
+    import time
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = _live_app(tmp_path, monkeypatch, enabled=["trap_short"], btc_ma_days=0, flush_filters={}, max_positions=10)
+    eng = E.SymbolEngine(app, "SOL-USDT-SWAP", "5m", {t: 0.0001 for t in E.VIEW_TFS}, 1.0)
+    app.engines = {eng.inst: eng}
+    t0, now = 20 * 86_400_000, time.time() * 1000
+
+    async def go():
+        for k in range(25 * 12, 0, -1):
+            eng.momo.add(t0 - k * 300_000, 1.0, 100.0)
+        app.oi24[eng.inst] = (0.08, now)
+        app.lsz[eng.inst] = (0.5, now)
+        eng.ext["funding"] = 0.0001
+        eng.ext["oi_hist"] = [(t0 - 3_600_000, 1e6)]
+        for k in range(3):
+            eng.on_trade(0.93 - k * 0.001, 10, False, t0 + k * 300_000)
+        await asyncio.sleep(0.05)
+        opens = [c for c in app.live.calls if c[0] == "open"]
+        assert len(opens) == 1 and opens[0][2] == -1                          # 开的是空单
+        pos = app.acct.positions[0]
+        assert pos.live and pos.kind == "trap_short" and pos.algo_id == "A1"
+        assert opens[0][4] > 0.93                                              # 止损挂在上方
+        eng.ext["oi_hist"] = [(t0 + 5 * 300_000 - 3_600_000, 1e6), (t0 + 6 * 300_000, 0.95e6)]
+        app.oi24[eng.inst] = (0.01, time.time() * 1000)
+        app.live.pnl[eng.inst] = {"pnl": 3.1, "exit": 0.9, "fee": -0.05, "funding": 0}
+        for k in range(3, 19):
+            eng.on_trade(0.925 - max(k - 5, 0) * 0.003, 10, False, t0 + k * 300_000)
+        await asyncio.sleep(2.8)
+        assert any(c[0] == "close" for c in app.live.calls)
+        assert ("cancel", eng.inst, "A1") in app.live.calls
+        assert app.acct.positions == [] and "多头被清洗" in app.history[-1]["why"]
+        # 第二单：一直没清洗，拿满 48 小时自己平
+        app.oi24[eng.inst] = (0.08, time.time() * 1000)
+        app.live.calls.clear()
+        d = {}
+        app.try_open(eng, C.Signal("trap_short", -1, 1.05, 0.1, 0), d, 1.0, 0)
+        await asyncio.sleep(0.05)
+        pos = app.acct.positions[0]
+        assert pos.max_until - pos.t_open == 48 * 3_600_000
+        app.check_exits(eng, 0.99, pos.max_until + 1)
+        await asyncio.sleep(2.8)
+        assert any(c[0] == "close" for c in app.live.calls) and app.acct.positions == []
+        assert app.history[-1]["why"] == "到时间"
+    _run(go)
