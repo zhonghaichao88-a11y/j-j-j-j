@@ -19,7 +19,7 @@ sys.path.insert(0, '/home/user/j-j-j-j/orderflow')
 import of_backtest as B
 from of_core import Detector, SIGNAL_NAMES
 FEE, SLIP, STOP_SLIP = 0.0005, 0.0002, 0.0005
-SPLIT = 1782864000000 // 60000          # 2026-07-01，分钟
+SPLIT = int(os.environ.get('OF_SPLIT_MS', '1782864000000')) // 60000          # 前半/后半分界（默认 2026-07-01），分钟
 TRAIN = ['BTC', 'ETH', 'SOL']
 TEST = ['DOGE', 'XRP', 'ADA', 'AVAX', 'LINK', 'LTC', 'BCH', 'DOT', 'SUI', 'OP', 'ARB', 'APT', 'NEAR', 'FIL', 'AAVE', 'UNI', 'TRX', 'WLD', 'INJ', 'ETC']
 EXITS = [('原版', 0.0, rr, 0) for rr in (1.0, 2.0, 3.0)] + \
@@ -96,11 +96,16 @@ def coin(args):
 
 if __name__ == '__main__':
     which = sys.argv[1]
-    syms = TRAIN if which == 'train' else TEST
-    root = '/home/user/ext/of/fp' if which == 'train' else '/home/user/ext/of/fp2'
-    os.makedirs('/home/user/ext/of/full', exist_ok=True)
-    jobs = [(s, root) for s in syms if not os.path.exists(f'/home/user/ext/of/full/{s}.pkl')]
+    if which in ('train', 'test'):
+        syms = TRAIN if which == 'train' else TEST
+        root = '/home/user/ext/of/fp' if which == 'train' else '/home/user/ext/of/fp2'
+        outdir = '/home/user/ext/of/full'
+    else:                      # python full_bt.py <数据目录> <结果目录> <币,币,...> [进程数]；分界用环境变量 OF_SPLIT_MS
+        root, outdir, syms = which, sys.argv[2], sys.argv[3].split(',')
+        sys.argv = sys.argv[:1] + sys.argv[3:]
+    os.makedirs(outdir, exist_ok=True)
+    jobs = [(s, root) for s in syms if not os.path.exists(f'{outdir}/{s}.pkl')]
     with Pool(int(sys.argv[2]) if len(sys.argv) > 2 else 3) as p:
         for sym, out in p.imap_unordered(coin, jobs):
-            pickle.dump(out, open(f'/home/user/ext/of/full/{sym}.pkl', 'wb'))
+            pickle.dump(out, open(f'{outdir}/{sym}.pkl', 'wb'))
             print(sym, 'done', len(out), flush=True)
