@@ -17,6 +17,7 @@ FT_LOG = os.path.join(LOG_DIR, "freqtrade.log")
 RUN_LOG = os.path.join(LOG_DIR, "工作状态.txt")
 API = "http://127.0.0.1:8080/api/v1/"
 STATUS_EVERY, PAIRS_EVERY, POLL = 300, 6 * 3600, 20
+SYNC_EVERY = 300          # 每 5 分钟和交易所核对一次仓位（你在欧易 App 里手动平掉的单，freqtrade 自己不知道）
 FRESH_WAIT = int(os.environ.get("NFI_FRESH_WAIT", 900))      # 实算检查间隔（秒）；只在开发测试时改
 
 
@@ -51,6 +52,11 @@ class Api:
         req = urllib.request.Request(API + path, data=b"{}", method="POST",
                                      headers={"Authorization": self.auth, "Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=15) as r:
+            return json.loads(r.read().decode("utf-8"))
+
+    def delete(self, path):
+        req = urllib.request.Request(API + path, method="DELETE", headers={"Authorization": self.auth})
+        with urllib.request.urlopen(req, timeout=30) as r:
             return json.loads(r.read().decode("utf-8"))
 
     def get(self, path, timeout=30):
@@ -111,6 +117,12 @@ class Watcher:
         self.last_fresh = 0
         self.changed_at = time.time()              # 启动 / 改设置的时间：之后 15 分钟内新币还在加载，不查
         self.fresh = None                          # 最近一次实算检查结果（给详细工作状态页用）
+        self.ex = None                             # 欧易（只读仓位用，ccxt）
+        self.last_sync = 0
+        self.gone = {}                             # trade_id -> 连续几次在交易所上找不到
+        self.extra_said = {}                       # 交易所上有、NFI 没有的仓位：上次提醒的时间
+        self.sync_err = 0
+        self.sync_info = None                      # 最近一次核对结果（给详细工作状态页用）
 
     # ---------------------------------------------------- freqtrade 进程
     def start(self):
@@ -227,6 +239,8 @@ class Watcher:
             pnl = float(t.get("close_profit_abs") or t.get("profit_abs") or 0)
             say(f"{'🔵' if pnl >= 0 else '🔴'} 平仓 {short(t['pair'])} 盈亏 {pnl:+.2f}U（{num((t.get('close_profit') or 0) * 100, '{:+.2f}')}%）原因 {t.get('exit_reason')}")
         self.open = cur
+        if not cfg.get("dry_run"):
+            self.sync_exchange(trades)
         if cfg.get("state") != "running":           # 还在启动 / 重新读设置：不打"已停止""一个币都没盯"这种误报
             since = time.time() - (self.starts[-1] if self.starts else time.time())
             if since > 900 and time.time() - self.last_status >= STATUS_EVERY:
@@ -236,6 +250,62 @@ class Watcher:
         if time.time() - self.last_status >= STATUS_EVERY:
             self.status_line(cfg, trades)
             self.last_status = time.time()
+
+    def exchange_positions(self):
+        """欧易上现在真有的仓位：{交易对: 张数}（交易对写法和 freqtrade 一样，比如 MANA/USDT:USDT）"""
+        if self.ex is None:
+            import ccxt
+            from common import read_keys
+            key, sec, pw = read_keys()
+            proxy = read_proxy()
+            self.ex = ccxt.okx({"apiKey": key, "secret": sec, "password": pw, "enableRateLimit": True,
+                                **({"httpsProxy": proxy} if proxy else {})})
+        return {p["symbol"]: float(p.get("contracts") or 0) for p in self.ex.fetch_positions()
+                if abs(float(p.get("contracts") or 0)) > 0}
+
+    def sync_exchange(self, trades):
+        """和交易所核对：freqtrade 记着、交易所上已经没有的单（比如你在欧易 App 里手动平了）——
+        连续两次（隔 5 分钟）都找不到，就从 freqtrade 里删掉这笔记录，不然它会一直"盯着"一个不存在的仓位、还会去补仓/卖出。
+        交易所上有、NFI 没记着的仓位只提醒，不动它"""
+        if time.time() - self.last_sync < SYNC_EVERY:
+            return
+        self.last_sync = time.time()
+        try:
+            onex = self.exchange_positions()
+        except Exception as e:  # noqa: BLE001
+            self.sync_err += 1
+            if self.sync_err in (3, 12):
+                say(f"⚠ 和欧易核对仓位连续 {self.sync_err} 次失败（不影响交易）：{str(e)[:120]}")
+            return
+        self.sync_err = 0
+        now_ms = time.time() * 1000
+        mine = set()
+        for t in trades if isinstance(trades, list) else []:
+            if int(t.get("nr_of_successful_entries") or 0) == 0:
+                continue                          # 只挂着买单、还没成交
+            pair, tid = t["pair"], t["trade_id"]
+            mine.add(pair)
+            busy = bool(t.get("has_open_orders") or t.get("open_order_id"))
+            young = now_ms - int(t.get("open_timestamp") or now_ms) < 15 * 60_000
+            if pair in onex or busy or young:
+                self.gone.pop(tid, None)
+                continue
+            self.gone[tid] = self.gone.get(tid, 0) + 1
+            if self.gone[tid] == 1:
+                say(f"⚠ {short(pair)} 这笔在欧易上找不到仓位了（是不是在 App 里手动平了？）5 分钟后再核对一次，还没有就从 NFI 里删掉这笔记录")
+            elif self.gone[tid] >= 2:
+                try:
+                    self.api.delete(f"trades/{tid}")
+                    say(f"🧹 {short(pair)} 已经不在欧易上（手动平掉了），已从 NFI 里删掉这笔记录，NFI 不会再盯它、补它、卖它")
+                    self.gone.pop(tid, None)
+                except Exception as e:  # noqa: BLE001
+                    say(f"⚠ 删 {short(pair)} 这笔记录失败：{e}。可以在 FreqUI 里点这笔右边的按钮 → 删除交易（Delete trade），别点强制平仓")
+        for pair, n in onex.items():
+            if pair not in mine and time.time() - self.extra_said.get(pair, 0) > 6 * 3600:
+                self.extra_said[pair] = time.time()
+                say(f"ℹ 欧易上有 {short(pair)} 的仓位（{n:g} 张），不是 NFI 开的，NFI 不会管它（会和 NFI 共用保证金）")
+        self.sync_info = {"t": time.time(), "exchange": sorted(onex), "nfi": sorted(mine),
+                          "missing": [k for k, v in self.gone.items()]}
 
     def status_line(self, cfg, trades):
         try:
