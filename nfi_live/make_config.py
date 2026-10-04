@@ -47,6 +47,11 @@ def build(test=False):
     os.makedirs(UD, exist_ok=True)
     top, vol = pairs.write(proxy, n_pairs)          # 选币名单（之后运行中每 6 小时更新一次）
     c["short_entry_signal_params"] = {k: False for k in short_keys()}
+    # 关掉网格模式（编号 120）：回测里它拿几周到一年、多数亏钱，占着仓位；关掉后 100U 一年 219→230U、回撤一样（2026-10-04 测）
+    src = open(os.path.join(UD, "strategies", "NostalgiaForInfinityX7.py"), encoding="utf-8").read()
+    if '"long_entry_condition_120_enable"' not in src:
+        raise SystemExit("策略文件里找不到网格模式开关（编号 120），策略文件可能被改过")
+    c["long_entry_signal_params"] = {"long_entry_condition_120_enable": False}
     stocks = okx_non_crypto(proxy)
     official = pairs.blacklist()                    # NFI 官方欧易黑名单（包里自带一份）
     c["exchange"]["pair_blacklist"] = STATIC_BLACKLIST + official + [f"{b}/USDT:USDT" for b in stocks]
@@ -59,7 +64,7 @@ def build(test=False):
     c["api_server"]["password"] = old.get("password") or secrets.token_hex(4)
     os.makedirs(UD, exist_ok=True)
     json.dump(c, open(out, "w", encoding="utf-8"), indent=2, ensure_ascii=True)   # 中文写成 \uXXXX：中文 Windows 上 freqtrade 按 GBK 读文件也不会出错
-    print(f"设置：扫成交额前 {n_pairs} 个币（上市满 60 天）｜最多同时 {n_open} 单｜每单最多补 {n_adj} 次｜只做多｜逐仓 3 倍")
+    print(f"设置：扫成交额前 {n_pairs} 个币（上市满 60 天）｜最多同时 {n_open} 单｜每单最多补 {n_adj} 次｜只做多｜不开网格单(编号120)｜逐仓 3 倍")
     print(f"选币：{len(top)} 个，成交额最大 {vol[0][1]}（{vol[0][0]/1e6:.0f} 百万U），最小 {vol[-1][1]}（{vol[-1][0]/1e6:.1f} 百万U）")
     print(f"排除了 {len(stocks)} 个股票 / 贵金属等非加密币合约、稳定币，以及 NFI 官方黑名单（{len(official)} 组）")
     print("下单：跟 NFI 官方设置一样，买单挂卖一价、卖单挂买一价（基本马上成交），买单 3 分钟 / 卖单 2 分钟没成交自动撤掉重来")
