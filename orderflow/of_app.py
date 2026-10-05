@@ -465,7 +465,7 @@ async def set_cfg(body: dict):
                 pass
         core.cfg["old_dca"] = cur
         if cur["enabled"] and dca_plan(core.cfg) is None:
-            core.say("旧打法补仓设置填得不对（补仓位置要从小到大、每笔比例要比补仓位置多一个、止损要比最后一个补仓位置远），先不补仓")
+            core.say("旧打法补仓设置填得不对（补仓位置是离第一笔多远、要一个比一个大，比如每跌 2% 补一次填 2,4,6,8；每笔比例要比补仓位置多一个；止损要比最后一个补仓位置远），先不补仓")
     if body.get("margin_mode") in ("isolated", "cross"):
         core.cfg["margin_mode"] = body["margin_mode"]
     from of_engine import FLUSH, SQUEEZE, MOMO, TRAP, OLD_EXIT

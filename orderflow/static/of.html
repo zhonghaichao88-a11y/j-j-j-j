@@ -89,7 +89,7 @@ th{color:var(--mute);font-weight:normal}
     <div class="row"><small style="color:var(--mute)">只管旧打法（吸收、大单跟随等）；清洗接盘、多头摊平做空不受影响。回测两种出场都没有稳定赚钱的</small></div>
     <div class="row">旧打法补仓 <select id="dca_en"><option value="0">不补仓</option><option value="1">开：越亏越补，按均价止盈</option></select></div>
     <div id="dcaBox">
-      <div class="row">离第一笔 <input id="dca_levels" style="width:90px"> % 补（逗号隔开，从小到大）</div>
+      <div class="row">离第一笔 <input id="dca_levels" style="width:90px"> % 补（离第一笔多远，逗号隔开、一个比一个大；每跌 2% 补一次就填 2,4,6,8）</div>
       <div class="row">每笔比例 <input id="dca_weights" style="width:90px">（第一个是第一笔，要比补仓位置多一个）</div>
       <div class="row">止盈：均价赚 <input id="dca_tp_pct" type="number" step="0.5" style="width:50px"> %</div>
       <div class="row">止损：离第一笔 <input id="dca_stop_pct" type="number" step="0.5" style="width:50px"> %（要比最后一个补仓位置远）</div>

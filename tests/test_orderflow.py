@@ -911,6 +911,7 @@ def test_old_dca_bad_settings_or_new_strategies_not_affected(tmp_path, monkeypat
     assert E.dca_plan({"old_dca": {**DCA, "weights": "1,1"}}) is None           # 比例少一个
     assert E.dca_plan({"old_dca": {**DCA, "stop_pct": 3}}) is None              # 止损比补仓位置近
     assert E.dca_plan({"old_dca": {**DCA, "enabled": 0}}) is None
+    assert E.dca_plan({"old_dca": {**DCA, "levels": "2,2", "weights": "1,1,1"}}) is None   # 同一个位置连补不行
     assert E.dca_plan({"old_dca": DCA})["wt"] == [1.0, 1.0, 2.0]
     monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
     app = _live_app(tmp_path, monkeypatch, enabled=["trap_short"], old_dca=DCA)

@@ -82,7 +82,7 @@ def dca_plan(cfg):
         wt = [float(x) for x in str(c["weights"]).replace("，", ",").split(",") if x.strip()]
     except ValueError:
         return None
-    if len(wt) != len(lv) + 1 or any(w <= 0 for w in wt) or any(x <= 0 for x in lv) or lv != sorted(lv) or not lv:
+    if len(wt) != len(lv) + 1 or any(w <= 0 for w in wt) or any(x <= 0 for x in lv) or any(b <= a for a, b in zip(lv, lv[1:])) or not lv:   # 要一个比一个远（2,2,2 这种会在同一个价位连补）
         return None
     if not (c["tp_pct"] > 0 and c["stop_pct"] > lv[-1] * 100 and c["hold_h"] > 0):
         return None
