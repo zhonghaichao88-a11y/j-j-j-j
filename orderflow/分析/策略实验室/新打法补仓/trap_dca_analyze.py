@@ -35,3 +35,16 @@ D = pd.DataFrame(rows)
 D.to_csv('多头摊平做空_补仓_全部.csv', index=False, encoding='utf-8-sig')
 pd.set_option('display.width', 250)
 print(D.to_string(index=False))
+
+# 第二种算法：第一笔照原版用 10%，补仓另外加（总仓位会超过 10%）
+print('\n第一笔照原版用权益 10%，补仓在这之上另外加：')
+rows2 = []
+for ci, (sc, ex) in enumerate(CFG):
+    lv, wt = SCH[sc]
+    X = T[T.ci == ci].copy(); X['ret'] = X.ret * sum(wt) / wt[0]
+    fin, dd = port(X)
+    maxpos = sum(wt) / wt[0] * 10
+    rows2.append({'补仓': rows[ci]['补仓'], '止损': rows[ci]['止损'], '一单最多用权益%': round(maxpos), 'PF': round(pf(X.ret), 2),
+                  '最差一单亏权益%': round(X.ret.min() * 10, 2), '组合100U变成': fin, '组合回撤%': dd})
+D2 = pd.DataFrame(rows2); D2.to_csv('多头摊平做空_补仓_第一笔10%.csv', index=False, encoding='utf-8-sig')
+print(D2.to_string(index=False))
