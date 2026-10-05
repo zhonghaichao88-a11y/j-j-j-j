@@ -10,6 +10,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 _P = os.environ.get('LABP', 'L')
 SEGS = {'2022-23': f'{_P}_old', '2024-25': f'{_P}_mid', '2025-26': f'{_P}_new'}
 DAYS = {'2022-23': 756, '2024-25': 359, '2025-26': 359}
+if _P == 'L3':
+    EXN = {**EXN, 4: '止盈1倍ATR 止损3倍ATR 48h', 5: '回到24小时均线就走 止损8% 48h', 6: '赚2%后回撤1%走 止损6% 48h'}
 TOP = set(open('/home/user/ext/nfisig/top.txt').read().split())
 
 
