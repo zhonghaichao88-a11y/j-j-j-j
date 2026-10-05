@@ -164,12 +164,16 @@ if __name__ == '__main__':
     tag = '' if len(sys.argv) <= 1 else '_' + '_'.join(tfs)
     jobs = [(s, tf, 'old') for tf in tfs if tf in ('5m', '15m') for s in s15] + [(s, tf, 'old') for tf in tfs if tf in ('1h', '4h') for s in old] + \
            [(s, tf, 'new') for tf in tfs if tf in ('1h', '4h') for s in new]
-    with ProcessPoolExecutor(4) as ex:
-        rows = sum(ex.map(job, jobs, chunksize=4), [])
-    A = pd.DataFrame(rows, columns=['周期', 'v', '方向', '出场', '段', 'n', 'win', 'gp', 'gl'])
-    A = A.groupby(['周期', 'v', '方向', '出场', '段'])[['n', 'win', 'gp', 'gl']].sum().reset_index()
-    A['PF'] = A.gp / A.gl
-    A.to_csv(f'/home/user/ext/smc_dca_all_raw{tag}.csv', index=False)
+    raw = f'/home/user/ext/smc_dca_all_raw{tag}.csv'
+    if os.environ.get('ONLY_SUMMARY') and os.path.exists(raw):     # 只重新汇总（回测结果已经存了）
+        A = pd.read_csv(raw)
+    else:
+        with ProcessPoolExecutor(4) as ex:
+            rows = sum(ex.map(job, jobs, chunksize=4), [])
+        A = pd.DataFrame(rows, columns=['周期', 'v', '方向', '出场', '段', 'n', 'win', 'gp', 'gl'])
+        A = A.groupby(['周期', 'v', '方向', '出场', '段'])[['n', 'win', 'gp', 'gl']].sum().reset_index()
+        A['PF'] = A.gp / A.gl
+        A.to_csv(raw, index=False)
     W = A.pivot_table(index=['周期', 'v', '方向', '出场'], columns='段', values=['PF', 'n']).reset_index()
     W.columns = [a if not b else f'{b}_{a}' for a, b in W.columns]
     rnd = W[W.v == 0].set_index(['周期', '方向', '出场'])
@@ -177,10 +181,10 @@ if __name__ == '__main__':
     for _, r in W[W.v != 0].iterrows():
         segs = ['训练', '检验'] + ([] if r.周期 in ('5m', '15m') else ['新币'])
         rr = rnd.loc[(r.周期, r.方向, r.出场)] if (r.周期, r.方向, r.出场) in rnd.index else None
-        ok = rr is not None and all(r.get(f'{s}_n', 0) >= 50 and r.get(f'{s}_PF', 0) >= 1.1 and r[f'{s}_PF'] - rr.get(f'{s}_PF', 9) >= 0.1 for s in segs)
+        ok = rr is not None and all(pd.notna(r.get(f'{s}_n')) and r.get(f'{s}_n', 0) >= 50 and r.get(f'{s}_PF', 0) >= 1.1 and r[f'{s}_PF'] - rr.get(f'{s}_PF', 9) >= 0.1 for s in segs)
         rows.append({'周期': r.周期, '打法': NAMES[r.v], '方向': '多' if r.方向 > 0 else '空', '出场': r.出场,
                      **{f'{s}_PF': round(r.get(f'{s}_PF', np.nan), 2) for s in ('训练', '检验', '新币')},
-                     **{f'{s}_笔数': int(r.get(f'{s}_n', 0) or 0) for s in ('训练', '检验', '新币')},
+                     **{f'{s}_笔数': int(r.get(f'{s}_n')) if pd.notna(r.get(f'{s}_n')) else 0 for s in ('训练', '检验', '新币')},
                      **{f'随机_{s}_PF': round(rr.get(f'{s}_PF', np.nan), 2) if rr is not None else np.nan for s in ('训练', '检验', '新币')}, '过关': '✔' if ok else ''})
     R = pd.DataFrame(rows)
     R.to_csv(f'SMC补仓_全部周期{tag}.csv', index=False, encoding='utf-8-sig')
