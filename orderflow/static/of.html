@@ -59,6 +59,7 @@ th{color:var(--mute);font-weight:normal}
     <div class="row"><label><input type="checkbox" id="auto"> 开启自动交易</label></div>
     <div class="row">出信号用的周期 <select id="sigTf"><option value="1m">1分钟</option><option value="5m">5分钟</option><option value="15m">15分钟</option><option value="1h">1小时</option></select>
       <small style="color:var(--mute)">改了马上生效，不用重启</small></div>
+    <div class="row">实战打法周期 <select id="pbTf"><option value="1m">1分钟</option><option value="5m">5分钟</option><option value="15m">15分钟</option></select> <small style="color:var(--mute)">只管关键位吸收 / 扫止损收回 / 回踩VWAP；回测里"扫止损收回 + 补仓"5 分钟最好</small></div>
     <div class="warnbox" id="btwarn">打法后面是回测成绩（欧易逐笔成交，扣手续费）。PF 大于 1 才是赚钱。没过关的建议别勾。</div>
     <div id="sigs"></div>
     <h3>清洗接盘参数 <small style="color:var(--mute);font-weight:normal">长数据检验用的就是下面这组默认值</small></h3>
@@ -395,6 +396,7 @@ function side(){
   const dpp = S.live_ok ? (S.live_day_pnl||0) : dp;
   $('#dpnl').innerHTML=`<span class="${dpp>=0?'pos':'neg'}">${dpp>=0?'+':''}${dpp.toFixed(2)}</span>`;
   const st=$('#sigTf'); if(st!==document.activeElement) st.value=S.cfg.tf;
+  const pt=$('#pbTf'); if(pt!==document.activeElement) pt.value=S.cfg.pb_tf||'1m';
   if(S.view && S.view.big_usd) $('#bigStd').textContent=`（这个币 ≥ ${usd(S.view.big_usd)} 算大单）`;
   $('#mode').className='badge '+(S.live_ok?'live':'paper'); $('#mode').textContent=S.live_ok?'实盘':'模拟盘';
   $('#feed').textContent = (S.feed_status||'') + (S.extras_status && S.extras_status!=='衍生品数据正常' ? ' ｜ '+S.extras_status : '');
@@ -445,6 +447,7 @@ function markTf(){ const cur=tf||(S&&S.view&&S.view.tf)||'5m'; $('#tfs').querySe
 $('#tfs').querySelectorAll('button').forEach(b=>b.onclick=()=>{ tf=b.dataset.tf; priceOff=0; barOff=0; markTf(); send(); });
 $('#addBtn').onclick=async()=>{ const v=$('#addCoin').value.trim(); if(!v) return; const r=await post('/api/coins',{add:v}); $('#addCoin').value=''; if(!r.ok) alert(r.msg); };
 $('#rmBtn').onclick=async()=>{ if(!inst) return; const r=await post('/api/coins',{remove:inst}); if(!r.ok) alert(r.msg); else inst=null; };
+$('#pbTf').onchange=async()=>{ const r=await post('/api/pb_tf',{tf:$('#pbTf').value}); if(r.msg) alert(r.msg); };
 $('#sigTf').onchange=async()=>{ const r=await post('/api/signal_tf',{tf:$('#sigTf').value}); if(r.msg) alert(r.msg); };
 $('#topBtn').onclick=async()=>{ const n=+$('#topN').value; if(n>0) await post('/api/coins',{top_n:n}); };
 function connect(){

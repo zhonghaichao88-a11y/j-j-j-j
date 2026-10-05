@@ -67,7 +67,7 @@ STARTING: set = set()
 def save_cfg():
     """保存设置（自动刹车改了打法勾选也会调用）"""
     keep = {k: core.cfg[k] for k in ("symbols", "tf", "enabled", "auto", "risk_pct", "max_leverage",
-                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "momo", "margin_mode", "guard_n", "guard_pf", "btc_ma_days", "flush_filters", "trap", "old_size_pct", "old_exit", "old_dca")
+                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "momo", "margin_mode", "guard_n", "guard_pf", "btc_ma_days", "flush_filters", "trap", "old_size_pct", "old_exit", "old_dca", "pb_tf")
             if k in core.cfg}
     json.dump(keep, open(CFG_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
@@ -532,6 +532,20 @@ async def coins(body: dict):
         msg.append(f"自动选 {core.cfg['top_n']} 个币，新币正在接入")
     save_cfg()
     return {"ok": True, "msg": "；".join(msg)}
+
+
+@app.post("/api/pb_tf")
+async def pb_tf(body: dict):
+    """换实战打法（关键位吸收 / 扫止损收回 / 回踩VWAP）用的K线周期：马上生效，持仓不受影响"""
+    tf = body.get("tf")
+    if tf not in ("1m", "5m", "15m"):
+        return JSONResponse({"ok": False, "msg": "周期不对"})
+    core.cfg["pb_tf"] = tf
+    save_cfg()
+    for eng in list(core.engines.values()):
+        eng.set_pb_tf(tf)
+    core.say(f"实战打法周期改成 {tf}，{len(core.engines)} 个币已经切换（挂着没成交的限价单撤了）")
+    return {"ok": True, "msg": f"实战打法周期改成 {tf}，已经生效（已保存）"}
 
 
 @app.post("/api/signal_tf")

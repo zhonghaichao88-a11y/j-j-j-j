@@ -324,6 +324,7 @@ def btc_regime_calc(rows, n):
 DEFAULT_CFG = {
     "symbols": ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP"],
     "tf": "5m",
+    "pb_tf": "1m",              # 实战打法用的K线周期（1m / 5m / 15m）
     "enabled": [],              # 自动交易用哪些打法；回测不过关的默认不开
     "auto": False,              # 自动交易总开关
     "mode": "paper",            # paper / live
@@ -361,8 +362,9 @@ class SymbolEngine:
         self.det = Detector(self.row, enabled=list(SIGNAL_NAMES))
         self.builders = {t: BarBuilder(t, rows[t], None)
                          for t in sorted(set(VIEW_TFS + [tf]), key=lambda x: TF_MS[x])}
+        self.pb_tf = app.cfg.get("pb_tf", "1m") if app is not None and app.cfg.get("pb_tf") in self.builders else "1m"
         self._wire()
-        self.pb = Playbook(rows["1m"])                # 实战打法：1 分钟足迹 + 关键位
+        self.pb = Playbook(rows["1m"], None if self.pb_tf == "1m" else {"max_trades_day": 10**9, "max_losses_day": 10**9})   # 实战打法：足迹 + 关键位
         self.limit_orders: list = []                  # 实战打法的限价单（价格碰到才进场）
         self.signals: list[dict] = []
         self.last = math.nan
@@ -384,12 +386,25 @@ class SymbolEngine:
         self.momo = MomoTracker()
 
     def _wire(self):
-        """把信号周期的K线接到形态识别器，1 分钟K线接到实战打法"""
+        """把信号周期的K线接到形态识别器，实战打法周期（默认 1 分钟）的K线接到实战打法"""
+        pb_tf = self.pb_tf
         for t, b in self.builders.items():
-            b.on_close = self._on_bar if t == self.tf else (self._on_pb_bar if t == "1m" else (lambda b, seeded=False: None))
-        if self.tf == "1m":                           # 信号周期就是 1 分钟时，两种打法都挂在同一个构建器上
-            self.builders["1m"].on_close = lambda b, seeded=False: (self._on_bar(b, seeded), self._on_pb_bar(b, seeded))
+            fns = ([self._on_bar] if t == self.tf else []) + ([self._on_pb_bar] if t == pb_tf else [])
+            h = lambda b, seeded=False, fns=fns: [f(b, seeded) for f in fns]
+            h.fns = fns                                  # 挂了哪些打法（测试和排查用）
+            b.on_close = h
         self.builder = self.builders[self.tf]
+
+    def set_pb_tf(self, tf):
+        """换实战打法（关键位吸收 / 扫止损收回 / 回踩VWAP）用的K线周期：重建识别器、用已有K线重新跑一遍，挂着的限价单撤掉。
+        1 分钟以外不设每天单数上限（回测就是这么测的）"""
+        self.pb_tf = tf
+        self.pb = Playbook(self.rows["1m"], None if tf == "1m" else {"max_trades_day": 10**9, "max_losses_day": 10**9})
+        self.limit_orders = []
+        self._wire()
+        for b in self.builders[tf].bars:
+            if b.closed:
+                self.pb.on_bar(b)
 
     def set_signal_tf(self, tf):
         """马上换信号周期：每个周期的足迹本来就一直在算，只要把识别器换到新周期、用已有K线重新跑一遍"""
@@ -520,14 +535,15 @@ class SymbolEngine:
         if seeded:
             return
         for s in self.pb.on_bar(bar):
-            d = {"t": bar.t, "tf": "1m", "kind": s.kind, "name": ALL_NAMES[s.kind], "side": s.side, "stop": s.stop,
+            d = {"t": bar.t, "tf": self.pb_tf, "kind": s.kind, "name": ALL_NAMES[s.kind], "side": s.side, "stop": s.stop,
                  "target": s.target, "price": s.entry, "note": f"关键位：{s.level}，限价 {s.entry:.6g}", "traded": False}
             if self.backfilling:
                 d["skip"] = "历史信号"
             self.signals = (self.signals + [d])[-200:]
             self.app.on_signal(self, d)
             if not self.backfilling:
-                self.limit_orders.append((s, d, bar.t + 60_000 + PB_FILL_MS))
+                tfm = TF_MS[self.pb_tf]           # 1 分钟：挂 4 分钟；5 / 15 分钟：挂 3 根K线（和回测一样）
+                self.limit_orders.append((s, d, bar.t + tfm + (PB_FILL_MS if tfm == 60_000 else 3 * tfm)))
 
     def _check_limits(self, price, ts):
         keep = []

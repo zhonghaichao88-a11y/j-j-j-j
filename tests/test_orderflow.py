@@ -325,11 +325,11 @@ def test_signal_tf_switch_is_instant(tmp_path, monkeypatch):
     eng.set_signal_tf("15m")
     assert eng.tf == "15m" and eng.builder is eng.builders["15m"]
     assert eng.det.n == n15                                   # 识别器已经用 15 分钟历史K线重新跑过
-    assert eng.builders["15m"].on_close == eng._on_bar
-    assert eng.builders["5m"].on_close not in (eng._on_bar, eng._on_pb_bar)
-    assert eng.builders["1m"].on_close == eng._on_pb_bar      # 实战打法还在 1 分钟
+    assert eng.builders["15m"].on_close.fns == [eng._on_bar]
+    assert eng.builders["5m"].on_close.fns == []
+    assert eng.builders["1m"].on_close.fns == [eng._on_pb_bar]      # 实战打法还在 1 分钟
     eng.set_signal_tf("1m")
-    assert eng.builders["1m"].on_close not in (eng._on_bar, eng._on_pb_bar)   # 两种打法挂在一起
+    assert eng.builders["1m"].on_close.fns == [eng._on_bar, eng._on_pb_bar]   # 两种打法挂在一起
 
 
 def test_cross_stats_spot_vs_perp_and_context():
@@ -922,3 +922,26 @@ def test_old_dca_bad_settings_or_new_strategies_not_affected(tmp_path, monkeypat
         pos = app.acct.positions[0]
         assert pos.dca_lv == [] and abs(pos.qty * 100 - 100) < 1
     _run(go)
+
+
+def test_pb_tf_switch_feeds_playbook_5m_bars(tmp_path, monkeypatch):
+    """实战打法周期改成 5 分钟：识别器只收 5 分钟K线；信号的限价单挂 3 根K线；换回 1 分钟照旧；信号周期的打法不受影响"""
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = E.OrderFlowApp({"auto": False, "enabled": [], "pb_tf": "5m"}, None, None, False)
+    eng = E.SymbolEngine(app, "SOL-USDT-SWAP", "15m", {t: 0.01 for t in E.VIEW_TFS}, 1.0)
+    assert eng.pb_tf == "5m" and eng.pb.p["max_trades_day"] > 100
+    seen, det_seen = [], []
+    eng.pb.on_bar = lambda b: (seen.append(b.t), [type("S", (), {"kind": "pb_sweep", "side": 1, "stop": 89.0, "target": 103.0, "entry": 90.0, "level": "测试"})()])[1]
+    orig_det = eng.det.on_bar
+    eng.det.on_bar = lambda b: (det_seen.append(b.t), orig_det(b))[1]
+    t0 = 20 * 86_400_000
+    for k in range(32):                                    # 32 分钟，每分钟一笔
+        eng.on_trade(100.0, 1, True, t0 + k * 60_000)
+    assert seen and all(t % 300_000 == 0 for t in seen) and len(seen) == 6          # 5 分钟收一根
+    assert det_seen and all(t % 900_000 == 0 for t in det_seen)                      # 信号周期 15 分钟不受影响
+    _, d, until = eng.limit_orders[-1]
+    assert until - d["t"] == 300_000 + 3 * 300_000 and d["tf"] == "5m"
+    eng.set_pb_tf("1m")
+    assert eng.pb_tf == "1m" and eng.limit_orders == [] and eng.pb.p["max_trades_day"] < 100
