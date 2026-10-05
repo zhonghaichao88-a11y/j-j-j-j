@@ -94,7 +94,27 @@ TRAP = {"drop": 0.05,           # 24 小时跌超 5%
         "flush_drop": 0.02,     # 平仓：1 小时跌超 2% ……
         "flush_oi": 0.03,       # …… 且持仓量 1 小时降超 3%（多头被清洗）
         "size_pct": 10.0}       # 每笔用权益的 10%
-COMBO_NAMES = {**FLUSH_NAMES, **MOMO_NAMES, **TRAP_NAMES}
+# 三个急跌抄底（只做多，见 of_nfi.py 和 分析/策略实验室/NFI信号对比/）
+DIP_NAMES = {"nfi_5m": "NFI头部币急跌（5分钟）", "nfi_15m": "头部币15分钟急跌", "vn_dip": "大跌抄底（按波动）"}
+NFI_DIP = {"tp_pct": 3.0,        # nfi_5m / nfi_15m：止盈 3%
+           "stop_pct": 8.0,      # 止损 8%
+           "hold_h": 48,         # 最多拿 48 小时
+           "size_pct": 10.0}     # 每笔用权益的 10%
+VN_DIP = {"th1": 5.0,            # 1 小时跌超几个标准差（标准差 = 这个币过去 7 天 1 小时涨跌的波动）
+          "th4": 4.0,            # 或 4 小时跌超几个标准差
+          "tp_atr": 1.0,         # 止盈：进场价 + 1 倍 1 小时 ATR
+          "sl_atr": 3.0,         # 止损：进场价 - 3 倍 ATR
+          "hold_h": 48,
+          "size_pct": 10.0,
+          "bull_only": 1,        # 只在 BTC 日线收盘在 200 天均线上方时开（熊市回测是亏的）
+          "all_coins": 0}        # 0 = 只做 NFI 头部币名单；1 = 所有接入的币（单更多，回撤稍大）
+COMBO_NAMES = {**FLUSH_NAMES, **MOMO_NAMES, **TRAP_NAMES, **DIP_NAMES}
+
+
+def dip_cfg(cfg, kind):
+    if kind == "vn_dip":
+        return {**VN_DIP, **(cfg.get("vn_dip") or {})}
+    return {**NFI_DIP, **(cfg.get("nfi_dip") or {})}
 
 
 def momo_cfg(cfg):
@@ -120,6 +140,8 @@ def trap_exit_ok(r60, oi60, tc):
 
 
 def combo_cfg(cfg, kind):
+    if kind in DIP_NAMES:
+        return dip_cfg(cfg, kind)
     if kind == "trap_short":
         return trap_cfg(cfg)
     return flush_cfg(cfg) if kind == "flush_spot" else squeeze_cfg(cfg) if kind == "squeeze_long" else momo_cfg(cfg)
@@ -346,6 +368,8 @@ DEFAULT_CFG = {
     "momo": dict(MOMO),         # 追强势币的参数（网页上可以改）
     "trap": dict(TRAP),         # 多头摊平做空的参数
     "squeeze": dict(SQUEEZE),   # 轧空追多的参数（网页上可以改）
+    "nfi_dip": dict(NFI_DIP),   # NFI 头部币急跌 / 15 分钟急跌的出场和仓位
+    "vn_dip": dict(VN_DIP),     # 大跌抄底（按波动）的参数
 }
 
 
@@ -383,6 +407,7 @@ class SymbolEngine:
         self._squeeze_t = 0           # 上次"轧空追多"信号的时间
         self._momo_t = 0              # 上次"追强势币"信号的时间
         self._trap_t = 0              # 上次"多头摊平做空"信号的时间
+        self._dip_seen: set = set()   # 急跌抄底已经出过信号的 (打法, K线时间)
         self.momo = MomoTracker()
 
     def _wire(self):
@@ -477,6 +502,19 @@ class SymbolEngine:
             self.signals = (self.signals + [d])[-200:]
             self.app.on_signal(self, d)
             self.pending.append((s, d))
+
+    def dip_signal(self, kind, ref, stop, target, bar_t, note):
+        """急跌抄底的信号（在后台算好送进来）：同一根K线只出一次，下一笔成交开多"""
+        key = (kind, bar_t)
+        if key in self._dip_seen:
+            return
+        self._dip_seen.add(key)
+        s = Signal(kind, 1, stop, target, bar_t, note)
+        d = {"t": bar_t, "tf": "5m", "kind": kind, "name": ALL_NAMES[kind], "side": 1, "stop": stop,
+             "target": target, "price": ref, "ref": ref, "note": note, "traded": False}
+        self.signals = (self.signals + [d])[-200:]
+        self.app.on_signal(self, d)
+        self.pending.append((s, d))
 
     def flush_state(self, b5=None):
         """清洗接盘的三个条件现在各是多少：1 小时涨跌、1 小时持仓量变化、币安现货 1 小时主动买卖"""
@@ -998,6 +1036,9 @@ class OrderFlowApp:
             s = replace(s, stop=price * (1 - s.side * sp),
                         target=price * (1 + s.side * tp) if tp > 0 else (price * 10 if s.side > 0 else price * 0.1))
             d["stop"], d["target"] = s.stop, s.target
+        if s.kind in DIP_NAMES and d.get("ref"):       # 急跌抄底：止盈止损离进场价的距离不变（按信号K线收盘价算的），挪到实际价格上
+            s = replace(s, stop=price - (d["ref"] - s.stop), target=price + (s.target - d["ref"]))
+            d["stop"], d["target"] = s.stop, s.target
         if (s.side == 1 and not (s.stop < price < s.target)) or (s.side == -1 and not (s.target < price < s.stop)):
             d["skip"] = "价格已越过止损或止盈"
             return
@@ -1048,7 +1089,7 @@ class OrderFlowApp:
             hold = PB_HOLD_MS
         elif s.kind == "flush_spot":
             hold = flush_cfg(self.cfg)["hold_h"] * 3600_000
-        elif s.kind in ("squeeze_long", "momo_long", "trap_short"):
+        elif s.kind in ("squeeze_long", "momo_long", "trap_short") or s.kind in DIP_NAMES:
             hold = combo_cfg(self.cfg, s.kind)["hold_h"] * 3600_000
         else:
             hold = self.cfg.get("max_hold_bars", 48) * TF_MS[eng.tf]

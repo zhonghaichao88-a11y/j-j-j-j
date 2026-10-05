@@ -67,7 +67,7 @@ STARTING: set = set()
 def save_cfg():
     """保存设置（自动刹车改了打法勾选也会调用）"""
     keep = {k: core.cfg[k] for k in ("symbols", "tf", "enabled", "auto", "risk_pct", "max_leverage",
-                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "momo", "margin_mode", "guard_n", "guard_pf", "btc_ma_days", "flush_filters", "trap", "old_size_pct", "old_exit", "old_dca", "pb_tf")
+                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "momo", "margin_mode", "guard_n", "guard_pf", "btc_ma_days", "flush_filters", "trap", "old_size_pct", "old_exit", "old_dca", "pb_tf", "nfi_dip", "vn_dip")
             if k in core.cfg}
     json.dump(keep, open(CFG_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
@@ -361,6 +361,95 @@ async def oi24_loop():
         await asyncio.sleep(600)
 
 
+DIP = {"nfi": None, "cache": None, "warned": "", "bull": None, "bull_t": 0}
+
+
+def _dip_compute(inst, frames, d5, kinds, vc, top_only):
+    """后台线程里算一个币的三个急跌抄底（指标计算较慢，不放在行情线程）"""
+    import of_nfi
+    coin = inst.split("-")[0]; pair = f"{coin}/USDT:USDT"; out = []
+    nf = DIP["nfi"]
+    is_top = coin in nf.top
+    if is_top and ("nfi_5m" in kinds or "nfi_15m" in kinds):
+        fired, ok = nf.evaluate(pair, frames)
+        if "nfi_5m" in kinds and fired:
+            out.append(("nfi_5m", f"NFI 条件 {' '.join(fired)} 触发"))
+        if "nfi_15m" in kinds:
+            for name, guard in of_nfi.tf15_triggers(d5):
+                if (guard == "any" and ok) or guard in ok:
+                    out.append(("nfi_15m", f"{name}，安全检查 {'/'.join(sorted(ok))} 通过")); break
+    if "vn_dip" in kinds and (is_top or not top_only):
+        f = of_nfi.vn_features(d5)
+        if f and (f["vn1"] < -vc["th1"] or f["vn4"] < -vc["th4"]) and f["atr"] > 0:
+            out.append(("vn_dip", f"1小时 {f['vn1']:+.1f} 个标准差，4小时 {f['vn4']:+.1f} 个标准差，ATR {f['atr']:.6g}", f["atr"]))
+    return out
+
+
+async def dip_loop():
+    """每根 5 分钟K线收盘后（过 20 秒，等欧易K线确认）：给勾上的急跌抄底打法拉K线、算信号。
+    NFI 两个只看 NFI 头部币名单；大跌抄底默认也只看头部币，只在 BTC 牛市开"""
+    import of_nfi
+    from of_engine import DIP_NAMES, dip_cfg
+    while True:
+        now = time.time()
+        await asyncio.sleep(300 - now % 300 + 20)
+        kinds = {k for k in DIP_NAMES if k in core.cfg.get("enabled", [])}
+        if not kinds or not core.engines:
+            continue
+        if DIP["nfi"] is None:
+            DIP["nfi"] = await asyncio.to_thread(of_nfi.NfiSignals)
+            DIP["cache"] = of_nfi.CandleCache()
+            core.say("急跌抄底：" + (DIP["nfi"].err or f"NFI 策略已加载（头部币 {len(DIP['nfi'].top)} 个）"))
+        nf = DIP["nfi"]
+        if nf.err:
+            if DIP["warned"] != nf.err:
+                DIP["warned"] = nf.err; core.say("急跌抄底：" + nf.err)
+            continue
+        vc = dip_cfg(core.cfg, "vn_dip")
+        top_only = not int(vc.get("all_coins", 0))
+        try:
+            async with httpx.AsyncClient(proxy=PROXY, timeout=20) as c:
+                cache = DIP["cache"]
+                if "vn_dip" in kinds and int(vc.get("bull_only", 1)) and time.time() - DIP["bull_t"] > 3600:
+                    DIP["bull"] = of_nfi.btc_bull_200(await of_nfi.fetch_back(get_json, c, "BTC-USDT-SWAP", "1d", 220))
+                    DIP["bull_t"] = time.time()
+                k2 = set(kinds)
+                if "vn_dip" in k2 and int(vc.get("bull_only", 1)) and DIP["bull"] is not True:
+                    k2.discard("vn_dip")
+                need_nfi = bool(k2 & {"nfi_5m", "nfi_15m"})
+                btc4 = await cache.get(get_json, c, "BTC-USDT-SWAP", "4h") if need_nfi else None
+                for inst, eng in list(core.engines.items()):
+                    coin = inst.split("-")[0]; is_top = coin in nf.top
+                    mine = {k for k in k2 if k != "vn_dip" and is_top} | ({"vn_dip"} if "vn_dip" in k2 and (is_top or not top_only) else set())
+                    if not mine:
+                        continue
+                    d5 = await cache.get(get_json, c, inst, "5m")
+                    if len(d5) < 2100 or (time.time() - d5.date.iloc[-1].timestamp()) > 900:
+                        continue
+                    frames = {}
+                    if mine & {"nfi_5m", "nfi_15m"}:
+                        pair = f"{coin}/USDT:USDT"
+                        for tf in ("5m", "15m", "1h", "4h", "1d"):
+                            frames[(pair, tf)] = d5 if tf == "5m" else await cache.get(get_json, c, inst, tf)
+                        frames[("BTC/USDT:USDT", "4h")] = btc4
+                    try:
+                        res = await asyncio.to_thread(_dip_compute, inst, frames, d5, mine, vc, top_only)
+                    except Exception as e:  # noqa: BLE001
+                        core.say(f"急跌抄底：{coin} 计算出错（{e}），跳过"); continue
+                    bar_t = int(d5.date.iloc[-1].timestamp() * 1000)
+                    ref = float(d5.close.iloc[-1])
+                    for r in res:
+                        kind, note = r[0], r[1]
+                        dc = dip_cfg(core.cfg, kind)
+                        if kind == "vn_dip":
+                            atr = r[2]; stop, target = ref - dc["sl_atr"] * atr, ref + dc["tp_atr"] * atr
+                        else:
+                            stop, target = ref * (1 - dc["stop_pct"] / 100), ref * (1 + dc["tp_pct"] / 100)
+                        eng.dip_signal(kind, ref, stop, target, bar_t, note)
+        except Exception as e:  # noqa: BLE001
+            core.say(f"急跌抄底：读K线失败（{e}），下根K线再试")
+
+
 async def live_refresher():
     """实盘：每 5 秒核对一次交易所持仓（止盈止损触发后记真实盈亏），每 30 秒读一次权益"""
     while True:
@@ -380,6 +469,7 @@ async def _startup():
     asyncio.create_task(heartbeat())
     asyncio.create_task(btc_regime())
     asyncio.create_task(oi24_loop())
+    asyncio.create_task(dip_loop())
     lp = [p.sym.split("-")[0] for p in core.acct.positions if p.live]
     if lp:
         core.say(f"提醒：上次还有 {len(lp)} 笔实盘持仓（{', '.join(lp)}），请在网页上重新切到实盘，程序才能按时帮你平仓")
@@ -475,8 +565,9 @@ async def set_cfg(body: dict):
             core.say("旧打法补仓设置填得不对（补仓位置是离第一笔多远、要一个比一个大，比如每跌 2% 补一次填 2,4,6,8；每笔比例要比补仓位置多一个；止损要比最后一个补仓位置远），先不补仓")
     if body.get("margin_mode") in ("isolated", "cross"):
         core.cfg["margin_mode"] = body["margin_mode"]
-    from of_engine import FLUSH, SQUEEZE, MOMO, TRAP, OLD_EXIT
-    for key, base in (("flush", FLUSH), ("squeeze", SQUEEZE), ("momo", MOMO), ("trap", TRAP), ("old_exit", OLD_EXIT)):     # 组合打法的参数，只收认识的数字
+    from of_engine import FLUSH, SQUEEZE, MOMO, TRAP, OLD_EXIT, NFI_DIP, VN_DIP
+    for key, base in (("flush", FLUSH), ("squeeze", SQUEEZE), ("momo", MOMO), ("trap", TRAP), ("old_exit", OLD_EXIT),
+                      ("nfi_dip", NFI_DIP), ("vn_dip", VN_DIP)):     # 组合打法的参数，只收认识的数字
         if isinstance(body.get(key), dict):
             cur = dict(base, **(core.cfg.get(key) or {}))
             for k, v in body[key].items():

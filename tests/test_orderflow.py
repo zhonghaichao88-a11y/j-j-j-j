@@ -976,3 +976,80 @@ def test_pb_warms_up_from_seeded_history(tmp_path, monkeypatch):
     t0 = 20 * 86_400_000
     eng.builders["5m"].seed([(t0 + k * 300_000, 100.0, 101.0, 99.0, 100.0, 50.0) for k in range(30)])
     assert len(eng.pb.swing) == 30 and len(eng.pb.vols) == 30 and eng.signals == []
+
+
+def test_dip_signal_opens_long_with_shifted_stops_and_hold(tmp_path, monkeypatch):
+    """急跌抄底：后台送来的信号 → 下一笔成交开多；止盈止损离进场价的距离不变（挪到实际成交价）、每笔 10%、最多 48 小时；
+    同一根K线不重复出信号；没勾的打法只记信号不下单"""
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = E.OrderFlowApp({"auto": True, "enabled": ["vn_dip"], "btc_ma_days": 200, "max_positions": 5}, None, None, False)
+    app.btc_bull = False                                   # 清洗接盘的大盘过滤不管这三个（大跌抄底自己判断牛熊）
+    eng = E.SymbolEngine(app, "SOL-USDT-SWAP", "5m", {t: 0.0001 for t in E.VIEW_TFS}, 1.0)
+    app.engines = {eng.inst: eng}
+    t0 = 20 * 86_400_000
+    eng.dip_signal("vn_dip", 100.0, 94.0, 102.0, t0, "1小时 -5.5 个标准差")
+    eng.dip_signal("vn_dip", 100.0, 94.0, 102.0, t0, "重复")            # 同一根K线不再出
+    assert len([s for s in eng.signals if s["kind"] == "vn_dip"]) == 1
+    eng.on_trade(101.0, 1, True, t0 + 300_000 + 1000)
+    pos = app.acct.positions
+    assert len(pos) == 1 and pos[0].kind == "vn_dip" and pos[0].side == 1
+    fill = pos[0].entry
+    assert abs(pos[0].stop - (fill - 6.0)) < 0.2 and abs(pos[0].target - (fill + 2.0)) < 0.2
+    assert pos[0].max_until - pos[0].t_open == 48 * 3_600_000
+    assert abs(pos[0].qty * pos[0].entry - 1000 * 0.10) < 1.0
+    eng.on_trade(103.5, 1, True, t0 + 600_000)                          # 碰到止盈
+    assert app.acct.positions == [] and app.history[-1]["pnl"] > 0
+    eng.dip_signal("nfi_5m", 100.0, 92.0, 103.0, t0 + 900_000, "NFI 条件 142 触发")   # 没勾：只记信号
+    eng.on_trade(100.0, 1, True, t0 + 1_200_000)
+    assert app.acct.positions == [] and any(s["kind"] == "nfi_5m" for s in eng.signals)
+
+
+def test_dip_cfg_from_page(monkeypatch):
+    """页面改急跌抄底参数：只收认识的数字；默认值就是回测过关的那组"""
+    import of_app as A
+    monkeypatch.setattr(A, "save_cfg", lambda: None)
+    monkeypatch.setitem(A.core.cfg, "vn_dip", dict(E.VN_DIP))
+    monkeypatch.setitem(A.core.cfg, "nfi_dip", dict(E.NFI_DIP))
+    _run(lambda: A.set_cfg({"vn_dip": {"th1": 6, "bull_only": 0, "bad": 1}, "nfi_dip": {"tp_pct": 4}}))
+    vc, nc = E.dip_cfg(A.core.cfg, "vn_dip"), E.dip_cfg(A.core.cfg, "nfi_15m")
+    assert vc["th1"] == 6 and vc["th4"] == 4 and vc["bull_only"] == 0 and "bad" not in vc
+    assert nc["tp_pct"] == 4 and nc["stop_pct"] == 8 and nc["hold_h"] == 48
+    assert E.VN_DIP["th1"] == 5 and E.VN_DIP["tp_atr"] == 1 and E.VN_DIP["sl_atr"] == 3 and E.VN_DIP["bull_only"] == 1
+
+
+def test_dip_features_only_on_bar_close():
+    """大跌抄底只在整点（xx:55 那根 5 分钟收盘）算、15 分钟急跌只在 15 分钟收盘算；急跌 → 标准差为负；牛熊按昨收和 200 天均线"""
+    import pytest
+    pd = pytest.importorskip("pandas"); pytest.importorskip("talib")
+    import numpy as np
+    import of_nfi as N
+    n = 2600
+    rng = np.random.default_rng(0)
+    c = 100 * np.exp(np.cumsum(rng.normal(0, 0.001, n)))
+    c[-12:] = c[-13] * np.linspace(0.99, 0.90, 12)                  # 最后 1 小时急跌 10%
+    dates = pd.date_range("2026-01-01", periods=n, freq="5min", tz="UTC")
+    d5 = pd.DataFrame({"date": dates, "open": c, "high": c * 1.001, "low": c * 0.999, "close": c, "volume": 1.0})
+    shift = (55 - dates[-1].minute) % 60 // 5
+    d5 = d5.iloc[: n - (12 - shift) % 12] if shift else d5
+    if d5.date.iloc[-1].minute != 55:
+        d5 = d5[d5.date.dt.minute.cumsum() >= 0]
+        d5 = d5.iloc[: max(i for i, m in enumerate(d5.date.dt.minute) if m == 55) + 1]
+    f = N.vn_features(d5)
+    assert f is not None and f["vn1"] < -5 and f["atr"] > 0
+    assert N.vn_features(d5.iloc[:-1]) is None                      # 不在整点
+    assert N.tf15_triggers(d5.iloc[:-1]) == [] or d5.date.iloc[-2].minute % 15 == 10
+    daily = pd.DataFrame({"close": np.r_[np.full(199, 100.0), 120.0]})
+    assert N.btc_bull_200(daily) is True and N.btc_bull_200(daily.iloc[:50]) is None
+    assert N.btc_bull_200(pd.DataFrame({"close": np.r_[np.full(199, 100.0), 90.0]})) is False
+
+
+def test_neutralize_keeps_guard_drops_trigger():
+    """只留安全检查的那份：141~145 的触发部分换成永远成立，其他条件不动"""
+    import of_nfi as N
+    src = open(N.NFI_FILE, encoding="utf-8").read()
+    out = N.neutralize(src)
+    assert out.count("long_entry_logic.append(rsi_3 > -1.0)") == 5
+    assert "(close < sma_16 * 0.960)" in src and out.count("(close < sma_16 * 0.960)") < src.count("(close < sma_16 * 0.960)")
+    assert len(out.split("\n")) < len(src.split("\n"))
