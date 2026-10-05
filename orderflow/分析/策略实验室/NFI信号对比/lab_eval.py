@@ -7,7 +7,8 @@ import os, sys, glob, numpy as np, pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import no_overlap, port, pf, EXN
 HERE = os.path.dirname(os.path.abspath(__file__))
-SEGS = {'2022-23': 'L_old', '2024-25': 'L_mid', '2025-26': 'L_new'}
+_P = os.environ.get('LABP', 'L')
+SEGS = {'2022-23': f'{_P}_old', '2024-25': f'{_P}_mid', '2025-26': f'{_P}_new'}
 DAYS = {'2022-23': 756, '2024-25': 359, '2025-26': 359}
 TOP = set(open('/home/user/ext/nfisig/top.txt').read().split())
 
@@ -57,7 +58,7 @@ if __name__ == '__main__':
                 out.append(row)
         print(uni, 'done', flush=True)
     S = pd.DataFrame(out).sort_values(['过关', '分数'], ascending=False)
-    S.to_csv(HERE + '/lab_结果.csv', index=False)
+    S.to_csv(HERE + f'/lab_结果{"" if _P == "L" else "_" + _P}.csv', index=False)
     pd.set_option('display.width', 400); pd.set_option('display.max_colwidth', 120)
     for side in 'LS':
         s = S[S.规则.str.startswith(side) & S.过关]
