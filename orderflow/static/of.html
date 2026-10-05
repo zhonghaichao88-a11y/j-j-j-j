@@ -75,6 +75,9 @@ th{color:var(--mute);font-weight:normal}
     <div class="row">1小时涨超 <input id="sq_rise" type="number" step="0.5" style="width:56px"> %　持仓量1小时降超 <input id="sq_oi_drop" type="number" step="0.5" style="width:56px"> %</div>
     <div class="row">拿 <input id="sq_hold_h" type="number" step="1" style="width:50px"> 小时　每笔用权益 <input id="sq_size_pct" type="number" step="1" style="width:50px"> %　止损 = 涨幅 × <input id="sq_stop_x" type="number" step="0.5" style="width:50px"></div>
     <div class="row"><button id="saveSq">保存</button> <small style="color:var(--mute)">保存后马上生效</small></div>
+    <h3>多头摊平做空 进场方式</h3>
+    <div class="row"><select id="trap_mode"><option value="A">A：反弹2%再空 + 离24h低点>2%（推荐，最稳）</option><option value="B">B：反弹2%再空 + 4h SAR在上方 + ATR出场（单多些）</option><option value="orig">原版：信号后马上市价空（会空在低位）</option></select> <button id="saveTrap">保存</button></div>
+    <div class="row"><small style="color:var(--mute)">196 币三段回测：A PF 1.35/1.37/1.37 回撤3~5%；B PF 1.32/1.41/1.43 回撤6~12%；原版 1.05/1.22/1.08。A、B 等反弹 1 小时没成交就撤（约一半信号等不到）</small></div>
     <h3>急跌抄底参数 <small style="color:var(--mute);font-weight:normal">NFI头部币急跌（5分钟）、头部币15分钟急跌 共用；只做 NFI 头部币名单</small></h3>
     <div class="row">止盈 <input id="nd_tp_pct" type="number" step="0.5" style="width:50px"> %　止损 <input id="nd_stop_pct" type="number" step="0.5" style="width:50px"> %　最多拿 <input id="nd_hold_h" type="number" step="1" style="width:50px"> 小时　每笔用权益 <input id="nd_size_pct" type="number" step="1" style="width:50px"> %</div>
     <div class="row"><button id="saveNd">保存</button> <small style="color:var(--mute)">回测用的是 止盈3% / 止损8% / 48小时 / 10%</small></div>
@@ -358,6 +361,8 @@ function fillDip(){ const a=(S.cfg||{}).nfi_dip||{}, b=(S.cfg||{}).vn_dip||{};
   for(const k of VD_KEYS){ const el=$('#vd_'+k); if(el&&el!==document.activeElement&&b[k]!=null) el.value= (k==='bull_only'||k==='all_coins')? String(+b[k]?1:0) : b[k]; } }
 $('#saveNd').onclick=()=>{ const f={}; for(const k of ND_KEYS){ const v=parseFloat($('#nd_'+k).value); if(!isNaN(v)) f[k]=v; } post('/api/cfg',{nfi_dip:f}); };
 $('#saveVd').onclick=()=>{ const f={}; for(const k of VD_KEYS){ const v=parseFloat($('#vd_'+k).value); if(!isNaN(v)) f[k]=v; } post('/api/cfg',{vn_dip:f}); };
+function fillTrap(){ const el=$('#trap_mode'); if(el&&el!==document.activeElement) el.value=((S.cfg||{}).trap||{}).mode||'A'; }
+$('#saveTrap').onclick=()=>post('/api/cfg',{trap:{mode:$('#trap_mode').value}});
 $('#saveRisk').onclick=saveCfg;
 $('#closeAll').onclick=()=>{ if(confirm('确定全部平仓？')) post('/api/close_all',{}); };
 
@@ -401,7 +406,7 @@ function xbox(){
   $('#xsrc').title=Object.entries(st).map(([k,v])=>`${nm[k]||k}：${v}`).join('\n');
 }
 function side(){
-  sideExt(); xbox(); fillFlush(); fillSq(); fillMo(); fillDip();
+  sideExt(); xbox(); fillFlush(); fillSq(); fillMo(); fillDip(); fillTrap();
   const a=S.acct; const dp=a.day_pnl;
   // 实盘显示欧易账户的真实权益；模拟盘显示模拟账户
   $('#eqLabel').textContent = S.live_ok ? '实盘权益' : '模拟权益';

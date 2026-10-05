@@ -93,7 +93,15 @@ TRAP = {"drop": 0.05,           # 24 小时跌超 5%
         "hold_h": 48,           # 最多拿 48 小时
         "flush_drop": 0.02,     # 平仓：1 小时跌超 2% ……
         "flush_oi": 0.03,       # …… 且持仓量 1 小时降超 3%（多头被清洗）
-        "size_pct": 10.0}       # 每笔用权益的 10%
+        "size_pct": 10.0,       # 每笔用权益的 10%
+        "mode": "A",            # 进场方式（网页上切换；回测见 分析/策略实验室/做空重做/）：
+                                #   orig 原版：信号后市价空（196 币重测 PF 1.05 / 1.22 / 1.08，空在低位）
+                                #   A 反弹 2% 再空 + 离 24 小时低点超过 2% 才做，出场同原版（PF 1.35 / 1.37 / 1.37，回撤 3~5%）
+                                #   B 反弹 2% 再空 + 4 小时 SAR 在价格上方，止盈 2 倍 / 止损 3 倍 1 小时 ATR、48 小时，不看清洗（PF 1.32 / 1.41 / 1.43）
+        "bounce": 0.02,         # A / B：在信号收盘价上方这么多挂空单
+        "fill_min": 60}         # A / B：挂单等多久（分钟），没成交就撤
+TRAP_MODES = {"orig": "原版：信号后市价空", "A": "A：反弹2%再空 + 离24h低点>2%（推荐，最稳）",
+              "B": "B：反弹2%再空 + 4h SAR在上方 + ATR出场（单多些）"}
 # 三个急跌抄底（只做多，见 of_nfi.py 和 分析/策略实验室/NFI信号对比/）
 DIP_NAMES = {"nfi_5m": "NFI头部币急跌（5分钟）", "nfi_15m": "头部币15分钟急跌", "vn_dip": "大跌抄底（按波动）"}
 NFI_DIP = {"tp_pct": 3.0,        # nfi_5m / nfi_15m：止盈 3%
@@ -272,6 +280,7 @@ class Position:
     dca_e0: float = 0.0      # 补仓：第一笔成交价（补仓位置、止损都按它算）
     dca_unit: float = 0.0    # 补仓：权重 1 对应多少币
     dca_tp: float = 0.0      # 补仓：均价止盈比例
+    mode: str = ""           # 多头摊平做空用的哪种做法（B 不看"多头被清洗"平仓）
 
 
 @dataclass
@@ -408,6 +417,8 @@ class SymbolEngine:
         self._momo_t = 0              # 上次"追强势币"信号的时间
         self._trap_t = 0              # 上次"多头摊平做空"信号的时间
         self._dip_seen: set = set()   # 急跌抄底已经出过信号的 (打法, K线时间)
+        self._trap_busy = False       # 多头摊平做空 B：正在后台读 4 小时 SAR
+        self._trap_skip_t = 0         # 多头摊平做空 A/B：上次因为位置 / SAR 跳过的时间
         self.momo = MomoTracker()
 
     def _wire(self):
@@ -486,22 +497,82 @@ class SymbolEngine:
         bar = b5[-1]
         r60, oi60, _ = self.flush_state(b5)
         held = [p for p in self.app.acct.positions if p.sym == self.inst and p.kind == "trap_short"]
-        if held and trap_exit_ok(r60, oi60, tc):
-            for p in held:
+        cover = [p for p in held if p.mode != "B"]
+        if cover and trap_exit_ok(r60, oi60, tc):
+            for p in cover:
                 self.app.close_now(self, p, bar.c, f"多头被清洗（1小时 {r60:+.1%}，持仓 {oi60:+.1%}），平空", bar.t)
             return
         if held or any(p.sym == self.inst for p in self.app.acct.positions) or bar.t == self._trap_t:
             return
+        if any(s.kind == "trap_short" for s, _, _ in self.limit_orders) or self._trap_busy:   # 已经挂着等反弹的空单 / 正在读 SAR
+            return
+        if bar.t - self._trap_skip_t < 3600_000:      # 刚因为位置不好 / SAR 不对跳过：1 小时内不再重复判断（不刷屏、不反复拉K线）
+            return
         r24, oi24, fund, lsz = self.trap_state(bar.t)
-        if trap_entry_ok(r24, oi24, fund, lsz, tc):
-            self._trap_t = bar.t
-            s = Signal("trap_short", -1, bar.c * (1 + tc["stop"]), bar.c * 0.1, bar.t,
-                       f"24小时 {r24:+.1%}，持仓 24 小时 {oi24:+.1%}，资金费 {fund:+.4%}，散户多空比 z {lsz:+.1f}（多头越跌越补）")
-            d = {"t": bar.t, "tf": "5m", "kind": s.kind, "name": ALL_NAMES[s.kind], "side": -1, "stop": s.stop,
-                 "target": s.target, "price": bar.c, "note": s.note, "traded": False}
-            self.signals = (self.signals + [d])[-200:]
-            self.app.on_signal(self, d)
+        if not trap_entry_ok(r24, oi24, fund, lsz, tc):
+            return
+        self._trap_t = bar.t
+        mode = tc.get("mode", "A") if tc.get("mode") in TRAP_MODES else "A"
+        note = f"24小时 {r24:+.1%}，持仓 24 小时 {oi24:+.1%}，资金费 {fund:+.4%}，散户多空比 z {lsz:+.1f}（多头越跌越补）"
+        if mode == "orig":
+            s = Signal("trap_short", -1, bar.c * (1 + tc["stop"]), bar.c * 0.1, bar.t, note)
+            d = self._trap_d(s, bar, "orig")
             self.pending.append((s, d))
+            return
+        if mode == "A":
+            lows = [b.l for b in b5[-288:]]
+            lo24 = min(lows)
+            if bar.c <= lo24 * 1.02:
+                d = self._trap_d(Signal("trap_short", -1, 0.0, 0.0, bar.t, note), bar, "A")
+                d["skip"] = f"离 24 小时低点只有 {bar.c / lo24 - 1:+.1%}，太低了不追空（A 做法）"
+                self._trap_skip_t = bar.t
+                return
+            self._trap_limit(bar, note, "A", None)
+            return
+        cb = getattr(self.app, "trap_aux_cb", None)              # B：要 4 小时 SAR 和 1 小时 ATR，后台去欧易拉K线
+        if cb is None:
+            return
+        self._trap_busy = True
+
+        async def _b():
+            try:
+                aux = await cb(self.inst)
+            except Exception as e:  # noqa: BLE001
+                aux = {"err": str(e)}
+            finally:
+                self._trap_busy = False
+            if not aux or aux.get("err") or not aux["sar_above"]:
+                self._trap_skip_t = bar.t
+            if not aux or aux.get("err"):
+                d = self._trap_d(Signal("trap_short", -1, 0.0, 0.0, bar.t, note), bar, "B")
+                d["skip"] = f"读 4 小时 SAR / 1 小时 ATR 失败（{(aux or {}).get('err', '')}），不做"
+                return
+            if not aux["sar_above"]:
+                d = self._trap_d(Signal("trap_short", -1, 0.0, 0.0, bar.t, note), bar, "B")
+                d["skip"] = "4 小时 SAR 在价格下方（还在涨），不做（B 做法）"
+                return
+            self._trap_limit(bar, note + f"，4h SAR 在上方，ATR {aux['atr']:.6g}", "B", aux["atr"])
+        asyncio.get_event_loop().create_task(_b())
+
+    def _trap_d(self, s, bar, mode):
+        d = {"t": bar.t, "tf": "5m", "kind": s.kind, "name": ALL_NAMES[s.kind], "side": -1, "stop": s.stop,
+             "target": s.target, "price": bar.c, "note": s.note, "traded": False, "mode": mode}
+        self.signals = (self.signals + [d])[-200:]
+        self.app.on_signal(self, d)
+        return d
+
+    def _trap_limit(self, bar, note, mode, atr):
+        """A / B：在信号收盘价上方 bounce 挂空单，fill_min 分钟内价格涨到才成交（和回测一样：信号后 12 根 5 分钟）"""
+        tc = trap_cfg(self.app.cfg)
+        entry = bar.c * (1 + tc["bounce"])
+        if mode == "B":
+            stop, target = entry + 3 * atr, entry - 2 * atr
+        else:
+            stop, target = entry * (1 + tc["stop"]), entry * 0.1
+        s = Signal("trap_short", -1, stop, target, bar.t, note + f"，挂空 {entry:.6g}（等反弹 {tc['bounce']:.0%}）")
+        s.entry = entry
+        d = self._trap_d(s, bar, mode)
+        self.limit_orders.append((s, d, bar.t + 300_000 + int(tc["fill_min"]) * 60_000))
 
     def dip_signal(self, kind, ref, stop, target, bar_t, note):
         """急跌抄底的信号（在后台算好送进来）：同一根K线只出一次，下一笔成交开多"""
@@ -1095,7 +1166,7 @@ class OrderFlowApp:
             hold = self.cfg.get("max_hold_bars", 48) * TF_MS[eng.tf]
         if not live:
             fill = price * (1 + s.side * PaperBroker.slip)
-            pos = Position(eng.inst, s.kind, s.side, qty, fill, s.stop, s.target, ts, ts + hold, "paper", False, risk=abs(fill - s.stop))
+            pos = Position(eng.inst, s.kind, s.side, qty, fill, s.stop, s.target, ts, ts + hold, "paper", False, risk=abs(fill - s.stop), mode=d.get("mode", ""))
             self._dca_mark(pos, dca)
             self._add_position(eng, s, d, pos)
             return
@@ -1126,7 +1197,8 @@ class OrderFlowApp:
             r = await asyncio.to_thread(self.live.open, eng.inst, s.side, n, s.stop, s.target, mgn)
             fill = r["fill"] or price
             pos = Position(eng.inst, s.kind, s.side, r["contracts"] * cs, fill, s.stop, s.target, ts, ts + hold,
-                           r["order_id"], True, contracts=r["contracts"], algo_id=r["algo_id"], risk=abs(fill - s.stop), mgn=mgn)
+                           r["order_id"], True, contracts=r["contracts"], algo_id=r["algo_id"], risk=abs(fill - s.stop), mgn=mgn,
+                           mode=d.get("mode", ""))
             d.pop("skip", None)
             self._dca_mark(pos, dca)
             self._add_position(eng, s, d, pos)

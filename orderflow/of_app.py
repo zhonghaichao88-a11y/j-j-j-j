@@ -450,6 +450,26 @@ async def dip_loop():
             core.say(f"急跌抄底：读K线失败（{e}），下根K线再试")
 
 
+async def trap_aux(inst):
+    """多头摊平做空 B 做法：最近收盘的 4 小时K线 SAR 在不在收盘价上方、最近收盘的 1 小时 ATR14"""
+    import of_nfi
+    try:
+        import talib
+    except Exception:  # noqa: BLE001
+        return {"err": "缺少 TA-Lib"}
+    async with httpx.AsyncClient(proxy=PROXY, timeout=15) as c:
+        k4 = of_nfi.okx_rows_to_df(await get_json(c, "/api/v5/market/candles", instId=inst, bar="4H", limit=100))
+        k1 = of_nfi.okx_rows_to_df(await get_json(c, "/api/v5/market/candles", instId=inst, bar="1H", limit=60))
+    if len(k4) < 30 or len(k1) < 20:
+        return {"err": "K线太少"}
+    sar = talib.SAR(k4.high.values.astype(float), k4.low.values.astype(float))
+    atr = talib.ATR(k1.high.values.astype(float), k1.low.values.astype(float), k1.close.values.astype(float), 14)[-1]
+    return {"sar_above": bool(sar[-1] > float(k4.close.iloc[-1])), "atr": float(atr)} if atr > 0 else {"err": "ATR 算不出"}
+
+
+core.trap_aux_cb = trap_aux
+
+
 async def live_refresher():
     """实盘：每 5 秒核对一次交易所持仓（止盈止损触发后记真实盈亏），每 30 秒读一次权益"""
     while True:
@@ -577,6 +597,10 @@ async def set_cfg(body: dict):
                     except (TypeError, ValueError):
                         pass
             core.cfg[key] = cur
+    from of_engine import TRAP_MODES
+    if isinstance(body.get("trap"), dict) and body["trap"].get("mode") in TRAP_MODES:   # 做空进场方式是文字，单独收
+        core.cfg["trap"] = {**dict(TRAP, **(core.cfg.get("trap") or {})), "mode": body["trap"]["mode"]}
+        core.say(f"多头摊平做空改成：{TRAP_MODES[body['trap']['mode']]}")
     core.risk.cfg = core.cfg
     save_cfg()
     core.say(f"设置已更新：自动交易={'开' if core.cfg['auto'] else '关'}，"

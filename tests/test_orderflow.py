@@ -685,7 +685,7 @@ def test_trap_short_open_and_cover_on_flush(tmp_path, monkeypatch):
     monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
     monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
     monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
-    app = E.OrderFlowApp({"auto": True, "enabled": ["trap_short"], "btc_ma_days": 200, "flush_filters": {}}, None, None, False)
+    app = E.OrderFlowApp({"auto": True, "enabled": ["trap_short"], "btc_ma_days": 200, "flush_filters": {}, "trap": {"mode": "orig"}}, None, None, False)
     app.btc_bull = True                                                        # 大盘多头也照做（不用大盘过滤）
     eng = E.SymbolEngine(app, "SOL-USDT-SWAP", "5m", {t: 0.0001 for t in E.VIEW_TFS}, 1.0)
     app.engines = {eng.inst: eng}
@@ -720,7 +720,7 @@ def test_trap_short_live_opens_short_and_auto_closes(tmp_path, monkeypatch):
     """实盘（假交易所）：多头摊平做空 → 开空并挂 5% 止损；多头被清洗 → 程序自己平空、撤掉止损单；另一单拿满 48 小时 → 到时间自己平"""
     import time
     monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
-    app = _live_app(tmp_path, monkeypatch, enabled=["trap_short"], btc_ma_days=0, flush_filters={}, max_positions=10)
+    app = _live_app(tmp_path, monkeypatch, enabled=["trap_short"], btc_ma_days=0, flush_filters={}, max_positions=10, trap={"mode": "orig"})
     eng = E.SymbolEngine(app, "SOL-USDT-SWAP", "5m", {t: 0.0001 for t in E.VIEW_TFS}, 1.0)
     app.engines = {eng.inst: eng}
     t0, now = 20 * 86_400_000, time.time() * 1000
@@ -1053,3 +1053,106 @@ def test_neutralize_keeps_guard_drops_trigger():
     assert out.count("long_entry_logic.append(rsi_3 > -1.0)") == 5
     assert "(close < sma_16 * 0.960)" in src and out.count("(close < sma_16 * 0.960)") < src.count("(close < sma_16 * 0.960)")
     assert len(out.split("\n")) < len(src.split("\n"))
+
+
+
+def _trap_setup(tmp_path, monkeypatch, mode, start_px=1.0):
+    import time
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = E.OrderFlowApp({"auto": True, "enabled": ["trap_short"], "btc_ma_days": 0, "flush_filters": {}, "trap": {"mode": mode}},
+                         None, None, False)
+    eng = E.SymbolEngine(app, "SOL-USDT-SWAP", "5m", {t: 0.0001 for t in E.VIEW_TFS}, 1.0)
+    app.engines = {eng.inst: eng}
+    t0, now = 20 * 86_400_000, time.time() * 1000
+    for k in range(25 * 12, 0, -1):
+        eng.momo.add(t0 - k * 300_000, start_px, 100.0)
+    app.oi24[eng.inst] = (0.08, now)
+    app.lsz[eng.inst] = (0.5, now)
+    eng.ext["funding"] = 0.0001
+    eng.ext["oi_hist"] = [(t0 - 3_600_000, 1e6)]
+    return app, eng, t0
+
+
+def test_trap_mode_a_waits_for_bounce_and_skips_near_low(tmp_path, monkeypatch):
+    """A：信号出来不马上空，在收盘价上方 2% 挂空，1 小时内涨到才成交；止损按成交价上方 5%。
+    已经贴着 24 小时低点（2% 以内）的信号不做"""
+    app, eng, t0 = _trap_setup(tmp_path, monkeypatch, "A")
+    eng.on_trade(0.95, 10, False, t0 - 300_000)                                # 24 小时最低 0.90（更早跌过）
+    eng.on_trade(0.90, 10, False, t0 - 290_000)
+    for k in range(3):
+        eng.on_trade(0.93 - k * 0.001, 10, False, t0 + k * 300_000)            # 收在 0.929 左右：离低点 >2%
+    eng.on_trade(0.929, 1, False, t0 + 2 * 300_000 + 500)
+    sig = [s for s in eng.signals if s["kind"] == "trap_short"]
+    assert len(sig) == 1 and app.acct.positions == [] and len(eng.limit_orders) == 1
+    s, d, until = eng.limit_orders[0]
+    assert abs(s.entry - sig[0]["price"] * 1.02) < 1e-9 and until == sig[0]["t"] + 300_000 + 60 * 60_000
+    eng.on_trade(s.entry + 0.0005, 1, True, t0 + 3 * 300_000 + 1000)            # 反弹到挂单价
+    pos = app.acct.positions
+    assert len(pos) == 1 and pos[0].side == -1 and pos[0].mode == "A"
+    assert abs(pos[0].stop - s.entry * 1.05) < 1e-6 and pos[0].max_until - pos[0].t_open == 48 * 3_600_000
+
+
+def test_trap_mode_a_skips_when_at_low(tmp_path, monkeypatch):
+    app, eng, t0 = _trap_setup(tmp_path, monkeypatch, "A")
+    for k in range(3):
+        eng.on_trade(0.93 - k * 0.001, 10, False, t0 + k * 300_000)            # 收盘就在 24 小时最低附近
+    eng.on_trade(0.928, 1, False, t0 + 2 * 300_000 + 500)
+    sig = [s for s in eng.signals if s["kind"] == "trap_short"]
+    assert len(sig) == 1 and "太低" in sig[0]["skip"] and eng.limit_orders == [] and app.acct.positions == []
+
+
+def test_trap_mode_b_uses_sar_and_atr(tmp_path, monkeypatch):
+    """B：后台读到 4 小时 SAR 在上方 → 挂空，止盈 2 倍 ATR、止损 3 倍 ATR；SAR 在下方 → 不做；B 的单不看"多头被清洗"平仓"""
+    import asyncio
+    app, eng, t0 = _trap_setup(tmp_path, monkeypatch, "B")
+    seen = []
+
+    async def aux(inst):
+        seen.append(inst); return {"sar_above": True, "atr": 0.01}
+    app.trap_aux_cb = aux
+
+    async def go():
+        for k in range(3):
+            eng.on_trade(0.93 - k * 0.001, 10, False, t0 + k * 300_000)
+        eng.on_trade(0.928, 1, False, t0 + 2 * 300_000 + 500)
+        await asyncio.sleep(0.01)
+        assert seen == [eng.inst] and len(eng.limit_orders) == 1
+        s, d, _ = eng.limit_orders[0]
+        assert abs(s.stop - (s.entry + 0.03)) < 1e-9 and abs(s.target - (s.entry - 0.02)) < 1e-9
+        eng.on_trade(s.entry + 0.0005, 1, True, t0 + 3 * 300_000 + 1000)
+        pos = app.acct.positions
+        assert len(pos) == 1 and pos[0].mode == "B"
+        eng.ext["oi_hist"] = [(t0 + 3 * 300_000 - 3_600_000, 1e6), (t0 + 4 * 300_000, 0.9e6)]
+        for k in range(4, 17):                                                   # 多头被清洗：B 不平（只按 ATR 止盈止损）
+            eng.on_trade(s.entry - 0.005 - k * 0.0002, 10, False, t0 + k * 300_000)
+        assert len(app.acct.positions) == 1
+    asyncio.run(go())
+
+
+def test_trap_mode_b_skips_when_sar_below(tmp_path, monkeypatch):
+    import asyncio
+    app, eng, t0 = _trap_setup(tmp_path, monkeypatch, "B")
+
+    async def aux(inst):
+        return {"sar_above": False, "atr": 0.01}
+    app.trap_aux_cb = aux
+
+    async def go():
+        for k in range(3):
+            eng.on_trade(0.93 - k * 0.001, 10, False, t0 + k * 300_000)
+        eng.on_trade(0.928, 1, False, t0 + 2 * 300_000 + 500)
+        await asyncio.sleep(0.01)
+        assert eng.limit_orders == [] and any("SAR" in (s.get("skip") or "") for s in eng.signals)
+    asyncio.run(go())
+
+
+def test_trap_mode_from_page(monkeypatch):
+    import of_app as A
+    monkeypatch.setattr(A, "save_cfg", lambda: None)
+    monkeypatch.setitem(A.core.cfg, "trap", dict(E.TRAP))
+    _run(lambda: A.set_cfg({"trap": {"mode": "B"}}))
+    assert E.trap_cfg(A.core.cfg)["mode"] == "B" and E.trap_cfg(A.core.cfg)["stop"] == 0.05
+    _run(lambda: A.set_cfg({"trap": {"mode": "乱写"}}))
+    assert E.trap_cfg(A.core.cfg)["mode"] == "B"
