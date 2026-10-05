@@ -66,6 +66,27 @@ TRAP_NAMES = {"trap_short": "多头摊平做空"}
 # 旧打法（吸收、大单跟随等）的出场：fixed=0 用原版（结构止损，很近，止盈 2 倍）；fixed=1 像新打法：固定止损 stop_pct%，
 # 止盈 tp_pct%（0 = 不设），最多拿 hold_h 小时。回测：两种都没有稳定赚钱的组合（见 分析/策略实验室/旧打法完整重测）
 OLD_EXIT = {"fixed": 0, "stop_pct": 5.0, "tp_pct": 0.0, "hold_h": 48.0}
+# 旧打法统一补仓（开了就盖过上面的"旧打法出场"）：第一笔按 weights[0] 的比例开；价格往不利方向走到离第一笔 levels[i]% 就按 weights[i+1] 补一笔；
+# 每补一笔按新均价重算止盈（均价赚 tp_pct%）；止损离第一笔 stop_pct%，不跟着动；最多拿 hold_h 小时。整单最多用的钱 = 旧打法每笔 old_size_pct%。
+# 回测（分析/策略实验室/旧打法补仓、实战版完整重测）：所有补仓方案在不同币、不同时间段上都没有稳定赚钱的，默认关
+OLD_DCA = {"enabled": 0, "levels": "2,4,6,8", "weights": "1,1,1,1,1", "tp_pct": 2.0, "stop_pct": 11.0, "hold_h": 72.0}
+
+
+def dca_plan(cfg):
+    """把页面上的补仓设置变成 (补仓位置[比例], 每笔权重)；没开或填错返回 None"""
+    c = {**OLD_DCA, **(cfg.get("old_dca") or {})}
+    if not c.get("enabled"):
+        return None
+    try:
+        lv = [float(x) / 100 for x in str(c["levels"]).replace("，", ",").split(",") if x.strip()]
+        wt = [float(x) for x in str(c["weights"]).replace("，", ",").split(",") if x.strip()]
+    except ValueError:
+        return None
+    if len(wt) != len(lv) + 1 or any(w <= 0 for w in wt) or any(x <= 0 for x in lv) or lv != sorted(lv) or not lv:
+        return None
+    if not (c["tp_pct"] > 0 and c["stop_pct"] > lv[-1] * 100 and c["hold_h"] > 0):
+        return None
+    return {"lv": lv, "wt": wt, "tp": c["tp_pct"] / 100, "sl": c["stop_pct"] / 100, "hold_h": c["hold_h"]}
 TRAP = {"drop": 0.05,           # 24 小时跌超 5%
         "oi_rise": 0.05,        # 持仓量 24 小时涨超 5%（越跌越加仓）
         "stop": 0.05,           # 止损：进场价上方 5%
@@ -223,6 +244,12 @@ class Position:
     half_done: bool = False  # 实战打法：到 1R 已平一半、止损移到保本
     busy: bool = False      # 实盘：正在向交易所操作，别重复下指令
     mgn: str = "isolated"   # 实盘：这笔用的保证金模式（平仓、改止损要用同一个）
+    dca_lv: list = field(default_factory=list)   # 补仓：还有哪些位置要补（离第一笔的比例）；空 = 不补仓
+    dca_wt: list = field(default_factory=list)   # 补仓：每笔权重（第一笔在最前）
+    dca_next: int = 1        # 补仓：下一笔是第几笔
+    dca_e0: float = 0.0      # 补仓：第一笔成交价（补仓位置、止损都按它算）
+    dca_unit: float = 0.0    # 补仓：权重 1 对应多少币
+    dca_tp: float = 0.0      # 补仓：均价止盈比例
 
 
 @dataclass
@@ -303,6 +330,7 @@ DEFAULT_CFG = {
     "risk_pct": 0.5,            # 每单最多亏权益的 0.5%
     "old_size_pct": 10,         # 旧打法每笔用权益的 10% 开仓（和新打法一样）
     "old_exit": dict(OLD_EXIT), # 旧打法的出场方式
+    "old_dca": dict(OLD_DCA),   # 旧打法统一补仓（默认关）
     "max_leverage": 3,
     "margin_mode": "isolated",  # 实盘保证金模式：isolated 逐仓 / cross 全仓（网页上选）
     "btc_ma_days": 200,         # 大盘过滤：BTC 昨收在这么多天均线上方才开做多打法；0 = 不过滤
@@ -943,7 +971,11 @@ class OrderFlowApp:
         if not self.cfg["auto"] or s.kind not in self.cfg["enabled"]:
             return
         oe = {**OLD_EXIT, **(self.cfg.get("old_exit") or {})}
-        old_fixed = s.kind not in COMBO_NAMES and bool(oe["fixed"]) and oe["stop_pct"] > 0
+        dca = dca_plan(self.cfg) if s.kind not in COMBO_NAMES else None
+        old_fixed = s.kind not in COMBO_NAMES and bool(oe["fixed"]) and oe["stop_pct"] > 0 and dca is None
+        if dca:                                # 旧打法统一补仓：止损离第一笔 sl，止盈先按第一笔价算，补仓后按均价重算
+            s = replace(s, stop=price * (1 - s.side * dca["sl"]), target=price * (1 + s.side * dca["tp"]))
+            d["stop"], d["target"] = s.stop, s.target
         if old_fixed:                          # 旧打法改用固定止损：按现价重算止损止盈
             sp, tp = oe["stop_pct"] / 100, oe["tp_pct"] / 100
             s = replace(s, stop=price * (1 - s.side * sp),
@@ -989,7 +1021,11 @@ class OrderFlowApp:
         else:                                  # 旧打法也和新打法一样：每笔固定用权益的 old_size_pct%（默认 10%）开仓，不再按止损倒推（止损太近会推出很大的仓位、保证金不够开不了）
             eq = self.live_equity if live else self.acct.equity
             qty = min(eq * self.cfg.get("old_size_pct", 10) / 100 / price, eq * self.cfg["max_leverage"] / price)
-        if old_fixed:
+            if dca:                            # 补仓：整单最多 old_size_pct%，第一笔只开第一份
+                qty *= dca["wt"][0] / sum(dca["wt"])
+        if dca:
+            hold = dca["hold_h"] * 3600_000
+        elif old_fixed:
             hold = oe["hold_h"] * 3600_000
         elif s.kind in PB_NAMES:
             hold = PB_HOLD_MS
@@ -1001,14 +1037,20 @@ class OrderFlowApp:
             hold = self.cfg.get("max_hold_bars", 48) * TF_MS[eng.tf]
         if not live:
             fill = price * (1 + s.side * PaperBroker.slip)
-            self._add_position(eng, s, d, Position(eng.inst, s.kind, s.side, qty, fill, s.stop, s.target, ts, ts + hold,
-                                                   "paper", False, risk=abs(fill - s.stop)))
+            pos = Position(eng.inst, s.kind, s.side, qty, fill, s.stop, s.target, ts, ts + hold, "paper", False, risk=abs(fill - s.stop))
+            self._dca_mark(pos, dca)
+            self._add_position(eng, s, d, pos)
             return
         self.opening.add(eng.inst)
         d["skip"] = "正在下单…"
-        asyncio.get_event_loop().create_task(self._open_live(eng, s, d, qty, price, ts, hold))
+        asyncio.get_event_loop().create_task(self._open_live(eng, s, d, qty, price, ts, hold, dca))
 
-    async def _open_live(self, eng, s, d, qty, price, ts, hold):
+    def _dca_mark(self, pos, dca):
+        if dca:
+            pos.dca_lv, pos.dca_wt, pos.dca_next = list(dca["lv"]), list(dca["wt"]), 1
+            pos.dca_e0, pos.dca_unit, pos.dca_tp = pos.entry, pos.qty / dca["wt"][0], dca["tp"]
+
+    async def _open_live(self, eng, s, d, qty, price, ts, hold, dca=None):
         try:
             lev = int(self.cfg["max_leverage"])
             n, nmin, cs = self.live.contracts_for(eng.inst, qty)
@@ -1028,6 +1070,7 @@ class OrderFlowApp:
             pos = Position(eng.inst, s.kind, s.side, r["contracts"] * cs, fill, s.stop, s.target, ts, ts + hold,
                            r["order_id"], True, contracts=r["contracts"], algo_id=r["algo_id"], risk=abs(fill - s.stop), mgn=mgn)
             d.pop("skip", None)
+            self._dca_mark(pos, dca)
             self._add_position(eng, s, d, pos)
             if not r["algo_id"]:
                 msg = f"{eng.inst} 开仓了，但没查到止盈止损单！请马上到欧易 App 检查这笔仓位"
@@ -1059,8 +1102,18 @@ class OrderFlowApp:
         for pos in list(self.acct.positions):
             if pos.sym != eng.inst or pos.busy:
                 continue
-            # 实战打法：到 1R 先平一半，剩下的止损移到保本
-            if pos.kind in PB_NAMES and not pos.half_done and pos.risk > 0:
+            # 旧打法补仓：价格往不利方向走到下一个补仓位置就补一笔
+            if pos.dca_lv and pos.dca_next < len(pos.dca_wt) and (not pos.live or (self.live_confirmed and self.live)):
+                px = pos.dca_e0 * (1 - pos.side * pos.dca_lv[pos.dca_next - 1])
+                if (price <= px) if pos.side == 1 else (price >= px):
+                    if pos.live:
+                        pos.busy = True
+                        asyncio.get_event_loop().create_task(self._dca_live(pos, ts))
+                    else:
+                        self._dca_apply(pos, pos.dca_unit * pos.dca_wt[pos.dca_next], price * (1 + pos.side * PaperBroker.slip))
+                    continue
+            # 实战打法：到 1R 先平一半，剩下的止损移到保本（补仓的单不做这个）
+            if pos.kind in PB_NAMES and not pos.half_done and pos.risk > 0 and not pos.dca_lv:
                 one_r = pos.entry + pos.side * pos.risk
                 if (price >= one_r) if pos.side == 1 else (price <= one_r):
                     if pos.live:
@@ -1114,6 +1167,45 @@ class OrderFlowApp:
         pos.stop = pos.entry
         self.say(f"[模拟盘] {pos.sym} 到 1R 平一半 盈亏 {pnl:+.2f}U，剩下的止损移到保本 {pos.entry:.6g}")
         self.save()
+
+    def _dca_apply(self, pos, add_qty, fill):
+        """补仓成交后：更新数量、均价、按新均价重算止盈（止损不动）"""
+        k = pos.dca_next
+        pos.entry = (pos.entry * pos.qty + fill * add_qty) / (pos.qty + add_qty)
+        pos.qty += add_qty
+        pos.target = pos.entry * (1 + pos.side * pos.dca_tp)
+        pos.dca_next = k + 1
+        self.say(f"[{'实盘' if pos.live else '模拟盘'}] 补仓 {pos.sym} 第 {k + 1}/{len(pos.dca_wt)} 笔 价 {fill:.6g}，"
+                 f"均价 {pos.entry:.6g}，止盈改到 {pos.target:.6g}，止损不动 {pos.stop:.6g}")
+        self.save()
+
+    async def _dca_live(self, pos, ts):
+        """实盘补仓：市价加仓 → 撤掉旧的止盈止损 → 按总张数和新均价重挂"""
+        try:
+            add_qty = pos.dca_unit * pos.dca_wt[pos.dca_next]
+            n, nmin, cs = self.live.contracts_for(pos.sym, add_qty)
+            if n < nmin or n <= 0:
+                self.say(f"{pos.sym} 第 {pos.dca_next + 1} 笔补仓太小（{n:g} 张 < 最少 {nmin:g} 张），跳过这一笔")
+                pos.dca_next += 1
+                return
+            r = await asyncio.to_thread(self.live.add, pos.sym, pos.side, n, pos.mgn)
+            pos.contracts += r["contracts"]
+            self._dca_apply(pos, r["contracts"] * cs, r["fill"] or self.engines[pos.sym].last)
+            await asyncio.to_thread(self.live.cancel_algo, pos.sym, pos.algo_id)
+            try:
+                pos.algo_id = await asyncio.to_thread(self.live.place_oco, pos.sym, pos.side, pos.contracts, pos.stop, pos.target, pos.mgn)
+            except Exception as e:  # noqa: BLE001
+                pos.algo_id = ""
+                msg = f"{pos.sym} 补仓后重挂止盈止损失败：{e}！这笔仓位现在没有止损，请马上到欧易 App 手动挂"
+                self.say(msg)
+                of_notify.push("订单流：补仓后止损没挂上", msg)
+            self.save()
+        except Exception as e:  # noqa: BLE001
+            self.say(f"{pos.sym} 实盘补仓失败：{e}（原来的仓位和止盈止损不变，不再补这一笔）")
+            of_notify.push("订单流：补仓失败", f"{pos.sym} {e}")
+            pos.dca_next += 1
+        finally:
+            pos.busy = False
 
     async def _half_live(self, pos, price, ts):
         try:

@@ -132,6 +132,25 @@ class OkxLive:
             raise LiveError("市价单没有成交（可能被交易所拒绝），请看欧易 App 的委托记录")
         return {"fill": fill, "contracts": filled, "order_id": oid, "algo_id": self.find_algo(inst)}
 
+    def add(self, inst, side, contracts, mgn="isolated"):
+        """补仓：同方向市价加仓（不带止盈止损，之后程序按总张数重挂）。返回 {fill, contracts}"""
+        s = self.sym(inst)
+        with self.lock:
+            o = self.ex.create_order(s, "market", "buy" if side == 1 else "sell", contracts, params={"tdMode": mgn, **self._pos_side(side)})
+            oid = o.get("id", "")
+        fill, filled = 0.0, 0.0
+        for _ in range(10):
+            time.sleep(0.4)
+            with self.lock:
+                od = self.ex.fetch_order(oid, s)
+            fill = float(od.get("average") or 0)
+            filled = float(od.get("filled") or 0)
+            if od.get("status") in ("closed", "canceled") and filled:
+                break
+        if not filled:
+            raise LiveError("补仓市价单没有成交，请看欧易 App 的委托记录")
+        return {"fill": fill, "contracts": filled}
+
     def find_algo(self, inst):
         """这笔仓位附带的止盈止损单号（最新的一张）"""
         with self.lock:

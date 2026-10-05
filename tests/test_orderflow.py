@@ -184,6 +184,13 @@ class FakeLive:
     def cancel_algo(self, inst, algo_id):
         self.calls.append(("cancel", inst, algo_id))
 
+    def add(self, inst, side, n, mgn="isolated"):
+        self.calls.append(("add", inst, side, n))
+        self.pos[inst] = self.pos.get(inst, 0) + side * n
+        return {"fill": self.add_px, "contracts": n}
+
+    add_px = 98.0
+
     def place_oco(self, inst, side, n, stop, target, mgn="isolated"):
         self.calls.append(("oco", inst, n, stop, target))
         return "A2"
@@ -848,3 +855,70 @@ def test_pick_symbols_puts_held_coins_first(monkeypatch):
     pos = [type("P", (), {"sym": "SOL-USDT-SWAP"})(), type("P", (), {"sym": "ENS-USDT-SWAP"})()]
     monkeypatch.setattr(A.core.acct, "positions", pos)
     assert _run(A.pick_symbols) == ["SOL-USDT-SWAP", "ENS-USDT-SWAP", "BTC-USDT-SWAP", "ETH-USDT-SWAP"]
+
+
+
+DCA = {"enabled": 1, "levels": "2,4", "weights": "1,1,2", "tp_pct": 2, "stop_pct": 8, "hold_h": 72}
+
+
+def test_old_dca_paper_adds_and_takes_profit_on_average(tmp_path, monkeypatch):
+    """模拟盘：旧打法开补仓 → 第一笔 1/4 仓位；跌 2%、4% 各补一笔（1:1:2）；止盈按均价 +2% 重算，止损离第一笔 8% 不动；碰到均价止盈就平"""
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = E.OrderFlowApp({"auto": True, "enabled": ["absorption"], "old_dca": DCA}, None, None, False)
+    eng = FakeEng(); app.engines[eng.inst] = eng
+    d = {}
+    app.try_open(eng, C.Signal("absorption", 1, 99.9, 100.2, 0), d, 100.0, 0)
+    pos = app.acct.positions[0]
+    e0 = pos.entry
+    assert abs(pos.qty * 100 - 1000 * 0.10 / 4) < 0.5                    # 整单 10%，第一笔 1/4
+    assert abs(pos.stop - 100.0 * 0.92) < 1e-9 and abs(pos.target - 100.0 * 1.02) < 1e-9
+    app.check_exits(eng, e0 * 0.979, 1)                                    # 跌过 -2%：补第 2 笔
+    assert pos.dca_next == 2 and abs(pos.qty * 100 - 50) < 1.5
+    app.check_exits(eng, e0 * 0.959, 2)                                    # 跌过 -4%：补第 3 笔（2 份）
+    assert pos.dca_next == 3 and abs(pos.qty * 100 - 100) < 3
+    assert pos.entry < e0 * 0.975 and abs(pos.target - pos.entry * 1.02) < 1e-9 and abs(pos.stop - 92.0) < 1e-9
+    app.check_exits(eng, e0 * 0.94, 3)                                     # 补满了，不再补
+    assert pos.dca_next == 3
+    app.check_exits(eng, pos.target + 0.01, 4)                             # 回到均价 +2%：止盈
+    assert app.acct.positions == [] and app.history[-1]["why"] == "止盈" and app.history[-1]["pnl"] > 0
+
+
+def test_old_dca_live_adds_then_replaces_oco(tmp_path, monkeypatch):
+    """实盘（假交易所）：补仓市价加 → 撤旧的止盈止损 → 按总张数、新均价止盈、原止损重挂"""
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = _live_app(tmp_path, monkeypatch, enabled=["absorption"], old_dca=DCA)
+    eng = FakeEng(); app.engines[eng.inst] = eng
+
+    async def go():
+        app.try_open(eng, C.Signal("absorption", 1, 99.9, 100.2, 0), {}, 100.0, 0)
+        await asyncio.sleep(0.05)
+        pos = app.acct.positions[0]
+        n0 = pos.contracts
+        app.check_exits(eng, 97.9, 1)
+        await asyncio.sleep(0.05)
+        kinds = [c[0] for c in app.live.calls]
+        assert kinds[-3:] == ["add", "cancel", "oco"]
+        oco = app.live.calls[-1]
+        assert oco[2] == pos.contracts == n0 * 2 and abs(oco[3] - 92.0) < 1e-9 and abs(oco[4] - pos.entry * 1.02) < 1e-9
+        assert abs(pos.entry - 99.0) < 1e-9 and pos.algo_id == "A2" and not pos.busy
+    _run(go)
+
+
+def test_old_dca_bad_settings_or_new_strategies_not_affected(tmp_path, monkeypatch):
+    """补仓设置填错就不补；清洗接盘 / 多头摊平做空不受补仓影响"""
+    assert E.dca_plan({"old_dca": {**DCA, "weights": "1,1"}}) is None           # 比例少一个
+    assert E.dca_plan({"old_dca": {**DCA, "stop_pct": 3}}) is None              # 止损比补仓位置近
+    assert E.dca_plan({"old_dca": {**DCA, "enabled": 0}}) is None
+    assert E.dca_plan({"old_dca": DCA})["wt"] == [1.0, 1.0, 2.0]
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = _live_app(tmp_path, monkeypatch, enabled=["trap_short"], old_dca=DCA)
+    eng = FakeEng(); app.engines[eng.inst] = eng
+
+    async def go():
+        app.try_open(eng, C.Signal("trap_short", -1, 105.0, 10.0, 0), {}, 100.0, 0)
+        await asyncio.sleep(0.05)
+        pos = app.acct.positions[0]
+        assert pos.dca_lv == [] and abs(pos.qty * 100 - 100) < 1
+    _run(go)

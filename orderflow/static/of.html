@@ -86,6 +86,15 @@ th{color:var(--mute);font-weight:normal}
     <div class="row">旧打法出场 <select id="oe_fixed"><option value="0">原版（止损很近，止盈 2 倍）</option><option value="1">像新打法：固定止损</option></select></div>
     <div class="row" id="oeRow">止损 <input id="oe_stop_pct" type="number" step="0.5" style="width:50px"> %　止盈 <input id="oe_tp_pct" type="number" step="0.5" style="width:50px"> %（0 = 不设）　最多拿 <input id="oe_hold_h" type="number" step="1" style="width:50px"> 小时</div>
     <div class="row"><small style="color:var(--mute)">只管旧打法（吸收、大单跟随等）；清洗接盘、多头摊平做空不受影响。回测两种出场都没有稳定赚钱的</small></div>
+    <div class="row">旧打法补仓 <select id="dca_en"><option value="0">不补仓</option><option value="1">开：越亏越补，按均价止盈</option></select></div>
+    <div id="dcaBox">
+      <div class="row">离第一笔 <input id="dca_levels" style="width:90px"> % 补（逗号隔开，从小到大）</div>
+      <div class="row">每笔比例 <input id="dca_weights" style="width:90px">（第一个是第一笔，要比补仓位置多一个）</div>
+      <div class="row">止盈：均价赚 <input id="dca_tp_pct" type="number" step="0.5" style="width:50px"> %</div>
+      <div class="row">止损：离第一笔 <input id="dca_stop_pct" type="number" step="0.5" style="width:50px"> %（要比最后一个补仓位置远）</div>
+      <div class="row">最多拿 <input id="dca_hold_h" type="number" step="1" style="width:50px"> 小时</div>
+      <div class="row"><small style="color:var(--mute)">整单最多用权益 10%（第一笔只开第一份）；开了会盖过上面的"旧打法出场"。回测所有补仓方案在不同币、不同时间段上都没有稳定赚钱的</small></div>
+    </div>
     <div class="row">最多同时持仓 <input id="max_positions" type="number" step="1"> 个</div>
     <div class="row">单日最多亏 <input id="daily_loss_pct" type="number" step="0.5"> % 停止开新单</div>
     <div class="row"><button id="saveRisk">保存设置</button><button id="closeAll">全部平仓</button></div>
@@ -303,6 +312,9 @@ function buildSide(){
   const oe=Object.assign({fixed:0,stop_pct:5,tp_pct:0,hold_h:48}, S.cfg.old_exit||{});
   $('#oe_fixed').value=String(+oe.fixed?1:0); for(const k of ['stop_pct','tp_pct','hold_h']) $('#oe_'+k).value=oe[k];
   const oeShow=()=>{ $('#oeRow').style.display=$('#oe_fixed').value==='1'?'':'none'; }; oeShow(); $('#oe_fixed').onchange=oeShow;
+  const dc=Object.assign({enabled:0,levels:'2,4,6,8',weights:'1,1,1,1,1',tp_pct:2,stop_pct:11,hold_h:72}, S.cfg.old_dca||{});
+  $('#dca_en').value=String(+dc.enabled?1:0); for(const k of ['levels','weights','tp_pct','stop_pct','hold_h']) $('#dca_'+k).value=dc[k];
+  const dcaShow=()=>{ $('#dcaBox').style.display=$('#dca_en').value==='1'?'':'none'; }; dcaShow(); $('#dca_en').onchange=dcaShow;
   const ff=S.cfg.flush_filters||{}, fd=S.flush_filters_def||{};
   $('#ffBox').innerHTML=Object.entries(fd).map(([k,v])=>`<label class="sig"><input type="checkbox" data-ff="${k}" ${ff[k]?'checked':''}><span><b>${v.name}</b><small style="color:var(--mute)">回测：${v.bt}<span id="ffv_${k}"></span></small></span></label>`).join('');
   $('#ffBox').querySelectorAll('input').forEach(i=>i.onchange=saveCfg);
@@ -311,6 +323,7 @@ async function post(u,b){ const r=await fetch(u,{method:'POST',headers:{'Content
 function saveCfg(){ const en=[...$('#sigs').querySelectorAll('input:checked')].map(i=>i.dataset.k);
   const b={enabled:en,auto:$('#auto').checked}; for(const k of ['risk_pct','max_leverage','max_positions','daily_loss_pct']) b[k]=+$('#'+k).value; b.margin_mode=$('#margin_mode').value; b.btc_ma_days=+$('#btc_ma_days').value;
   b.old_exit={fixed:+$('#oe_fixed').value, stop_pct:+$('#oe_stop_pct').value, tp_pct:+$('#oe_tp_pct').value, hold_h:+$('#oe_hold_h').value};
+  b.old_dca={enabled:+$('#dca_en').value, levels:$('#dca_levels').value, weights:$('#dca_weights').value, tp_pct:+$('#dca_tp_pct').value, stop_pct:+$('#dca_stop_pct').value, hold_h:+$('#dca_hold_h').value};
   b.flush_filters=Object.fromEntries([...$('#ffBox').querySelectorAll('input')].map(i=>[i.dataset.ff,i.checked]));
   if(b.auto && en.length===0){ alert('先勾选至少一种打法'); $('#auto').checked=false; b.auto=false; }
   post('/api/cfg',b); }

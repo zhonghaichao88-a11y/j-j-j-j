@@ -67,7 +67,7 @@ STARTING: set = set()
 def save_cfg():
     """保存设置（自动刹车改了打法勾选也会调用）"""
     keep = {k: core.cfg[k] for k in ("symbols", "tf", "enabled", "auto", "risk_pct", "max_leverage",
-                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "momo", "margin_mode", "guard_n", "guard_pf", "btc_ma_days", "flush_filters", "trap", "old_size_pct", "old_exit")
+                                     "max_positions", "daily_loss_pct", "paper_equity", "top_n", "v7_days", "flush", "squeeze", "momo", "margin_mode", "guard_n", "guard_pf", "btc_ma_days", "flush_filters", "trap", "old_size_pct", "old_exit", "old_dca")
             if k in core.cfg}
     json.dump(keep, open(CFG_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
@@ -449,6 +449,23 @@ async def set_cfg(body: dict):
             if k in FLUSH_OF_FILTERS:
                 cur[k] = bool(v)
         core.cfg["flush_filters"] = cur
+    if isinstance(body.get("old_dca"), dict):          # 旧打法统一补仓
+        from of_engine import OLD_DCA, dca_plan
+        cur = dict(OLD_DCA, **(core.cfg.get("old_dca") or {}))
+        b = body["old_dca"]
+        if "enabled" in b:
+            cur["enabled"] = 1 if b["enabled"] else 0
+        for k in ("levels", "weights"):
+            if k in b:
+                cur[k] = str(b[k])[:60]
+        for k in ("tp_pct", "stop_pct", "hold_h"):
+            try:
+                cur[k] = float(b[k])
+            except (KeyError, TypeError, ValueError):
+                pass
+        core.cfg["old_dca"] = cur
+        if cur["enabled"] and dca_plan(core.cfg) is None:
+            core.say("旧打法补仓设置填得不对（补仓位置要从小到大、每笔比例要比补仓位置多一个、止损要比最后一个补仓位置远），先不补仓")
     if body.get("margin_mode") in ("isolated", "cross"):
         core.cfg["margin_mode"] = body["margin_mode"]
     from of_engine import FLUSH, SQUEEZE, MOMO, TRAP, OLD_EXIT
