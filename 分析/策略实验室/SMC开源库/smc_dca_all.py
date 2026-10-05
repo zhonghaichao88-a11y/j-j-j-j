@@ -2,7 +2,7 @@
 进场：smc_full 的 8 种打法 × 多/空（L=5，和原版一样的挂单/市价进场、24 根内没回踩到就放弃），外加 D 随机进场（市价）作对照。
 出场：原版（前高/前低止损、盈亏比 2、最多 48 根）+ 80 种补仓（和 4 小时做空那次一样：5 种补仓方案 × 均价止盈 2/3/5/8% × 补满后再亏 5/10% 止损 × 最多 18/48 根）。
 周期和数据：
-  15 分钟：40 个币 2024-09 ~ 2026-09（2025-09-30 前训练、后检验）
+  5 分钟、15 分钟：40 个币 2024-09 ~ 2026-09（2025-09-30 前训练、后检验）
   1 小时、4 小时：老币池 137 个 2021-10 ~ 2026-08（2024-07 前训练、后检验）+ 新币 296 个 2024-09 ~ 2026-08
 同一根先止损 → 补仓 → 没补才看止盈。成本：市价/补仓/止损 0.07%，挂单进场和止盈 0.02%。每种打法每个方向每个币同时一单。
 过关：每一段（15 分钟两段；1 小时 / 4 小时三段）PF ≥ 1.1、≥ 50 笔，而且比同周期同方向同出场的随机进场高 0.1 以上。"""
@@ -11,6 +11,17 @@ from numba import njit
 from concurrent.futures import ProcessPoolExecutor
 sys.path.insert(0, '../裸K形态')
 import nk, smc_full as S
+S.HTF.setdefault('5m', '1h')
+_load_tf = S.load_tf
+
+
+def load_tf(sym, tf):
+    """5 分钟：用和 15 分钟同一份 1 分钟数据（40 个币 2024-09 ~ 2026-09）合成"""
+    if tf == '5m':
+        d = np.load(f'/home/user/okx_data/{sym}-USDT-SWAP_1m2y.npz')
+        df = pd.DataFrame({k: d[k] for k in ('open', 'high', 'low', 'close')}, index=pd.to_datetime(d['ts'], unit='ms'))
+        return S.resample(df[~df.index.duplicated()].sort_index(), '5min')
+    return _load_tf(sym, tf)
 TK, MK = 0.0007, 0.0002
 SCH = {'3笔1:1:1(3/6)': ([0, .03, .06], [1, 1, 1]), '3笔1:1:2(3/6)': ([0, .03, .06], [1, 1, 2]),
        '5笔等(2..8)': ([0, .02, .04, .06, .08], [1] * 5), '5笔1:1:2:2:4(2..8)': ([0, .02, .04, .06, .08], [1, 1, 2, 2, 4]),
@@ -90,8 +101,8 @@ def entries(df, tf, side, v, ev, hs):
 def job(args):
     sym, tf, pool = args
     try:
-        if tf == '15m':
-            df = S.load_tf(sym, tf)
+        if tf in ('5m', '15m'):
+            df = load_tf(sym, tf)
         elif pool == 'new':
             d = np.load(f'/home/user/okx_data/{sym}_bn1h.npz')
             df = pd.DataFrame({k: d[k] for k in ('open', 'high', 'low', 'close')}, index=pd.to_datetime(d['ts'], unit='ms'))
@@ -103,7 +114,7 @@ def job(args):
         return []
     if len(df) < (1500 if pool != 'new' else 300):
         return []
-    split = pd.Timestamp('2025-09-30') if tf == '15m' else nk.SPLIT
+    split = pd.Timestamp('2025-09-30') if tf in ('5m', '15m') else nk.SPLIT
     seg = lambda i: '新币' if pool == 'new' else ('训练' if df.index[i] < split else '检验')
     o, h, l, c = (df[k].values.astype(float) for k in ('open', 'high', 'low', 'close'))
     ev, _ = S.structure(df, 5)
@@ -149,19 +160,22 @@ if __name__ == '__main__':
     new = sorted(os.path.basename(f).split('_bn1h')[0] for f in glob.glob('/home/user/okx_data/*_bn1h.npz'))
     new = [s for s in new if s not in set(old)]
     s15 = sorted(os.path.basename(f).split('-USDT')[0] for f in glob.glob('/home/user/okx_data/*-USDT-SWAP_1m2y.npz'))
-    jobs = [(s, '15m', 'old') for s in s15] + [(s, tf, 'old') for tf in ('1h', '4h') for s in old] + [(s, tf, 'new') for tf in ('1h', '4h') for s in new]
+    tfs = sys.argv[1].split(',') if len(sys.argv) > 1 else ['15m', '1h', '4h']
+    tag = '' if len(sys.argv) <= 1 else '_' + '_'.join(tfs)
+    jobs = [(s, tf, 'old') for tf in tfs if tf in ('5m', '15m') for s in s15] + [(s, tf, 'old') for tf in tfs if tf in ('1h', '4h') for s in old] + \
+           [(s, tf, 'new') for tf in tfs if tf in ('1h', '4h') for s in new]
     with ProcessPoolExecutor(4) as ex:
         rows = sum(ex.map(job, jobs, chunksize=4), [])
     A = pd.DataFrame(rows, columns=['周期', 'v', '方向', '出场', '段', 'n', 'win', 'gp', 'gl'])
     A = A.groupby(['周期', 'v', '方向', '出场', '段'])[['n', 'win', 'gp', 'gl']].sum().reset_index()
     A['PF'] = A.gp / A.gl
-    A.to_csv('/home/user/ext/smc_dca_all_raw.csv', index=False)
+    A.to_csv(f'/home/user/ext/smc_dca_all_raw{tag}.csv', index=False)
     W = A.pivot_table(index=['周期', 'v', '方向', '出场'], columns='段', values=['PF', 'n']).reset_index()
     W.columns = [a if not b else f'{b}_{a}' for a, b in W.columns]
     rnd = W[W.v == 0].set_index(['周期', '方向', '出场'])
     rows = []
     for _, r in W[W.v != 0].iterrows():
-        segs = ['训练', '检验'] + ([] if r.周期 == '15m' else ['新币'])
+        segs = ['训练', '检验'] + ([] if r.周期 in ('5m', '15m') else ['新币'])
         rr = rnd.loc[(r.周期, r.方向, r.出场)] if (r.周期, r.方向, r.出场) in rnd.index else None
         ok = rr is not None and all(r.get(f'{s}_n', 0) >= 50 and r.get(f'{s}_PF', 0) >= 1.1 and r[f'{s}_PF'] - rr.get(f'{s}_PF', 9) >= 0.1 for s in segs)
         rows.append({'周期': r.周期, '打法': NAMES[r.v], '方向': '多' if r.方向 > 0 else '空', '出场': r.出场,
@@ -169,10 +183,10 @@ if __name__ == '__main__':
                      **{f'{s}_笔数': int(r.get(f'{s}_n', 0) or 0) for s in ('训练', '检验', '新币')},
                      **{f'随机_{s}_PF': round(rr.get(f'{s}_PF', np.nan), 2) if rr is not None else np.nan for s in ('训练', '检验', '新币')}, '过关': '✔' if ok else ''})
     R = pd.DataFrame(rows)
-    R.to_csv('SMC补仓_全部周期.csv', index=False, encoding='utf-8-sig')
+    R.to_csv(f'SMC补仓_全部周期{tag}.csv', index=False, encoding='utf-8-sig')
     pd.set_option('display.width', 300); pd.set_option('display.max_columns', 30); pd.set_option('display.max_rows', 100)
     print('组合总数', len(R), '过关', int((R.过关 == '✔').sum()))
-    for tf in ('15m', '1h', '4h'):
+    for tf in tfs:
         X = R[R.周期 == tf]; Y = rnd.loc[tf] if tf in rnd.index.get_level_values(0) else None
         print(f'\n{tf}：{len(X)} 组，过关 {int((X.过关 == "✔").sum())}；PF 中位 训练 {X.训练_PF.median():.2f} 检验 {X.检验_PF.median():.2f} 新币 {X.新币_PF.median():.2f}；'
               f'同周期随机进场中位 训练 {X.随机_训练_PF.median():.2f} 检验 {X.随机_检验_PF.median():.2f} 新币 {X.随机_新币_PF.median():.2f}')
