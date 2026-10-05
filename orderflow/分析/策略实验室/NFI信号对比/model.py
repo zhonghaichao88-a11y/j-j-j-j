@@ -38,6 +38,17 @@ def load():
     for t in common.index[(common > 2000) & (common < len(D) * 0.5)]:
         D[f'cond_{t}'] = tags.apply(lambda s, t=t: t in s).astype(np.int8)
     D['t'] = pd.to_datetime(D.date).astype('int64') // 10**6
+    # 大盘：同一时刻 BTC 的涨跌、全部币里在涨的比例；这个币在同一时刻所有币里的排名（0~1）
+    btc = D[D.coin == 'BTC'].drop_duplicates(['seg', 't']).set_index(['seg', 't'])[['ret_1h', 'ret_4h', 'ret_24h', 'RSI_14']]
+    btc.columns = ['btc_' + c for c in btc.columns]
+    D = D.join(btc, on=['seg', 't'])
+    g = D.groupby(['seg', 't'])
+    for c in ('ret_1h', 'ret_4h', 'ret_24h'):
+        D[f'breadth_{c}'] = g[c].transform(lambda s: (s > 0).mean()).astype(np.float32)
+        D[f'rank_{c}'] = g[c].rank(pct=True).astype(np.float32)
+        D[f'vs_btc_{c}'] = (D[c] - D[f'btc_{c}']).astype(np.float32)
+    D['rank_vol_rel_1h'] = g['vol_rel_1h'].rank(pct=True).astype(np.float32)
+    D['rank_RSI_14'] = g['RSI_14'].rank(pct=True).astype(np.float32)
     return D
 
 
@@ -80,7 +91,7 @@ def main():
             y, dc = f'y{side}{k}', f'd{side}{k}'
             for fi, (tr, te) in enumerate(FOLDS):
                 A = D[D.seg.isin(tr) & D[y].notna()]; B = D[(D.seg == te) & D[y].notna()].copy()
-                m = lgb.train(PARAMS, lgb.Dataset(A[feats].astype(np.float32), A[y].clip(-0.12, 0.06)), num_boost_round=300)
+                m = lgb.train(PARAMS, lgb.Dataset(A[feats].astype(np.float32), A[y].clip(-0.12, 0.06)), num_boost_round=int(os.environ.get('ROUNDS', 300)))
                 pa = m.predict(A[feats].astype(np.float32)); B['p'] = m.predict(B[feats].astype(np.float32))
                 rnd = no_overlap(B.sample(frac=0.05, random_state=fi), dc)
                 for q in QS:
