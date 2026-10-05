@@ -22,8 +22,7 @@ for seg, d in SEG.items():
     for f in sorted(glob.glob(f'/home/user/ext/nfisig/{d}/*.parquet')):
         c = os.path.basename(f)[:-8]; k = pd.read_parquet(f)
         if len(k) < 3000: continue
-        om = (k.date.astype('int64').values // 60_000_000_000 if k.date.dtype.kind == 'M' else k.date.values).astype(np.int64)
-        om = (pd.to_datetime(k.date).astype('int64').values // 60_000_000_000).astype(np.int64)
+        om = pd.to_datetime(k.date).dt.tz_localize(None).values.astype('datetime64[m]').astype(np.int64)
         o, h, l, cl = (k[x].values.astype(float) for x in ('open', 'high', 'low', 'close'))
         el = k.get('enter_long', pd.Series(0, index=k.index)).fillna(0).values > 0
         es = k.get('enter_short', pd.Series(0, index=k.index)).fillna(0).values > 0

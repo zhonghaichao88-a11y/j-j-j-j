@@ -22,7 +22,7 @@ def load(seg):
     for f in sorted(glob.glob(f'/home/user/ext/nfisig/{SEG[seg]}/*.parquet')):
         k = pd.read_parquet(f)
         if len(k) < 3000: continue
-        om = (pd.to_datetime(k.date).astype('int64').values // 60_000_000_000).astype(np.int64)
+        om = pd.to_datetime(k.date).dt.tz_localize(None).values.astype('datetime64[m]').astype(np.int64)
         yield os.path.basename(f)[:-8], om, *(k[x].values.astype(float) for x in ('open', 'high', 'low', 'close')), k
 
 
@@ -33,11 +33,9 @@ def run():
             el = k.get('enter_long', pd.Series(0, index=k.index)).fillna(0).values > 0
             es = k.get('enter_short', pd.Series(0, index=k.index)).fillna(0).values > 0
             tg = k.enter_tag.fillna('').astype(str).values
-            per = {}
-            for i in np.where(el | es)[0]:
-                if i + 1 >= len(om) - 1: continue
-                for t in tg[i].split():
-                    per.setdefault(t, []).append(i + 1)
+            sr = pd.Series(tg[:-2]); sr = sr[sr != ''].str.split().explode()
+            per = {t: (g.index.values + 1) for t, g in sr.groupby(sr)}
+            per.pop('121', None); per.pop('603', None)   # 这两个每根K线都触发，是空壳
             rng = np.random.default_rng(abs(hash(c + seg)) % 2**32)
             ri = np.sort(rng.integers(0, len(om) - 1, 300)).astype(np.int64)
             for ex, (lv, wt, tp, sl, hd) in EX.items():
