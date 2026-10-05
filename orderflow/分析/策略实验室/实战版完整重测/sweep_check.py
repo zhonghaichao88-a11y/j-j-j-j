@@ -3,7 +3,7 @@
 验证 3：另外 20 个山寨币 B + BTC/ETH/SOL，2025-10 ~ 2026-03（之前都没用过这段）。过关标准同前。
 组合回测（按程序规则：同币一单、最多同时 10 单、每单最多用权益 10%，补仓也在这 10% 里）：
   时段 1 2026-04~09（43 币）、时段 2 2025-10~2026-03（43 币）
-  看：只开它 / 只开新打法（清洗接盘 + 多头摊平做空）/ 两个一起"""
+  只看它自己（不和新打法一起跑）"""
 import sys, os, pickle, heapq, numpy as np, pandas as pd
 from numba import njit
 from multiprocessing import Pool
@@ -151,10 +151,9 @@ if __name__ == '__main__':
         N = NEW[(NEW.t_in >= a) & (NEW.t_in < b)]
         days = (b - a) / 86_400_000
         print(f'\n{per}：')
-        r = port(N); print(f'  只开新打法：100U → {r["final"]}U，回撤 {r["dd"]}%，{r["n"]} 单（每天 {r["n"] / days:.1f}）')
         for cfg in CFGS:
             SW = pd.concat([T[(cfg, s)] for s in sets if (cfg, s) in T]).assign(src='扫止损补仓')
             SW = SW[(SW.t_in >= a) & (SW.t_in < b)][['coin', 't_in', 't_out', 'ret', 'src']]
-            for nm2, X in (('只开扫止损补仓', SW), ('新打法 + 扫止损补仓', pd.concat([N, SW]))):
+            for nm2, X in (('只开扫止损补仓', SW),):
                 r = port(X)
                 print(f'  {cfg} {nm2}：100U → {r["final"]}U，回撤 {r["dd"]}%，{r["n"]} 单（每天 {r["n"] / days:.1f}），最差一单亏权益 {r["worst"]}%，各打法 {r["by"]}')
