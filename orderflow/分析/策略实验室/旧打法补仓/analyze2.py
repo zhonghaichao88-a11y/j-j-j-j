@@ -25,7 +25,7 @@ def ok(x):
 
 def nm(k):
     tf, kind, ci = k; sc, tp, sl, h = CFG[ci]
-    w = ':'.join(map(str, SCHEMES[sc][1])); lv = '/'.join(f'-{x:.0%}' for x in SCHEMES[sc][0][1:])
+    w = ':'.join(map(str, SCHEMES[sc][1])); lv = '/'.join(f'-{x * 100:g}%' for x in SCHEMES[sc][0][1:])
     return f'{tf}分钟 {SIGNAL_NAMES.get(kind, kind)} 补仓{sc}({w}，{lv}补) 均价止盈{tp:.0%} 止损离第一笔{sl:.0%} 拿{h}h'
 
 R = {s: agg(s) for s in SETS}
@@ -49,3 +49,7 @@ for k in sorted(pick, key=lambda k: -R['挑选'][k]['pf'])[:15]:
     print(' ', nm(k)); print('     ' + ' | '.join(f"{s} {R[s].get(k, {}).get('n', 0)}笔 胜{R[s].get(k, {}).get('win', 0) * 100:.0f}% PF{R[s].get(k, {}).get('pf', 0):.2f} 随机{R[s].get(k, {}).get('rand', 0):.2f} {'✔' if ok(R[s].get(k)) else '✘'}" for s in SETS))
 cnt = {k: sum(ok(R[s].get(k)) for s in SETS) for k in R['挑选']}
 print('三份数据里过关次数分布', {i: sum(v == i for v in cnt.values()) for i in range(4)})
+two = [k for k, v in cnt.items() if v == 2]
+print('\n两份数据过关的', len(two), '组：')
+for k in two:
+    print(' ', nm(k)); print('     ' + ' | '.join(f"{s} {R[s].get(k, {}).get('n', 0)}笔 胜{R[s].get(k, {}).get('win', 0) * 100:.0f}% PF{R[s].get(k, {}).get('pf', 0):.2f} 随机{R[s].get(k, {}).get('rand', 0):.2f} {'✔' if ok(R[s].get(k)) else '✘'}" for s in SETS))
