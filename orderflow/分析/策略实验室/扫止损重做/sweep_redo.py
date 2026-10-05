@@ -117,6 +117,11 @@ if __name__ == '__main__':
     uni = {'头部币': D.coin.isin(TOP).values, '全部币': np.ones(len(D), bool)}
     of = {'': np.ones(len(D), bool), '持仓涨': (D.oi24 > 0.05).values, '持仓跌': (D.oi24 < -0.05).values,
           '费率正': (D.fund > 0.0001).values, '费率负': (D.fund < 0).values, '多空比高': (D.lsz > 1).values, '多空比低': (D.lsz < -1).values}
+    if os.environ.get('OF2'):                                # 订单流两个一起用（同一类的反向不配：持仓涨+持仓跌 这种）
+        import itertools
+        base = {k: v for k, v in of.items() if k}
+        same = {('持仓涨', '持仓跌'), ('费率正', '费率负'), ('多空比高', '多空比低')}
+        of = {f'{a}+{b}': base[a] & base[b] for a, b in itertools.combinations(base, 2) if (a, b) not in same}
     sdir = {'做多': (D.side > 0).values, '做空': (D.side < 0).values}
     out = []
     for sn, sm in sdir.items():
@@ -137,7 +142,7 @@ if __name__ == '__main__':
                                         最差PF=round(min((r['PF'] for r in rs if r), default=0), 2),
                                         平均每天=round(np.mean([r['每天'] for r in rs if r]), 2) if any(rs) else 0,
                                         **{s: (f"{r['笔']}笔 每天{r['每天']:.2f} 胜{r['胜']:.0%} PF{r['PF']:.2f} 组合{r['组合']:.0f} 撤{r['撤']:.0f}% 半{r['前']:.1f}/{r['后']:.1f}" if r else '无') for s, r in zip(SEGS, rs)}))
-    S = pd.DataFrame(out).sort_values(['过关', '最差PF'], ascending=False); S.to_csv(HERE + '/结果.csv', index=False)
+    S = pd.DataFrame(out).sort_values(['过关', '最差PF'], ascending=False); S.to_csv(HERE + ('/结果_订单流两个.csv' if os.environ.get('OF2') else '/结果.csv'), index=False)
     pd.set_option('display.width', 450); pd.set_option('display.max_colwidth', 80)
     print(f'试了 {len(S)} 种，过关 {S.过关.sum()} 种')
     print(S.head(25).to_string(index=False))
