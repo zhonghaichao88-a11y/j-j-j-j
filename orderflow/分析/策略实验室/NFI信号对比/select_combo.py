@@ -103,8 +103,10 @@ def main():
                     for on, om in of.items():
                         m = ix[rm[ix] & um[ix] & om[ix]]
                         if len(m) >= 60: cands[f'{s}|{rn}{un}{on}'] = m
+        if os.environ.get('SMOKE'):
+            ks = sorted(cands)[::max(1, len(cands) // 300)]; cands = {k_: cands[k_] for k_ in ks}
         print(side, '候选', len(cands), flush=True)
-        for k in EXN:
+        for k in ([1] if os.environ.get('SMOKE') else EXN):
             y, du = D[f'y{k}'].values, D[f'd{k}'].values
             folds = [([a for a in SEGS if a != te], te) for te in SEGS] + [(SEGS, None)]
             segm = {}                                    # 每个候选每段的成绩只算一次
