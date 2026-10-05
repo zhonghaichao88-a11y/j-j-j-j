@@ -42,6 +42,7 @@ config = Configuration({'config': [fn], 'datadir': datadir, 'user_data_dir': '/h
 bt = Backtesting(config); bt._set_strategy(bt.strategylist[0]); st = bt.strategy
 data, _ = bt.load_bt_data(); print('pairs', len(data), flush=True)
 os.makedirs(out + '/f', exist_ok=True)
+NOISY = set('121 603 662 664 605 665 667 506 669 105 505 666 670 663 170 545 543 563 592'.split())   # 几乎每根都触发、筛选时和随机一样的条件，不当触发点
 DROP = {'open', 'high', 'low', 'close', 'volume', 'CVD_BUY_VOL', 'CVD_SELL_VOL', 'LARGE_BUBBLE_THR', 'live_data_ok', 'bt_agefilter_ok', 'enter_long', 'enter_short', 'exit_long', 'exit_short'}
 for pair, df in data.items():
     coin = pair.split('/')[0]; t = time.time()
@@ -51,7 +52,8 @@ for pair, df in data.items():
     except Exception as e:
         print('ERR', pair, e, flush=True); continue
     d = d.reset_index(drop=True); tag = d.enter_tag.fillna('').astype(str).values
-    idx = np.where((d.date.dt.minute == 55).values)[0]; idx = idx[idx > 2016]      # 前 7 天指标没算满，不要
+    trig = np.array([any(x not in NOISY for x in t.split()) for t in tag])   # 有 NFI 条件触发的K线（去掉每根都触发的两个空壳）
+    idx = np.where((d.date.dt.minute == 55).values | trig)[0]; idx = idx[(idx > 2016) & (idx < len(d) - 1)]      # 前 7 天指标没算满，不要
     cl = d.close.values.astype(float); F = {}
     for col in d.columns:
         if col in DROP or col in ('date', 'enter_tag', 'exit_tag') or d[col].dtype.kind not in 'fiub': continue
@@ -69,6 +71,6 @@ for pair, df in data.items():
     for k_, (tp, sl, hd) in enumerate(EXITS):
         for side, nm in ((1.0, 'L'), (-1.0, 'S')):
             r_, du_ = label(o, h, l, cl, idx.astype(np.int64), side, tp, sl, hd); F[f'y{nm}{k_}'] = r_.astype(np.float32); F[f'd{nm}{k_}'] = du_
-    Fd = pd.DataFrame(F); Fd.insert(0, 'tag', tag[idx]); Fd.insert(0, 'i', idx); Fd.insert(0, 'date', d.date.values[idx])
+    Fd = pd.DataFrame(F); Fd.insert(0, 'hourly', (d.date.dt.minute.values[idx] == 55)); Fd.insert(0, 'tag', tag[idx]); Fd.insert(0, 'i', idx); Fd.insert(0, 'date', d.date.values[idx])
     Fd.to_parquet(f'{out}/f/{coin}.parquet', compression='zstd')
     print(coin, len(Fd), Fd.shape[1], round(time.time() - t), flush=True)

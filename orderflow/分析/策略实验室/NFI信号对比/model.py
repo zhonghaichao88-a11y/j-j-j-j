@@ -16,7 +16,9 @@ SEGS = {'2022-23': 'F_old', '2024-25': 'F_mid', '2025-26': 'F_new'}
 EXN = {0: '止盈2% 止损5% 24h', 1: '止盈3% 止损8% 48h', 2: '止盈5% 止损11% 72h', 3: '止盈1.5% 止损3% 12h'}
 FOLDS = [(['2024-25', '2025-26'], '2022-23'), (['2022-23', '2025-26'], '2024-25'), (['2022-23', '2024-25'], '2025-26'),
          (['2022-23'], '2024-25'), (['2022-23', '2024-25'], '2025-26')]
-QS = [0.01, 0.02, 0.05, 0.10]
+QS = [0.005, 0.01, 0.02, 0.05, 0.10]
+OBJ = os.environ.get('OBJ', 'regression')            # regression = 学每笔赚多少；binary = 学赚还是亏
+MAXTRAIN = int(os.environ.get('MAXTRAIN', 1_500_000))  # 训练样本太多时随机抽这么多（内存）
 PARAMS = dict(objective='regression', learning_rate=0.03, num_leaves=15, min_data_in_leaf=400, feature_fraction=0.5,
               bagging_fraction=0.7, bagging_freq=1, lambda_l2=10.0, verbose=-1, num_threads=4, seed=1)
 
@@ -37,7 +39,7 @@ def load():
     common = tags.explode().value_counts()
     for t in common.index[(common > 2000) & (common < len(D) * 0.5)]:
         D[f'cond_{t}'] = tags.apply(lambda s, t=t: t in s).astype(np.int8)
-    D['t'] = pd.to_datetime(D.date).astype('int64') // 10**6
+    D['t'] = pd.to_datetime(D.date, utc=True).dt.tz_localize(None).values.astype('datetime64[ms]').astype(np.int64)
     # 大盘：同一时刻 BTC 的涨跌、全部币里在涨的比例；这个币在同一时刻所有币里的排名（0~1）
     btc = D[D.coin == 'BTC'].drop_duplicates(['seg', 't']).set_index(['seg', 't'])[['ret_1h', 'ret_4h', 'ret_24h', 'RSI_14']]
     btc.columns = ['btc_' + c for c in btc.columns]
@@ -81,7 +83,7 @@ def port(X, ycol, dcol, cap=10, size=0.10, start=100.0):
 def main():
     D = load()
     import re
-    feats = [c for c in D.columns if c not in ('date', 'i', 'tag', 'coin', 'seg', 't') and not re.fullmatch(r'[yd][LS]\d+', c)]
+    feats = [c for c in D.columns if c not in ('date', 'i', 'tag', 'coin', 'seg', 't', 'hourly') and not re.fullmatch(r'[yd][LS]\d+', c)]
     days = {s: (D[D.seg == s].t.max() - D[D.seg == s].t.min()) / 86_400_000 for s in SEGS}
     ncoin = {s: D[D.seg == s].coin.nunique() for s in SEGS}
     print(f'样本 {len(D)}，特征 {len(feats)}，' + '，'.join(f'{s} {ncoin[s]} 币 {days[s]:.0f} 天' for s in SEGS), flush=True)
@@ -91,7 +93,10 @@ def main():
             y, dc = f'y{side}{k}', f'd{side}{k}'
             for fi, (tr, te) in enumerate(FOLDS):
                 A = D[D.seg.isin(tr) & D[y].notna()]; B = D[(D.seg == te) & D[y].notna()].copy()
-                m = lgb.train(PARAMS, lgb.Dataset(A[feats].astype(np.float32), A[y].clip(-0.12, 0.06)), num_boost_round=int(os.environ.get('ROUNDS', 300)))
+                if len(A) > MAXTRAIN:
+                    A = A.sample(MAXTRAIN, random_state=fi)
+                tgt = (A[y] > 0).astype(np.float32) if OBJ == 'binary' else A[y].clip(-0.12, 0.06)
+                m = lgb.train({**PARAMS, 'objective': OBJ}, lgb.Dataset(A[feats].astype(np.float32), tgt), num_boost_round=int(os.environ.get('ROUNDS', 300)))
                 pa = m.predict(A[feats].astype(np.float32)); B['p'] = m.predict(B[feats].astype(np.float32))
                 rnd = no_overlap(B.sample(frac=0.05, random_state=fi), dc)
                 for q in QS:
@@ -107,7 +112,7 @@ def main():
                                      随机PF=round(pf(rnd[y]), 2), 前半=round(pf(Xs[y][:h]), 2), 后半=round(pf(Xs[y][h:]), 2),
                                      赚钱币=round((X.groupby('coin')[y].sum() > 0).mean(), 2), 组合=fin, 回撤=dd))
                 print(side, EXN[k], '考', te, '训练', '+'.join(tr), [(r['q'], r.get('PF'), r.get('笔')) for r in rows[-len(QS):]], flush=True)
-    R = pd.DataFrame(rows); R.to_csv(HERE + '/model_结果.csv', index=False)
+    R = pd.DataFrame(rows); R.to_csv(HERE + f'/model_结果_{OBJ}.csv', index=False)
     out = []
     for (side, k, q), g in R.groupby(['方向', '出场', 'q']):
         ok = len(g) == len(FOLDS) and g.笔.min() >= 30 and (g.PF >= 1.3).all() and ((g.PF - g.随机PF) >= 0.2).all() and \
@@ -115,7 +120,7 @@ def main():
         out.append(dict(方向='做多' if side == 'L' else '做空', 出场=EXN[k], 前百分之=q * 100, 过关=ok,
                         每天每50币=round(g.每天每50币.mean(), 2), 胜=round(g.胜.mean(), 3), 最差PF=g.PF.min(), 平均每笔=round(g.平均.mean(), 3),
                         最差组合=g.组合.min(), 最大回撤=g.回撤.min(), 分数=round(g.每天每50币.mean() * g.平均.mean(), 3)))
-    S = pd.DataFrame(out).sort_values(['过关', '分数'], ascending=False); S.to_csv(HERE + '/model_汇总.csv', index=False)
+    S = pd.DataFrame(out).sort_values(['过关', '分数'], ascending=False); S.to_csv(HERE + f'/model_汇总_{OBJ}.csv', index=False)
     pd.set_option('display.width', 250); print(S.to_string(index=False))
 
 
