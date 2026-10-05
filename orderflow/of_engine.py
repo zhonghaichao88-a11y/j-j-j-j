@@ -952,7 +952,7 @@ class OrderFlowApp:
         if (s.side == 1 and not (s.stop < price < s.target)) or (s.side == -1 and not (s.target < price < s.stop)):
             d["skip"] = "价格已越过止损或止盈"
             return
-        if s.kind in COMBO_NAMES and getattr(eng, "category", "1") != "1":
+        if getattr(eng, "category", "1") != "1":    # 所有打法都不做股票、黄金等合约（自动选币已经跳过，这里再挡一次：有持仓接入的、手动填的币）
             d["skip"] = "这是股票等非加密币合约，回测只测过加密币，不做"
             return
         n_ma = int(self.cfg.get("btc_ma_days", 0) or 0)
