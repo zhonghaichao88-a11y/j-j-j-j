@@ -199,7 +199,8 @@ async def pick_symbols():
     extra = [s for s in held if s not in out and s in INSTS]
     if extra:
         core.say(f"有持仓的币也一起接入：{', '.join(x.split('-')[0] for x in extra)}")
-    return out + extra
+    held_first = [s for s in held if s in out] + extra                      # 有持仓的币排最前面先接入（重启后马上能看到浮盈、按规则平仓）
+    return held_first + [s for s in out if s not in held_first]
 
 
 async def _pick_symbols():

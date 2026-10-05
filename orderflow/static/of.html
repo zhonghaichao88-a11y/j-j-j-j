@@ -392,8 +392,8 @@ function side(){
        : `<small style="color:var(--mute)">实盘未开启（.env 里加 OF_ALLOW_LIVE=1 并重启才能用）。现在是模拟盘，不会动你的钱。</small>`);
   const on=$('#liveOn'); if(on) on.onclick=async()=>{ const p=prompt('确认用真钱自动交易？请输入：我确认实盘'); if(!p) return; const r=await post('/api/live',{on:true,phrase:p}); alert(r.msg); };
   const off=$('#liveOff'); if(off) off.onclick=()=>post('/api/live',{on:false});
-  $('#pos').innerHTML = a.positions.map(p=>{ const l=S.last[p.sym]; const pnl=l? p.side*(l-p.entry)*p.qty : 0;
-    return `<tr><td>${p.sym.split('-')[0]}</td><td class="${p.side>0?'pos':'neg'}">${p.side>0?'多':'空'}</td><td>${S.signal_names[p.kind]}</td><td>${fp(p.entry)}</td><td>${fp(p.stop)}</td><td>${fp(p.target)}</td><td class="${pnl>=0?'pos':'neg'}">${pnl.toFixed(2)}</td></tr>`;}).join('') || '<tr><td colspan=7 style="color:var(--mute)">没有持仓</td></tr>';
+  $('#pos').innerHTML = a.positions.map(p=>{ const l=S.last[p.sym]; const pnl=l? p.side*(l-p.entry)*p.qty : NaN;
+    return `<tr><td>${p.sym.split('-')[0]}</td><td class="${p.side>0?'pos':'neg'}">${p.side>0?'多':'空'}</td><td>${S.signal_names[p.kind]}</td><td>${fp(p.entry)}</td><td>${fp(p.stop)}</td><td>${fp(p.target)}</td>${isNaN(pnl)?'<td style="color:var(--mute)">行情接入中…</td>':`<td class="${pnl>=0?'pos':'neg'}">${pnl.toFixed(2)}</td>`}</tr>`;}).join('') || '<tr><td colspan=7 style="color:var(--mute)">没有持仓</td></tr>';
   const sg=(S.view?.signals||[]).slice().reverse().slice(0,15);
   $('#sigList').innerHTML = sg.map(s=>`<tr><td>${new Date(s.t).toTimeString().slice(0,5)}</td><td>${s.name}</td><td class="${s.side>0?'pos':'neg'}">${s.side>0?'多':'空'}</td><td>${fp(s.price)}</td><td>${s.traded?'已下单':(s.skip||'只提示')}</td></tr>`).join('') || '<tr><td colspan=5 style="color:var(--mute)">还没有信号（要等K线收盘）</td></tr>';
   const h=S.history.slice().reverse(); const w=S.acct.closed? (S.acct.wins/S.acct.closed*100).toFixed(0):'-';

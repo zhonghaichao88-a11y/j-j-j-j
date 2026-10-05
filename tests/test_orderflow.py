@@ -836,3 +836,15 @@ def test_old_strategy_fixed_exit_option(tmp_path, monkeypatch):
         p2 = [p for p in app.acct.positions if p.sym == eng2.inst][0]
         assert p2.stop == 99.0 and p2.target == 102.0
     _run(go)
+
+
+def test_pick_symbols_puts_held_coins_first(monkeypatch):
+    """重启后有持仓的币排最前面先接入（不然 150 个币里排到最后，好几分钟看不到浮盈）"""
+    import of_app as A
+    async def fake_pick():
+        return ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP"]
+    monkeypatch.setattr(A, "_pick_symbols", fake_pick)
+    monkeypatch.setattr(A, "INSTS", {k: {} for k in ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP", "ENS-USDT-SWAP"]})
+    pos = [type("P", (), {"sym": "SOL-USDT-SWAP"})(), type("P", (), {"sym": "ENS-USDT-SWAP"})()]
+    monkeypatch.setattr(A.core.acct, "positions", pos)
+    assert _run(A.pick_symbols) == ["SOL-USDT-SWAP", "ENS-USDT-SWAP", "BTC-USDT-SWAP", "ETH-USDT-SWAP"]
