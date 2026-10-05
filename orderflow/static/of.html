@@ -105,7 +105,7 @@ th{color:var(--mute);font-weight:normal}
     <h3>持仓</h3>
     <table><thead><tr><th>币</th><th>方向</th><th>打法</th><th>开仓</th><th>止损</th><th>止盈</th><th>浮盈</th></tr></thead><tbody id="pos"></tbody></table>
     <h3>最近信号</h3>
-    <table><thead><tr><th>时间</th><th>打法</th><th>方向</th><th>价</th><th>状态</th></tr></thead><tbody id="sigList"></tbody></table>
+    <table><thead><tr><th>时间</th><th>币</th><th>打法</th><th>方向</th><th>价</th><th>状态</th></tr></thead><tbody id="sigList"></tbody></table>
     <h3>成交记录 <span id="wr" style="color:var(--mute)"></span> <small style="color:var(--mute);font-weight:normal">✓ = 欧易读回的真实盈亏</small></h3>
     <table><thead><tr><th>币</th><th>打法</th><th>方向</th><th>原因</th><th>盈亏</th></tr></thead><tbody id="hist"></tbody></table>
     <h3>爆仓（实时）</h3>
@@ -412,8 +412,9 @@ function side(){
   const off=$('#liveOff'); if(off) off.onclick=()=>post('/api/live',{on:false});
   $('#pos').innerHTML = a.positions.map(p=>{ const l=S.last[p.sym]; const pnl=l? p.side*(l-p.entry)*p.qty : NaN;
     return `<tr><td>${p.sym.split('-')[0]}</td><td class="${p.side>0?'pos':'neg'}">${p.side>0?'多':'空'}</td><td>${S.signal_names[p.kind]}</td><td>${fp(p.entry)}</td><td>${fp(p.stop)}</td><td>${fp(p.target)}</td>${isNaN(pnl)?'<td style="color:var(--mute)">行情接入中…</td>':`<td class="${pnl>=0?'pos':'neg'}">${pnl.toFixed(2)}</td>`}</tr>`;}).join('') || '<tr><td colspan=7 style="color:var(--mute)">没有持仓</td></tr>';
-  const sg=(S.view?.signals||[]).slice().reverse().slice(0,15);
-  $('#sigList').innerHTML = sg.map(s=>`<tr><td>${new Date(s.t).toTimeString().slice(0,5)}</td><td>${s.name}</td><td class="${s.side>0?'pos':'neg'}">${s.side>0?'多':'空'}</td><td>${fp(s.price)}</td><td>${s.traded?'已下单':(s.skip||'只提示')}</td></tr>`).join('') || '<tr><td colspan=5 style="color:var(--mute)">还没有信号（要等K线收盘）</td></tr>';
+  const en=new Set((S.cfg&&S.cfg.enabled)||[]);       // 所有币里，勾上的打法最近的信号
+  const sg=(S.recent||[]).filter(s=>en.has(s.kind) && s.skip!=='历史信号').slice().reverse().slice(0,20);
+  $('#sigList').innerHTML = sg.map(s=>`<tr><td>${new Date(s.t).toTimeString().slice(0,5)}</td><td>${(s.inst||'').split('-')[0]}</td><td>${s.name}</td><td class="${s.side>0?'pos':'neg'}">${s.side>0?'多':'空'}</td><td>${fp(s.price)}</td><td>${s.traded?'已下单':(s.skip||'只提示')}</td></tr>`).join('') || '<tr><td colspan=6 style="color:var(--mute)">勾上的打法还没有信号（要等K线收盘）</td></tr>';
   const h=S.history.slice().reverse(); const w=S.acct.closed? (S.acct.wins/S.acct.closed*100).toFixed(0):'-';
   $('#wr').textContent = `共${S.acct.closed}笔 胜率${w}%`;
   $('#hist').innerHTML = h.map(t=>`<tr><td>${t.sym.split('-')[0]}</td><td>${t.kind}</td><td>${t.side>0?'多':'空'}</td><td>${t.why}</td><td class="${t.pnl>=0?'pos':'neg'}">${t.pnl.toFixed(2)}${t.real?' ✓':''}</td></tr>`).join('');

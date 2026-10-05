@@ -965,3 +965,14 @@ def test_old_size_pct_from_page_sizes_dca_first_leg(tmp_path, monkeypatch):
     eng = FakeEng(); app.engines[eng.inst] = eng
     app.try_open(eng, C.Signal("absorption", 1, 99.9, 100.2, 0), {}, 100.0, 0)
     assert abs(app.acct.positions[0].qty * 100 - 1000 * 0.03) < 0.5
+
+
+def test_pb_warms_up_from_seeded_history(tmp_path, monkeypatch):
+    """重启后：垫底的历史K线也喂给实战打法识别器，不用等实时跑够 20 根（5 分钟就是 100 分钟）"""
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    app = E.OrderFlowApp({"auto": False, "enabled": [], "pb_tf": "5m"}, None, None, False)
+    eng = E.SymbolEngine(app, "SOL-USDT-SWAP", "5m", {t: 0.01 for t in E.VIEW_TFS}, 1.0)
+    t0 = 20 * 86_400_000
+    eng.builders["5m"].seed([(t0 + k * 300_000, 100.0, 101.0, 99.0, 100.0, 50.0) for k in range(30)])
+    assert len(eng.pb.swing) == 30 and len(eng.pb.vols) == 30 and eng.signals == []

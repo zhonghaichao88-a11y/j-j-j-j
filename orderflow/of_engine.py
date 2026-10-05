@@ -532,7 +532,8 @@ class SymbolEngine:
             self.pending.append((s, d))
 
     def _on_pb_bar(self, bar: Bar, seeded=False):
-        if seeded:
+        if seeded:                    # 启动时垫底的历史K线也喂给识别器（只攒新高新低、当天高低点、均量，不出信号），不用等实时跑够 20 根才开始
+            self.pb.on_bar(bar)
             return
         for s in self.pb.on_bar(bar):
             d = {"t": bar.t, "tf": self.pb_tf, "kind": s.kind, "name": ALL_NAMES[s.kind], "side": s.side, "stop": s.stop,
@@ -935,7 +936,7 @@ class OrderFlowApp:
             self.say(f"核对实盘账户失败：{e}")
 
     def on_signal(self, eng, d):
-        self.recent = (self.recent + [{**d, "inst": eng.inst}])[-100:]
+        self.recent = (self.recent + [{**d, "inst": eng.inst}])[-500:]
         if d.get("kind") in self.cfg.get("enabled", []) and not d.get("skip"):
             self.say(f"信号：{eng.inst.split('-')[0]} {d['name']} {'做多' if d['side'] > 0 else '做空'} "
                      f"价格 {d['price']:.6g}（{d.get('note', '')}）" + ("" if self.cfg.get("auto") else "——自动交易没开，不下单"))
@@ -1344,7 +1345,7 @@ class OrderFlowApp:
         return {"view": eng.view(tf) if eng else None,
                 "symbols": list(self.engines),
                 "scan": [e.summary() for e in self.engines.values()],
-                "recent": self.recent[-40:],
+                "recent": [x for x in self.recent if x.get("kind") in self.cfg.get("enabled", [])][-40:],   # 只发勾上的打法（没勾的旧打法信号很多，会把它们挤掉）
                 "feed_status": getattr(self.hub, "status", ""), "extras_status": getattr(self.xhub, "status", ""), "x_status": getattr(getattr(self, "xx", None), "status", {}),
                 "external": sorted(self.external), "live_equity": self.live_equity, "live_avail": self.live_avail,
                 "live_day_pnl": (self.live_equity - self.live_day_start) if self.live_day_start else 0.0,
