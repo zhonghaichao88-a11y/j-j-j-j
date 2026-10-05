@@ -449,6 +449,13 @@ async def set_cfg(body: dict):
             if k in FLUSH_OF_FILTERS:
                 cur[k] = bool(v)
         core.cfg["flush_filters"] = cur
+    if "old_size_pct" in body:                        # 旧打法每笔（补仓时是整单）最多用权益的 %
+        try:
+            v = float(body["old_size_pct"])
+            if 1 <= v <= 100:
+                core.cfg["old_size_pct"] = v
+        except (TypeError, ValueError):
+            pass
     if isinstance(body.get("old_dca"), dict):          # 旧打法统一补仓
         from of_engine import OLD_DCA, dca_plan
         cur = dict(OLD_DCA, **(core.cfg.get("old_dca") or {}))

@@ -946,3 +946,22 @@ def test_pb_tf_switch_feeds_playbook_5m_bars(tmp_path, monkeypatch):
     assert until - d["t"] == 300_000 + 3 * 300_000 and d["tf"] == "5m"
     eng.set_pb_tf("1m")
     assert eng.pb_tf == "1m" and eng.limit_orders == [] and eng.pb.p["max_trades_day"] < 100
+
+
+def test_old_size_pct_from_page_sizes_dca_first_leg(tmp_path, monkeypatch):
+    """页面把旧打法每笔改成 30%：补仓 1:1:2:2:4 时第一笔 = 30% × 1/10 = 3%"""
+    import of_app as A
+    monkeypatch.setattr(A, "save_cfg", lambda: None)
+    monkeypatch.setitem(A.core.cfg, "old_size_pct", 10)
+    _run(lambda: A.set_cfg({"old_size_pct": 30}))
+    assert A.core.cfg["old_size_pct"] == 30
+    _run(lambda: A.set_cfg({"old_size_pct": 500}))               # 超出范围不收
+    assert A.core.cfg["old_size_pct"] == 30
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = E.OrderFlowApp({"auto": True, "enabled": ["absorption"], "old_size_pct": 30,
+                          "old_dca": {**DCA, "levels": "2,4,6,8", "weights": "1,1,2,2,4", "stop_pct": 11}}, None, None, False)
+    eng = FakeEng(); app.engines[eng.inst] = eng
+    app.try_open(eng, C.Signal("absorption", 1, 99.9, 100.2, 0), {}, 100.0, 0)
+    assert abs(app.acct.positions[0].qty * 100 - 1000 * 0.03) < 0.5
