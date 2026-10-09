@@ -1,6 +1,6 @@
 """订单流看盘 + 自动交易 服务器。浏览器打开 http://127.0.0.1:8010
 启动: python of_app.py
-读取同目录的 .env（PROXY_URL、OKX_API_KEY/SECRET/PASSPHRASE、OF_ALLOW_LIVE）和 of_config.json。"""
+读取同目录的 .env（PROXY_URL、OKX_API_KEY/SECRET/PASSPHRASE、OF_ALLOW_LIVE）和 of_config.json（没有就用 of_config.default.json）。"""
 from __future__ import annotations
 
 import warnings
@@ -26,7 +26,8 @@ import of_v7data  # noqa: E402
 import of_notify  # noqa: E402
 import httpx  # noqa: E402
 
-CFG_FILE = os.path.join(HERE, "of_config.json")
+CFG_FILE = os.path.join(HERE, "of_config.json")              # 你自己的设置（网页上改的都存这里；包里不带，升级不会被覆盖）
+CFG_DEFAULT = os.path.join(HERE, "of_config.default.json")     # 第一次用时的默认设置
 OKX_BAR = {"1m": "1m", "3m": "3m", "5m": "5m", "15m": "15m", "1h": "1H"}
 
 
@@ -50,7 +51,7 @@ ENV = load_env()
 PROXY = ENV.get("PROXY_URL") or None
 KEYS = {"key": ENV.get("OKX_API_KEY", ""), "secret": ENV.get("OKX_API_SECRET", ""),
         "passphrase": ENV.get("OKX_API_PASSPHRASE", "")}
-cfg = json.load(open(CFG_FILE, encoding="utf-8")) if os.path.exists(CFG_FILE) else {}
+cfg = json.load(open(CFG_FILE if os.path.exists(CFG_FILE) else CFG_DEFAULT, encoding="utf-8")) if os.path.exists(CFG_FILE) or os.path.exists(CFG_DEFAULT) else {}
 core = OrderFlowApp(cfg, PROXY, KEYS, ENV.get("OF_ALLOW_LIVE") == "1")
 of_notify.setup(ENV, PROXY)
 core.hub = OkxHub(PROXY, os.environ.get("OF_FEED", "auto"))

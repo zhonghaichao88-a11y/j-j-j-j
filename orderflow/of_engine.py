@@ -285,7 +285,7 @@ class Position:
     dca_tp: float = 0.0      # 补仓：均价止盈比例
     mode: str = ""           # 多头摊平做空用的哪种做法（B 不看"多头被清洗"平仓）
     cap: float = 0.0         # 开仓时这一单计划占用的资金（名义金额；补仓单 = 补满时的整单）。每笔收益按它算
-    realized: float = 0.0    # 模拟盘：已经部分平掉（1R 平一半）实现的盈亏，平仓记录里要加上
+    realized: float = 0.0    # 已经部分平掉（1R 平一半）实现的盈亏；模拟盘平仓记录里要加上，实盘用欧易真实盈亏（已含这一半），读不到时才加
 
 
 @dataclass
@@ -1365,6 +1365,8 @@ class OrderFlowApp:
             else:
                 await asyncio.to_thread(self.live.cancel_algo, pos.sym, pos.algo_id)
                 px = await asyncio.to_thread(self.live.close, pos.sym, pos.side, n_half, "", pos.mgn)
+                if px:                              # 记下这一半的盈亏（平仓时读不到欧易真实盈亏才用得上）
+                    pos.realized += pos.side * (px - pos.entry) * n_half * cs - PaperBroker.fee * (pos.entry + px) * n_half * cs
                 pos.contracts -= n_half
                 pos.qty = pos.contracts * cs
                 pos.algo_id = await asyncio.to_thread(self.live.place_oco, pos.sym, pos.side, pos.contracts, pos.entry, pos.target, pos.mgn)

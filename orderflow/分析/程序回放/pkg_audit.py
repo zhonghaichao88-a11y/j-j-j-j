@@ -36,14 +36,14 @@ for tag, E in (('完整包', full), ('覆盖包', over)):
             t = data.decode('utf-8', 'ignore')
             for m in re.finditer(r'(?i)(api[_-]?key|secret|passphrase)\s*[=:]\s*["\']?([A-Za-z0-9+/\-]{16,})', t):
                 problems.append(f'{tag} {rel} 里像密钥：{m.group(0)[:40]}…')
-tracked = subprocess.run(['git', 'ls-files', 'orderflow'], cwd=REPO, capture_output=True, text=True).stdout.split('\n')
+tracked = subprocess.run(['git', '-c', 'core.quotepath=off', 'ls-files', 'orderflow'], cwd=REPO, capture_output=True, text=True).stdout.split('\n')
 prog = sorted(f[len('orderflow/'):] for f in tracked if f and not BAD.search(f[len('orderflow/'):]))
 for f in prog:
     if f not in full:
         problems.append(f'完整包缺：{f}')
-base = subprocess.run(['git', 'log', '-1', '--format=%H', '--', '订单流_完整包.zip'], cwd=REPO, capture_output=True, text=True).stdout.strip()
+base = subprocess.run(['git', '-c', 'core.quotepath=off', 'log', '-1', '--format=%H', '--', '订单流_完整包.zip'], cwd=REPO, capture_output=True, text=True).stdout.strip()
 first = subprocess.run(['git', 'log', '--format=%H', '--diff-filter=A', '--', '订单流_完整包.zip'], cwd=REPO, capture_output=True, text=True).stdout.split()[-1]
-changed = subprocess.run(['git', 'diff', '--name-only', first, 'HEAD', '--', 'orderflow'], cwd=REPO, capture_output=True, text=True).stdout.split('\n')
+changed = subprocess.run(['git', '-c', 'core.quotepath=off', 'diff', '--name-only', first, 'HEAD', '--', 'orderflow'], cwd=REPO, capture_output=True, text=True).stdout.split('\n')
 for f in changed:
     rel = f[len('orderflow/'):]
     if f and rel in prog and rel not in over:
@@ -67,7 +67,7 @@ if 'ok' not in r.stdout:
 shutil.copy(os.path.join(app_dir, '.env.example'), os.path.join(app_dir, '.env'))
 with socket.socket() as s:
     s.bind(('127.0.0.1', 0)); port = s.getsockname()[1]
-env = dict(os.environ, OF_PORT=str(port), PROXY_URL=os.environ.get('HTTPS_PROXY', ''))
+env = dict(os.environ, OF_PORT=str(port), PROXY_URL=os.environ.get('HTTPS_PROXY', ''), OF_ALLOW_LIVE='0')
 srv = subprocess.Popen([PY, 'of_app.py'], cwd=app_dir, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 import urllib.request
 def get(p):
@@ -84,31 +84,12 @@ for _ in range(90):
 if not ok:
     problems.append('全新文件夹：网页服务 90 秒没起来')
 else:
-    sys.path.insert(0, app_dir)
-    import importlib; E = importlib.import_module('of_engine')
-    page = urllib.request.urlopen(f'http://127.0.0.1:{port}/', timeout=20).read().decode('utf-8')
-    kinds = list(E.ALL_NAMES)
-    miss = [k for k in list(E.COMBO_NAMES) + list(E.PB_NAMES) if k not in page]
-    if miss: problems.append(f'网页上找不到这些打法的勾选：{miss}')
-    for k in kinds:
-        post('/api/cfg', {'enabled': [k]}); c = json.load(open(os.path.join(app_dir, 'of_config.json'), encoding='utf-8'))
-        if c.get('enabled') != [k]: problems.append(f'勾选 {k} 保存后读回来不对：{c.get("enabled")}')
-    post('/api/cfg', {'enabled': []})
-    for mode in E.TRAP_MODES:
-        post('/api/cfg', {'trap': {'mode': mode}}); c = json.load(open(os.path.join(app_dir, 'of_config.json'), encoding='utf-8'))
-        if (c.get('trap') or {}).get('mode') != mode: problems.append(f'多头摊平做空切到 {mode} 保存不对')
-    for key, d in (('flush', E.FLUSH), ('squeeze', E.SQUEEZE), ('momo', E.MOMO), ('nfi_dip', E.NFI_DIP), ('vn_dip', E.VN_DIP)):
-        for p, v in d.items():
-            if isinstance(v, (int, float)):
-                nv = v * 1.5 if v else 1
-                post('/api/cfg', {key: {p: nv}}); c = json.load(open(os.path.join(app_dir, 'of_config.json'), encoding='utf-8'))
-                got = (c.get(key) or {}).get(p)
-                if got is None or abs(float(got) - nv) > 1e-9: problems.append(f'参数 {key}.{p} 保存后读回来不对：存 {nv} 读到 {got}')
-                post('/api/cfg', {key: {p: v}})
-    for i, ln in enumerate(page.split('\n')):
-        if re.search(r'id="(nd|vd|fl|sq|mo)_', ln):
-            pass
-    notes.append(f'全新文件夹启动正常，{len(kinds)} 个打法逐个勾选保存、多头摊平做空 {len(E.TRAP_MODES)} 种做法、五组参数逐个保存都检查了')
+    r = subprocess.run(['python3', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ui_check.py'), f'http://127.0.0.1:{port}/', app_dir],
+                       capture_output=True, text=True, timeout=900)
+    try:
+        u = json.loads(r.stdout.strip().split('\n')[-1]); notes.extend(u['notes']); problems.extend(u['bad'])
+    except Exception:
+        problems.append('浏览器检查没跑完：' + (r.stderr or r.stdout)[-600:])
 srv.terminate()
 try:
     out = srv.communicate(timeout=10)[0]
