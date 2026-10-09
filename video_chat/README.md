@@ -9,7 +9,14 @@ video_chat/
 ├── mobile/         安卓 / 苹果 App 外壳（Capacitor），android/ ios/ 是原生工程
 ├── download/       App 下载页（/download/）
 ├── deploy/         服务器部署：Docker、HTTPS、PostgreSQL、TURN 中转
-└── e2e_preview/    两个浏览器真实互打视频的截图（端到端测试结果）
+├── tools/          生成多语言文件的脚本
+├── e2e_preview/    端到端测试截图：聊天、视频通话、扣费
+└── e2e_preview2/   端到端测试截图：实名、陪玩、美颜通话、英文 / 繁体、管理后台
+```
+
+管理后台：浏览器打开 `/admin.html`，输入服务器上配置的 `SEEU_ADMIN_TOKEN`（本地一键启动时没有设置，需要在启动前设置环境变量，例如 `set SEEU_ADMIN_TOKEN=自己设一个密码`）。
+
+```
 ```
 
 ## 一、本地运行
@@ -28,7 +35,16 @@ uvicorn server.main:app --port 8000
 浏览器打开 http://localhost:8000 。开发模式下验证码会直接填好，充值可以用「模拟支付」。
 想自己测视频通话：开两个浏览器窗口（一个用无痕模式），分别用两个手机号登录。其中一个号登录 `19900000000`（测试主播），另一个号从发现页点它打视频。
 
-后端测试：`python -m pytest server/tests -q`（9 个测试，覆盖登录 → 认证 → 充值 → 聊天 → 送礼 → 通话扣费 → 评价 → 提现）。
+后端测试：`python -m pytest server/tests -q`，共 19 个测试，覆盖：
+- 账号与资料：登录、实名、视频认证、开通接听；
+- 金币：充值、邀请奖励、签到、提现；
+- 社交：动态、聊天、送礼；
+- 通话：扣费、未接、拒接、免打扰、拉黑；
+- 陪玩：完整订单流程、超时处理、申诉；
+- 管理后台和离线推送；
+- 推送加密，以及支付宝、微信、阿里云的签名验签。
+
+在 PostgreSQL 上跑同一套测试：`SEEU_TEST_PG=postgresql+psycopg://用户:密码@localhost/库名 python -m pytest server/tests -q`。
 
 ## 二、页面功能 ↔ 后端接口
 
@@ -61,7 +77,14 @@ uvicorn server.main:app --port 8000
 | 我的 | 免打扰 / 隐私设置 / 美颜设置 / 语言 | `PUT /api/me/settings` |
 | 我的 | 视频认证（录制上传）→ 审核 → 开通接听收费、设价格 | `POST /api/verify`、`/api/admin/verify/{uid}`、`PUT /api/me/host` |
 | 我的 | 我的动态 / 守护 / 礼物 / 通话评价 / 访问足迹 / 黑名单 | `/api/posts?userId=`、`/me/guards`、`/me/gifts`、`/me/ratings`、`/me/visitors`、`/me/blocks` |
-| 我的 | 游戏技能 / 游戏订单 | **未做**，目前显示「即将上线」 |
+| 我的 | 实名认证（姓名 + 身份证，校验位、满 18 岁、一证一号） | `POST /api/realname` |
+| 我的 | 游戏技能（增删改、截图、暂停接单） | `GET /api/me/skills`、`POST/PUT/DELETE /api/skills` |
+| 主页 | 陪玩技能展示、下单（金币托管） | `GET /api/users/{id}/skills`、`POST /api/game-orders` |
+| 我的 | 游戏订单：接单 / 拒绝 / 完成 / 确认 / 取消 / 申请退款 / 评价 | `GET /api/game-orders`、`POST /api/game-orders/{id}/{动作}` |
+| 设置 | 来电和消息提醒（离线推送） | `POST /api/devices`，服务端 `server/push.py` |
+| 设置 | 语言：简体 / 繁體 / English | `PUT /api/me/settings`，前端 `app/lang.js` |
+| 充值 | 支付宝 / 微信跳转支付、支付结果页 | `POST /api/orders`、`GET /api/orders/{id}`、回调 `/api/pay/notify/alipay`、`/wechat` |
+| 后台 | 数据概览、认证审核、举报、提现打款、客服、陪玩申诉、用户封禁和调金币 | `/api/admin/*`，页面 `/admin.html` |
 
 接口文档（开发模式）：http://localhost:8000/api/docs
 
@@ -102,32 +125,46 @@ docker compose up -d --build
 >
 > 网上卖的「企业签名」「超级签名」违反苹果规定，随时会被批量封掉，不建议用。
 
-## 五、上线前还需要你去办的事
+## 五、开通第三方服务（代码已接好，填配置即可）
 
-| 事项 | 现在的状态 | 需要什么 |
+全部写在服务器的 `.env` 里，变量名见 `server/config.py`。**没配置的服务**：开发模式下会走本地模拟；正式模式下会明确报错，不会假装成功。
+
+| 服务 | 要填的配置 | 你需要去办 |
 |---|---|---|
-| 短信验证码 | 开发模式下直接显示 | 阿里云 / 腾讯云短信（要公司资质和签名报备）。接入点：`server/api_account.py` 的 `send_sms` |
-| 微信 / 支付宝收款 | 只有模拟支付 | 商户号（要营业执照）。接入点：`POST /api/orders` 下单，`/api/pay/notify/{channel}` 支付回调 |
-| iPhone 内购 | 未接 | 苹果规定 iOS App 里买虚拟金币必须走苹果内购（苹果抽成 15-30%），用微信 / 支付宝会被拒审 |
-| 离线来电提醒 | 未做 | App 在后台或被关掉时收不到来电，需要接 APNs / FCM / 厂商推送（华为、小米、OPPO、vivo），iPhone 还要接 CallKit |
-| 内容审核 | 只有举报 + 后台处理 | 视频交友平台必须有图片、视频、文字的自动审核（阿里云 / 网易易盾），以及人工巡查 |
-| 资质 | — | ICP 经营许可证（ICP 证）、网络文化经营许可证、App 备案、等级保护等。必须是公司主体 |
-| 法律文本 | 占位 | 用户协议、隐私政策、充值协议、未成年人保护规则，需要律师撰写 |
-| 美颜 | 只对自己的预览生效 | 对方看到的画面要真正美颜，需要接美颜 SDK（如腾讯特效、相芯） |
-| 多语言 | 只保存了设置 | 翻译文本 |
-| 游戏陪玩 | 未做 | 独立的一块业务，要的话可以下一步做 |
-| 管理后台网页 | 只有接口，没有页面 | 审核认证、处理举报、给主播打款，目前要调接口操作（`/api/admin/...`），需要做一个后台网页 |
-| 实名认证 / 防沉迷 | 未做 | 国内这类平台要求实名（姓名 + 身份证核验），主播收益提现也需要实名 |
-| 安卓安装包 | 压缩包里没有 | 要等服务器地址确定后打包；部署好后把域名告诉我即可 |
+| 阿里云短信 | `SEEU_ALIYUN_AK`、`SEEU_ALIYUN_SK`、`SEEU_SMS_SIGN`、`SEEU_SMS_TEMPLATE`（模板里要有 `${code}`） | 开通阿里云短信，报备签名和模板（需要公司资质） |
+| 实名核验 | `SEEU_REALNAME_URL`、`SEEU_REALNAME_APPCODE` | 在阿里云市场买「身份证二要素核验」。不同服务商返回格式不一样，接入时按它的文档调整 `providers.verify_identity` 里的判断（大约 2 行） |
+| 支付宝 | `SEEU_ALIPAY_APP_ID`、`SEEU_ALIPAY_PRIVATE_KEY_FILE`、`SEEU_ALIPAY_PUBLIC_KEY_FILE` | 开放平台创建应用，签约「手机网站支付」 |
+| 微信支付 | `SEEU_WXPAY_APPID`、`MCHID`、`SERIAL`、`PRIVATE_KEY_FILE`、`PUBLIC_KEY_FILE`、`APIV3_KEY` | 商户号，开通「H5 支付」并配置 H5 域名 |
+| 网页推送 | 无需配置，首次启动自动生成密钥，保存在 `SEEU_DATA_DIR/vapid_private.pem`（迁移服务器时要一起拷走） | 安卓 Chrome 直接能用；iPhone 需要 iOS 16.4 以上，并且先「添加到主屏幕」 |
+| 安卓 App 推送 | `SEEU_FCM_SERVICE_ACCOUNT`（Firebase 服务账号 JSON） | 建 Firebase 项目，下载 `google-services.json` 放到 `mobile/android/app/` 再打包。**国内大部分安卓手机没有谷歌服务，收不到 FCM**，国内上线要再接厂商推送或极光、个推 |
+| 苹果 App 推送 | `SEEU_APNS_KEY_FILE`、`KEY_ID`、`TEAM_ID`、`TOPIC` | 苹果开发者后台生成 APNs 密钥（.p8），在 Xcode 里给 App 打开 Push Notifications 能力 |
+| TURN 中转 | `SEEU_TURN_USER`、`SEEU_TURN_PASS`（docker compose 会自动启动 coturn） | 服务器开放端口 3478 和 49160-49200/UDP |
 
-**还没实际测试过的部分**（代码写好了，但这边的环境没法验证）：
+签名和验签的算法都写了测试：阿里云签名对上了官方文档里的示例，支付宝和微信用自己生成的密钥做了往返校验。**但没有用真实商户号联调过**，开通后要先用小金额实测一遍。
 
-- `一键启动.bat`：只检查了写法，没有在 Windows 上实际运行过。
-- 正式部署（`deploy/`）：Docker、PostgreSQL、HTTPS、TURN 中转没有在真实服务器上跑过；本地测试用的是 SQLite。
-- 苹果 App：工程已生成，但没有用 Xcode 编译过（需要 Mac）。
-- 真手机之间在不同网络下的通话：只在同一台电脑的两个浏览器之间测过，4G 和 WiFi 之间要靠 TURN 中转，部署后需要实测。
+## 六、还没做到、或者需要你决定的事
 
-## 六、扩容
+| 事项 | 说明 |
+|---|---|
+| 资质 | ICP 经营许可证（ICP 证）、网络文化经营许可证、App 备案、等级保护等。必须是公司主体，建议找资质代办机构咨询 |
+| 法律文本 | 用户协议、隐私政策、充值协议、未成年人保护规则，需要律师撰写，现在是占位 |
+| iPhone 内购 | 苹果规定在 iOS App 里买虚拟金币必须走苹果内购（抽成 15-30%）。现在接的是支付宝和微信网页支付，上 App Store 前必须改成内购，否则会被拒审 |
+| iPhone 系统来电界面 | 现在离线来电是普通推送通知。要像微信那样锁屏全屏响铃，需要 VoIP 推送 + CallKit 原生插件，要在 Mac 上开发调试 |
+| 国内安卓推送 | 见上表，FCM 在国内基本收不到，需要接厂商推送 |
+| 内容审核 | 现在只有举报 + 后台人工处理。上线必须接图片、视频、文字的自动审核（阿里云内容安全、网易易盾等） |
+| 美颜 | 已实现磨皮、美白、红润，对方也能看到。瘦脸、大眼这类需要人脸识别，要接美颜 SDK（如腾讯特效、相芯） |
+| 多语言 | 界面全部有英文和繁体。用户自己写的内容（昵称、动态、聊天）不翻译。改了界面文字后运行 `python tools/build_i18n.py`，它会列出没翻译的文字，补到 `app/i18n/en.tsv` 即可 |
+| 陪玩 | 金币托管、超时自动退款或自动确认、申诉都有了。没有做「陪玩师认证段位截图」的人工审核，目前截图只是展示 |
+
+**还没实际测试过的部分**（代码写好了，但这边的环境验证不了）：
+- `一键启动.bat`：没有在 Windows 上实际运行过。
+- 正式部署（`deploy/` 里的 Docker、HTTPS、TURN）：没有在真实服务器上跑过。PostgreSQL 已经在本地测过，19 个测试全部通过。
+- 苹果 App：工程已生成，推送插件也装了，但没有用 Xcode 编译过。
+- 网页推送：加密和发送逻辑有单元测试，但测试用的无头浏览器没有推送服务，没有测到真机实际弹出通知。
+- 真手机在不同网络之间的通话：只在同一台电脑的两个浏览器之间测过，4G 和 WiFi 之间要靠 TURN 中转，部署后需要实测。
+- 安卓 APK：已经编译通过，但没有装到真机上试过，后端地址也还是占位的。
+
+## 七、扩容
 
 - 用户量上来后，把 `server/hub.py` 里内存中的在线状态和消息推送换成 Redis 发布订阅，这样可以多台服务器一起跑。
 - 上传的文件换成对象存储（阿里云 OSS / 腾讯云 COS）+ CDN。

@@ -105,6 +105,7 @@
   }
   function fail(e) {
     if (e?.code === "coins") return dialog({ title: "金币不足", text: e.message + "，充值后即可继续。", ok: "去充值", onOk: () => go("/recharge") });
+    if (e?.code === "realname") return dialog({ title: "需要实名认证", text: e.message, ok: "去认证", onOk: () => go("/realname") });
     if (e?.code === "vip") return dialog({ title: "VIP 特权", text: e.message, ok: "去开通", onOk: () => go("/vip") });
     toast(e?.message || "出错了");
   }
@@ -290,8 +291,10 @@
   async function boot() {
     const [me, counts, config] = await Promise.all([api("/api/me"), api("/api/me/counts"), api("/api/config")]);
     S.me = me; S.counts = counts; S.config = config;
+    window.I18N?.set(me.settings.lang);
     connectWS();
     refreshUnread();
+    setupPush();
   }
   function logout(confirmFirst = true) {
     const doIt = () => {
@@ -379,7 +382,9 @@
       case "signal": return rtcSignal(m);
       case "call_low_balance": return toast("余额只够 1 分钟了，请及时充值");
       case "balance": return setCoins(m.coins);
-      case "notice": return toast(m.text);
+      case "notice":
+        if (m.gameOrder && /^\/gameorders/.test(location.hash.slice(1))) render();
+        return toast(m.text);
     }
   }
   const preview = (msg) => ({ text: msg.content, image: "[图片]", voice: "[语音]", gift: `[礼物] ${msg.content}`, call: `[${msg.content}]` }[msg.kind] || "");
@@ -483,6 +488,7 @@
         <div class="u-sec"><h4>个性签名</h4><div class="u-sign">${esc(u.sign || "这个人很懒，什么都没写")}</div></div>
         ${u.labels?.length ? `<div class="u-sec"><h4>标签</h4><div class="labels">${u.labels.map((l) => `<span>${esc(l)}</span>`).join("")}</div></div>` : ""}
         <div class="u-sec"><h4>${u.sex === "m" ? "他" : "她"}的动态</h4>${u.thumbs.length ? `<div class="thumbs">${u.thumbs.map((t) => `<div data-act="viewImg" data-src="${esc(media(t))}" style="background-image:url('${esc(media(t))}')"></div>`).join("")}</div>` : '<p style="color:var(--muted);margin:0">还没有发布动态</p>'}</div>
+        <div id="skillsSec"></div>
         <div class="u-sec"><h4>收到的礼物</h4>${u.gifts.length ? `<div class="giftwall">${u.gifts.map((g) => `<div><div class="g">${g.icon}</div>${g.name} ×${g.count}</div>`).join("")}</div>` : '<p style="color:var(--muted);margin:0">还没有收到礼物</p>'}</div>
       </div>
       <div class="bottom-bar"><button class="mini ${u.followed ? "on" : ""}" data-act="follow" data-uid="${u.id}">${ic("heart")}${u.followed ? "已关注" : "关注"}</button>
@@ -493,6 +499,12 @@
     mount: () => {
       const u = curUser; const hero = $("#hero");
       if (!hero) return;
+      api(`/api/users/${u.id}/skills`).then((skills) => {
+        const box = $("#skillsSec");
+        if (!box || !skills.length) return;
+        skillsCache = skills;
+        box.innerHTML = `<div class="u-sec"><h4>游戏陪玩</h4>${skills.map(skillCard).join("")}</div>`;
+      }).catch(() => {});
       const n = 1 + (u.photos?.length || 0);
       hero.onclick = () => {
         const k = (+hero.dataset.photo + 1) % n;
@@ -847,7 +859,7 @@
       return fail(e);
     }
     RTC = newRtc(r.call, r.peer, true);
-    RTC.mediaReady = getLocalMedia(r.call.media);
+    RTC.mediaReady = getLocalMediaFor(RTC, r.call.media);
     ringtone.start("out");
     go("/call");
   }
@@ -860,6 +872,41 @@
     ringtone.start("in");
     if (navigator.vibrate) navigator.vibrate([400, 200, 400]);
     go("/call");
+  }
+  // 美颜：把摄像头画面画到 canvas 上加滤镜，再把 canvas 的画面发给对方（对方看到的也是美颜后的）
+  function beautyPipeline(raw) {
+    const vt = raw?.getVideoTracks()[0];
+    if (!vt || !S.me.settings.beautyOn) return null;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx || !("filter" in ctx) || !canvas.captureStream) return null;   // 老版本 Safari 不支持，用原画面
+    const v = document.createElement("video");
+    v.muted = true; v.playsInline = true; v.srcObject = new MediaStream([vt]);
+    v.play().catch(() => {});
+    let stopped = false, src = vt;
+    const draw = () => {
+      if (stopped) return;
+      if (v.videoWidth) {
+        if (canvas.width !== v.videoWidth || canvas.height !== v.videoHeight) { canvas.width = v.videoWidth; canvas.height = v.videoHeight; }
+        ctx.filter = beautyFilter() || "none";
+        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+      }
+      if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(draw); else setTimeout(draw, 33);
+    };
+    draw();
+    const out = canvas.captureStream(30).getVideoTracks()[0];
+    return {
+      stream: new MediaStream([out, ...raw.getAudioTracks()]),
+      out,
+      setSource(track) { src.stop(); src = track; v.srcObject = new MediaStream([track]); v.play().catch(() => {}); },
+      stop() { stopped = true; src.stop(); out.stop(); },
+    };
+  }
+  async function getLocalMediaFor(rtc, kind) {
+    const raw = await getLocalMedia(kind);
+    const bp = kind === "video" ? beautyPipeline(raw) : null;
+    if (bp) { rtc.beauty = bp; return bp.stream; }
+    return raw;
   }
   async function getLocalMedia(kind) {
     try {
@@ -909,7 +956,7 @@
   function attachLocal(rtc, stream) {
     rtc.local = stream;
     const sv = $("#sv");
-    if (sv && stream) { sv.srcObject = stream; sv.style.filter = beautyFilter(); }
+    if (sv && stream) { sv.srcObject = stream; sv.style.filter = rtc.beauty ? "" : beautyFilter(); }
     if (!stream?.getVideoTracks().length) $("#selfOff")?.classList.remove("hidden");
   }
   function beautyFilter() {
@@ -923,7 +970,7 @@
     rtc.state = "accepting";
     ringtone.stop();
     $("#ringText").textContent = "正在接通…";
-    rtc.mediaReady = getLocalMedia(rtc.call.media);
+    rtc.mediaReady = getLocalMediaFor(rtc, rtc.call.media);
     attachLocal(rtc, await rtc.mediaReady);
     try { await api(`/api/calls/${rtc.call.id}/accept`, { method: "POST" }); }
     catch (e) { fail(e); rtc.state = "incoming"; return hangup(); }
@@ -1009,6 +1056,7 @@
     ringtone.stop();
     clearInterval(rtc.timer);
     rtc.local?.getTracks().forEach((t) => t.stop());
+    rtc.beauty?.stop();
     try { rtc.pc?.close(); } catch {}
   }
   async function hangup() {
@@ -1084,9 +1132,12 @@
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: rtc.facing } });
       const [nt] = s.getVideoTracks();
-      const [old] = rtc.local.getVideoTracks();
-      await rtc.pc?.getSenders().find((x) => x.track?.kind === "video")?.replaceTrack(nt);
-      rtc.local.removeTrack(old); old.stop(); rtc.local.addTrack(nt);
+      if (rtc.beauty) rtc.beauty.setSource(nt);   // 美颜管线换个摄像头源即可，发出去的轨道不变
+      else {
+        const [old] = rtc.local.getVideoTracks();
+        await rtc.pc?.getSenders().find((x) => x.track?.kind === "video")?.replaceTrack(nt);
+        rtc.local.removeTrack(old); old.stop(); rtc.local.addTrack(nt);
+      }
       $("#sv").srcObject = rtc.local;
       $("#sv").style.transform = rtc.facing === "user" ? "scaleX(-1)" : "none";
     } catch { toast("切换摄像头失败"); }
@@ -1213,7 +1264,7 @@
   let walletCache;
   route(/^\/recharge$/, async () => {
     walletCache = await api("/api/wallet");
-    const devMock = S.config.devMode ? `<button class="pay-way" data-act="pickPay" data-v="mock" style="width:100%"><span class="pi" style="background:#999">测</span>模拟支付（开发模式）<i class="radio"></i></button>` : "";
+    const devMock = S.config.pay?.mock ? `<button class="pay-way" data-act="pickPay" data-v="mock" style="width:100%"><span class="pi" style="background:#999">测</span>模拟支付（开发模式）<i class="radio"></i></button>` : "";
     return `${pageHd("充值", `<a data-go="/wallet">明细</a>`)}
       <div class="balance-card"><small>金币余额</small><b class="coinsNow">${walletCache.coins}</b><small>1 元 = 10 金币 · 视频通话、送礼物使用</small></div>
       <div class="packs">${walletCache.packs.map((p, i) => `<button class="pack ${i === 2 ? "on" : ""}" data-act="pickPack" data-i="${i}">${p.hot ? '<span class="hot">热门</span>' : ""}<b>${p.coins}<small>金币</small></b><span>¥${p.yuan}</span>${p.bonus ? `<div style="font-size:11px;color:var(--red);margin-top:2px">加送 ${p.bonus}</div>` : ""}</button>`).join("")}</div>
@@ -1234,7 +1285,7 @@
     try {
       const o = await api("/api/orders", { method: "POST", body: { ...body, channel: ui.pay } });
       if (o.pay?.mock) { S.me = await api(`/api/orders/${o.orderId}/mock-pay`, { method: "POST" }); done(); }
-      // 正式支付：o.pay 里是微信/支付宝的支付参数，App 内用原生 SDK 拉起
+      else if (o.pay?.url) { location.hash = `#/pay-result/${o.orderId}`; location.href = o.pay.url; }   // 跳到支付宝 / 微信收银台，付完回到结果页
     } catch (e) {
       if (e.code === "pay_not_configured") {
         return dialog({ title: "支付通道未开通", text: S.config.devMode ? "微信/支付宝需要商户号才能收款。开发阶段可以用模拟支付测试完整流程。" : e.message,
@@ -1248,13 +1299,14 @@
   route(/^\/wallet$/, async () => {
     const w = await api("/api/wallet");
     return `${pageHd("我的钱包")}
-      <div class="balance-card"><small>金币余额</small><b class="coinsNow">${w.coins}</b>${S.me.isHost ? `<small>主播收益：${w.earnings} 金币（可提现 ¥${(w.earnings / 10).toFixed(2)}）</small>` : ""}
+      <div class="balance-card"><small>金币余额</small><b class="coinsNow">${w.coins}</b>${w.earnings ? `<small>可提现收益：${w.earnings} 金币（¥${(w.earnings / 10).toFixed(2)}）</small>` : ""}
         <div style="display:flex;gap:10px;margin-top:12px"><button class="btn" style="background:#fff;color:#ff7a59;height:36px;font-size:14px" data-go="/recharge">充值</button><button class="btn" style="background:rgba(255,255,255,.25);color:#fff;height:36px;font-size:14px" data-act="withdraw" data-e="${w.earnings}">提现</button></div></div>
       <div class="sec-title" style="padding-top:6px">收支明细</div>
       <div class="list">${w.ledger.length ? w.ledger.map((l) => `<div class="cell"><div class="grow">${esc(l.title)}${l.account === "earnings" ? ' <span class="status-pill ok">收益</span>' : ""}<small>${l.time}</small></div><b style="color:${l.amount > 0 ? "var(--green)" : "var(--text)"}">${l.amount > 0 ? "+" : ""}${l.amount}</b></div>`).join("") : '<p style="text-align:center;color:var(--muted);padding:20px">暂无记录</p>'}</div>`;
   });
   acts.withdraw = (el) => {
-    if (!S.me.isHost) return dialog({ title: "提现", text: "充值的金币不能提现；完成视频认证并开通接听后，收到的礼物和通话收益可以提现。", cancel: "", ok: "知道了" });
+    if (!S.me.realname && +el.dataset.e >= 100) return dialog({ title: "需要实名认证", text: "提现前需要先完成实名认证", ok: "去认证", onOk: () => go("/realname") });
+    if (+el.dataset.e < 100) return dialog({ title: "提现", text: "收益满 100 才能提现。充值的金币不能提现；收到的礼物、通话、陪玩收益可以提现。", cancel: "", ok: "知道了" });
     const sh = openSheet(`<h3>提现（可提 ${el.dataset.e} 收益）</h3>
       <div class="s-row"><label>提现金额（金币，最少 100，10 金币 = 1 元）</label><input id="wCoins" type="number" min="100" step="10" value="${el.dataset.e}" style="width:100%;height:44px;border:1px solid var(--line);border-radius:10px;padding:0 12px"></div>
       <div class="s-row"><label>收款账户</label><input id="wAcc" maxlength="60" placeholder="支付宝账号 + 真实姓名" style="width:100%;height:44px;border:1px solid var(--line);border-radius:10px;padding:0 12px"></div>
@@ -1323,6 +1375,7 @@
           <div class="slider-row"><label>视频价格</label><input type="range" id="hPrice" min="5" max="200" step="5" value="${me.price || 30}"><span id="hPriceV" style="width:70px">${me.price || 30} 币/分</span></div>
           <div class="slider-row"><label>语音价格</label><input type="range" id="hVoice" min="5" max="200" step="5" value="${me.voicePrice || 15}"><span id="hVoiceV" style="width:70px">${me.voicePrice || 15} 币/分</span></div>
           <div class="cell" style="padding:12px 0;border:0" data-act="hostToggle"><div class="grow">接听收费</div><i class="switch ${me.isHost ? "on" : ""}" id="hOn"></i></div>
+          ${me.realname ? "" : `<p style="color:var(--red);font-size:13px">开通前需要先 <a data-go="/realname" style="color:var(--c2)">完成实名认证</a></p>`}
           <button class="btn primary block" data-act="saveHost">保存</button></div>`;
     }
     if (me.verifyStatus === "pending") return `${pageHd("视频认证")}${empty("认证审核中", "通常 24 小时内完成，结果会通过系统消息通知你")}`;
@@ -1370,8 +1423,8 @@
     const b = S.me.settings.beauty;
     const row = (k, t) => `<div class="slider-row"><label>${t}</label><input type="range" min="0" max="100" value="${b[k]}" data-k="${k}"><span id="bv_${k}">${b[k]}</span></div>`;
     return `${pageHd("美颜设置", `<button data-act="beautyReset">重置</button>`)}<div class="beauty-preview"><video id="bfVideo" autoplay muted playsinline></video><div class="ph" id="bfPh">正在打开摄像头…</div></div>
-      <div style="padding:10px 0">${row("smooth", "磨皮")}${row("white", "美白")}${row("ruddy", "红润")}${row("slim", "瘦脸")}</div>
-      <div class="cell" data-act="beautyOnToggle"><div class="grow">视频通话时开启美颜</div><i class="switch ${S.me.settings.beautyOn ? "on" : ""}" id="bOn"></i></div>
+      <div style="padding:10px 0">${row("smooth", "磨皮")}${row("white", "美白")}${row("ruddy", "红润")}</div>
+      <div class="cell" data-act="beautyOnToggle"><div class="grow">视频通话时开启美颜<small>开启后对方看到的也是美颜后的画面</small></div><i class="switch ${S.me.settings.beautyOn ? "on" : ""}" id="bOn"></i></div>
       <div class="page-pad"><button class="btn primary block" data-act="beautySave">保存</button></div>`;
   }, {
     mount: () => {
@@ -1381,7 +1434,7 @@
       document.querySelectorAll("[data-k]").forEach((r) => (r.oninput = () => { cur[r.dataset.k] = +r.value; $(`#bv_${r.dataset.k}`).textContent = r.value; apply(); }));
       apply();
       acts.beautySave = async () => { try { await saveSettings({ beauty: cur, beautyOn: $("#bOn").classList.contains("on") }); toast("美颜设置已保存"); back("/me"); } catch (e) { fail(e); } };
-      acts.beautyReset = () => { Object.assign(cur, { smooth: 50, white: 40, ruddy: 30, slim: 20 }); document.querySelectorAll("[data-k]").forEach((r) => { r.value = cur[r.dataset.k]; $(`#bv_${r.dataset.k}`).textContent = r.value; }); apply(); };
+      acts.beautyReset = () => { Object.assign(cur, { smooth: 50, white: 40, ruddy: 30 }); document.querySelectorAll("[data-k]").forEach((r) => { r.value = cur[r.dataset.k]; $(`#bv_${r.dataset.k}`).textContent = r.value; }); apply(); };
     },
   });
   acts.beautyOnToggle = () => $("#bOn").classList.toggle("on");
@@ -1405,6 +1458,8 @@
       <a class="cell" data-act="doc" data-t="用户协议"><div class="grow">用户协议</div>${ic("chev", "i chev")}</a>
       <a class="cell" data-act="doc" data-t="隐私政策"><div class="grow">隐私政策</div>${ic("chev", "i chev")}</a>
       <a class="cell" data-act="doc" data-t="关于我们"><div class="grow">关于我们</div><span class="val">v0.2</span>${ic("chev", "i chev")}</a>
+      <a class="cell" data-go="/realname"><div class="grow">实名认证</div><span class="val">${S.me.realname ? "已认证" : "未认证"}</span>${ic("chev", "i chev")}</a>
+      <a class="cell" data-act="enablePush"><div class="grow">来电和消息提醒<small>App 在后台或关闭时也能收到来电</small></div><span class="val" id="pushState">${pushStateText()}</span>${ic("chev", "i chev")}</a>
       <a class="cell" data-act="openDownload"><div class="grow">下载 App</div>${ic("chev", "i chev")}</a></div>
     <div class="page-pad"><button class="btn block" style="background:#fff;color:var(--red);border:1px solid #ffd6dc" data-act="logout">退出登录</button></div>`);
   acts.openDownload = () => { location.href = `${API}/download/`; };
@@ -1414,7 +1469,7 @@
 
   route(/^\/language$/, () => `${pageHd("语言设置")}<div class="list">${["简体中文", "繁體中文", "English"].map((l) => `<a class="cell" data-act="setLang" data-v="${l}"><div class="grow">${l}</div>${S.me.settings.lang === l ? `<span style="color:var(--c1)">${ic("check")}</span>` : ""}</a>`).join("")}</div>`);
   acts.setLang = async (el) => {
-    try { await saveSettings({ lang: el.dataset.v }); render(); if (el.dataset.v !== "简体中文") toast("已保存。多语言翻译还在制作中，暂时仍显示简体中文"); } catch (e) { fail(e); }
+    try { await saveSettings({ lang: el.dataset.v }); window.I18N?.set(el.dataset.v); render(); toast("已保存"); } catch (e) { fail(e); }
   };
 
   route(/^\/myposts$/, async () => {
@@ -1440,10 +1495,202 @@
       ? `<a class="cell" data-go="/vip"><div class="av" style="width:46px;height:46px;background:#ddd;filter:blur(3px)"></div><div class="grow">开通 VIP 查看<small>${v.time} 看过你</small></div>${ic("chev", "i chev")}</a>`
       : `<a class="cell" data-go="/user/${v.id}">${av(v, 46)}<div class="grow">${esc(v.name)}<small>${v.time} 看过你</small></div>${ic("chev", "i chev")}</a>`).join("")}</div>` : empty("", "还没有人看过你", "完善资料、多发动态能获得更多关注")}`;
   });
-  route(/^\/games$/, () => `${pageHd("游戏技能")}${empty("", "游戏陪玩功能即将上线", "上线后可以添加游戏技能、接陪玩订单")}`);
-  route(/^\/gameorders$/, () => `${pageHd("游戏订单")}${empty("", "游戏陪玩功能即将上线")}`);
+  // ======================= 游戏陪玩 =======================
+  let skillsCache = [];
+  const skillCard = (s, mine = false) => `<div class="skill">
+      <div class="skill-hd"><b>${esc(s.game)}</b>${s.rank ? `<span class="status-pill">${esc(s.rank)}</span>` : ""}${mine && !s.enabled ? '<span class="status-pill bad">已暂停</span>' : ""}
+        <span class="skill-price">${s.price} 金币/${s.unit}</span></div>
+      ${s.intro ? `<p>${esc(s.intro)}</p>` : ""}
+      ${s.images.length ? `<div class="thumbs">${s.images.map((t) => `<div data-act="viewImg" data-src="${esc(media(t))}" style="background-image:url('${esc(media(t))}')"></div>`).join("")}</div>` : ""}
+      <div class="skill-ft"><small>已接 ${s.ordersDone} 单 · ★${s.rating.toFixed(1)}</small>
+        ${mine ? `<button class="btn ghost sm" data-act="editSkill" data-id="${s.id}">编辑</button><button class="btn ghost sm" data-act="delSkill" data-id="${s.id}">删除</button>`
+          : `<button class="btn primary sm" data-act="orderSkill" data-id="${s.id}">下单</button>`}</div></div>`;
+  route(/^\/games$/, async () => {
+    const [mine, games] = await Promise.all([api("/api/me/skills"), api("/api/games")]);
+    skillsCache = mine; ui.games = games;
+    return `${pageHd("游戏技能", `<a data-act="editSkill" data-id="0">添加</a>`)}<div class="bg-gray page-pad">
+      ${S.me.realname ? "" : `<div class="host-box" style="margin:0 0 12px">接陪玩订单需要先 <a data-go="/realname" style="color:var(--c2)">完成实名认证</a></div>`}
+      ${mine.length ? mine.map((s) => skillCard(s, true)).join("") : empty("", "还没有添加游戏技能", "添加后会展示在你的主页，别人可以下单找你陪玩")}
+      <button class="btn primary block" data-act="editSkill" data-id="0" style="margin-top:12px">添加游戏技能</button></div>`;
+  });
+  acts.editSkill = (el) => {
+    const s = skillsCache.find((x) => x.id === +el.dataset.id) || { game: ui.games?.[0] || "王者荣耀", rank: "", price: 20, unit: "局", intro: "", images: [], enabled: true };
+    const isNew = !s.id;
+    const imgs = [...s.images];
+    const sh = openSheet(`<h3>${isNew ? "添加" : "编辑"}游戏技能</h3>
+      <div class="s-row"><label>游戏</label>${isNew ? `<div class="opts" id="gList">${(ui.games || []).map((g) => `<button data-g="${g}" class="${g === s.game ? "on" : ""}">${g}</button>`).join("")}</div>` : `<b>${esc(s.game)}</b>`}</div>
+      <div class="s-row"><label>段位 / 水平</label><input class="inp" id="sRank" maxlength="20" value="${esc(s.rank)}" placeholder="例如：王者 50 星"></div>
+      <div class="s-row"><label>价格</label><div style="display:flex;gap:8px"><input class="inp" id="sPrice" type="number" min="5" max="2000" value="${s.price}" style="flex:1"><div class="opts" id="uList">${["局", "小时"].map((u) => `<button data-u="${u}" class="${u === s.unit ? "on" : ""}">金币/${u}</button>`).join("")}</div></div></div>
+      <div class="s-row"><label>介绍</label><textarea class="inp" id="sIntro" maxlength="200" rows="3" placeholder="擅长位置、上线时间等">${esc(s.intro)}</textarea></div>
+      <div class="s-row"><label>战绩截图（最多 6 张）</label><div class="pub-imgs" id="sImgs"></div><input type="file" id="sFile" accept="image/*" multiple hidden></div>
+      ${isNew ? "" : `<div class="cell" style="padding:8px 0;border:0" id="sOnRow"><div class="grow">接单中</div><i class="switch ${s.enabled ? "on" : ""}" id="sOn"></i></div>`}
+      <button class="btn primary block" id="sSave">保存</button>`);
+    let game = s.game, unit = s.unit;
+    sh.querySelectorAll("[data-g]").forEach((b) => (b.onclick = () => { game = b.dataset.g; sh.querySelectorAll("[data-g]").forEach((x) => x.classList.toggle("on", x === b)); }));
+    sh.querySelectorAll("[data-u]").forEach((b) => (b.onclick = () => { unit = b.dataset.u; sh.querySelectorAll("[data-u]").forEach((x) => x.classList.toggle("on", x === b)); }));
+    sh.querySelector("#sOnRow")?.addEventListener("click", () => sh.querySelector("#sOn").classList.toggle("on"));
+    const draw = () => {
+      sh.querySelector("#sImgs").innerHTML = imgs.map((p, i) => `<div style="background-image:url('${esc(media(p))}')"><span class="del" data-i="${i}">×</span></div>`).join("") + (imgs.length < 6 ? `<label class="add" for="sFile">${ic("plus")}</label>` : "");
+      sh.querySelectorAll("#sImgs .del").forEach((d) => (d.onclick = (e) => { e.preventDefault(); imgs.splice(+d.dataset.i, 1); draw(); }));
+    };
+    draw();
+    sh.querySelector("#sFile").onchange = async (e) => {
+      try { for (const f of [...e.target.files].slice(0, 6 - imgs.length)) imgs.push(await uploadImage(f)); draw(); } catch (err) { fail(err); }
+      e.target.value = "";
+    };
+    sh.querySelector("#sSave").onclick = async () => {
+      const body = { game, rank: sh.querySelector("#sRank").value.trim(), price: +sh.querySelector("#sPrice").value, unit,
+        intro: sh.querySelector("#sIntro").value.trim(), images: imgs, enabled: isNew ? true : sh.querySelector("#sOn").classList.contains("on") };
+      try { await api(isNew ? "/api/skills" : `/api/skills/${s.id}`, { method: isNew ? "POST" : "PUT", body }); closeLayer(); toast("已保存"); render(); }
+      catch (e) { closeLayer(); fail(e); }
+    };
+  };
+  acts.delSkill = (el) => dialog({ title: "删除技能", text: "删除后别人不能再下单，进行中的订单不受影响", onOk: () => api(`/api/skills/${el.dataset.id}`, { method: "DELETE" }).then(render, fail) });
+  acts.orderSkill = (el) => {
+    const s = skillsCache.find((x) => x.id === +el.dataset.id);
+    if (!s) return;
+    let qty = 1;
+    const sh = openSheet(`<h3>下单：${esc(s.game)} 陪玩</h3>
+      <div class="s-row"><label>数量（${s.unit}）</label><div class="stepper"><button id="qm">−</button><b id="qv">1</b><button id="qp">+</button></div></div>
+      <div class="s-row"><label>备注</label><input class="inp" id="oNote" maxlength="200" placeholder="例如：今晚 9 点，打排位"></div>
+      <p style="color:var(--muted);font-size:13px">金币先由平台托管，陪玩完成并确认后才给对方；对方没接单可以随时取消，全额退回。</p>
+      <div class="gift-foot"><span>合计 <b id="oTotal" style="color:var(--red)">${s.price}</b> 金币（余额 <span class="coinsNow">${S.me.coins}</span>）</span><button class="btn primary" id="oGo">确认下单</button></div>`);
+    const upd = () => { sh.querySelector("#qv").textContent = qty; sh.querySelector("#oTotal").textContent = qty * s.price; };
+    sh.querySelector("#qm").onclick = () => { qty = Math.max(1, qty - 1); upd(); };
+    sh.querySelector("#qp").onclick = () => { qty = Math.min(20, qty + 1); upd(); };
+    sh.querySelector("#oGo").onclick = async () => {
+      try { await api("/api/game-orders", { method: "POST", body: { skillId: s.id, qty, note: sh.querySelector("#oNote").value.trim() } }); closeLayer(); toast("下单成功，等待对方接单"); go("/gameorders/buyer"); }
+      catch (e) { closeLayer(); fail(e); }
+    };
+  };
+  let ordersCache = [];
+  const ORDER_ACTS = {
+    buyer: { pending: [["cancel", "取消订单", "ghost"]], accepted: [["refund", "申请退款", "ghost"], ["confirm", "确认完成", "primary"]],
+      delivered: [["refund", "申请退款", "ghost"], ["confirm", "确认完成", "primary"]], completed: [["review", "评价", "primary"]] },
+    seller: { pending: [["reject", "拒绝", "ghost"], ["accept", "接单", "primary"]], accepted: [["deliver", "完成陪玩", "primary"]] },
+  };
+  route(/^\/gameorders(?:\/(buyer|seller))?$/, async (role = "buyer") => {
+    const list = (ordersCache = await api(`/api/game-orders?role=${role}`));
+    return `${pageHd("游戏订单")}<div class="top" style="position:static;padding-top:8px"><div class="seg seg-light"><button data-go="/gameorders/buyer" class="${role === "buyer" ? "on" : ""}">我下的单</button><button data-go="/gameorders/seller" class="${role === "seller" ? "on" : ""}">我接的单</button></div></div>
+      <div class="bg-gray page-pad">${list.length ? list.map((o) => {
+        const btns = (ORDER_ACTS[role][o.status] || []).filter(([a]) => !(a === "review" && o.stars));
+        return `<div class="skill"><div class="skill-hd">${o.peer ? av(o.peer, 32, "", `data-go="/user/${o.peer.id}"`) : ""}<b>${esc(o.peer?.name || "")}</b><span class="status-pill ${["completed"].includes(o.status) ? "ok" : ["canceled", "refunded", "disputed"].includes(o.status) ? "bad" : ""}">${o.statusText}</span><span class="skill-price">${o.total} 金币</span></div>
+          <p>${esc(o.game)} × ${o.qty}${o.unit} · ${o.time}${o.note ? `<br>备注：${esc(o.note)}` : ""}${o.reason ? `<br>原因：${esc(o.reason)}` : ""}${o.autoConfirmAt ? `<br><small>${o.autoConfirmAt} 自动确认</small>` : ""}${o.stars ? `<br>评价：${"★".repeat(o.stars)} ${esc(o.review)}` : ""}</p>
+          <div class="skill-ft"><button class="btn ghost sm" data-go="/chat/${o.peer?.id}">私信</button>${btns.map(([a, t, cls]) => `<button class="btn ${cls} sm" data-act="orderAct" data-id="${o.id}" data-a="${a}">${t}</button>`).join("")}</div></div>`;
+      }).join("") : empty("", role === "buyer" ? "还没有下过陪玩订单" : "还没有人找你陪玩", role === "buyer" ? "去别人的主页看看陪玩技能吧" : "在「游戏技能」里添加技能后就能接单")}</div>`;
+  });
+  acts.orderAct = (el) => {
+    const id = el.dataset.id, a = el.dataset.a;
+    const run = (body) => api(`/api/game-orders/${id}/${a}`, { method: "POST", body: body || {} }).then(() => { toast("已处理"); render(); }, fail);
+    if (a === "refund") {
+      const sh = openSheet(`<h3>申请退款</h3><div class="s-row"><label>原因</label><textarea class="inp" id="rr" rows="3" maxlength="200" placeholder="说明一下情况，客服会核实处理"></textarea></div><button class="btn primary block" id="rok">提交</button>`);
+      sh.querySelector("#rok").onclick = () => { const reason = sh.querySelector("#rr").value.trim(); if (!reason) return toast("请填写原因"); closeLayer(); run({ reason }); };
+    } else if (a === "review") {
+      let stars = 5;
+      const sh = openSheet(`<h3>评价这次陪玩</h3><div id="rst" style="text-align:center;font-size:34px;color:#ffb020;cursor:pointer;letter-spacing:6px">★★★★★</div><div class="s-row"><input class="inp" id="rv" maxlength="200" placeholder="说点什么（选填）"></div><button class="btn primary block" id="rok">提交</button>`);
+      const st = sh.querySelector("#rst");
+      st.onclick = (e) => { const r = st.getBoundingClientRect(); stars = Math.max(1, Math.min(5, Math.ceil(((e.clientX - r.left) / r.width) * 5))); st.textContent = "★".repeat(stars) + "☆".repeat(5 - stars); };
+      sh.querySelector("#rok").onclick = () => { closeLayer(); run({ stars, review: sh.querySelector("#rv").value.trim() }); };
+    } else if (a === "confirm") dialog({ title: "确认完成", text: "确认后金币会结算给对方，不能再退款", onOk: () => run() });
+    else if (a === "cancel" || a === "reject") dialog({ title: a === "cancel" ? "取消订单" : "拒绝接单", text: "金币会全额退回给买家", onOk: () => run() });
+    else run();
+  };
+
+  // ======================= 实名认证 =======================
+  route(/^\/realname$/, async () => {
+    S.me = await api("/api/me");
+    if (S.me.realname) return `${pageHd("实名认证")}<div class="page-pad" style="text-align:center;padding-top:40px"><div style="font-size:48px">✅</div><h3>已完成实名认证</h3><p style="color:var(--muted)">${esc(S.me.realName)} · ${esc(S.me.idMasked)}</p></div>`;
+    return `${pageHd("实名认证")}<div class="bg-gray"><div class="host-box" style="margin:0;border-radius:0">根据国家规定，提现、开通接听收费、接陪玩订单前需要实名认证。信息加密保存，只用于身份核验，不会公开。未满 18 周岁不能使用本平台。</div>
+      <div class="form-row"><label>真实姓名</label><input id="rnName" maxlength="20" placeholder="与身份证一致"></div>
+      <div class="form-row"><label>身份证号</label><input id="rnId" maxlength="18" placeholder="18 位身份证号"></div>
+      <div class="page-pad"><button class="btn primary block" data-act="doRealname">提交认证</button></div></div>`;
+  });
+  acts.doRealname = async () => {
+    const name = $("#rnName").value.trim(), idNo = $("#rnId").value.trim().toUpperCase();
+    if (name.length < 2) return toast("请填写真实姓名");
+    if (!/^\d{17}[\dX]$/.test(idNo)) return toast("身份证号格式不对");
+    try { S.me = await api("/api/realname", { method: "POST", body: { name, idNo } }); toast("实名认证成功"); back("/me"); } catch (e) { fail(e); }
+  };
+
+  // ======================= 支付结果 =======================
+  route(/^\/pay-result\/(\w+)$/, () => `${pageHd("支付结果")}<div class="page-pad" style="text-align:center;padding-top:60px" id="payBox"><div class="spinner" style="margin:0 auto 16px"></div><b>正在确认支付结果…</b></div>`, {
+    mount: async (id) => {
+      for (let i = 0; i < 15; i++) {
+        let o;
+        try { o = await api(`/api/orders/${id}`); } catch (e) { break; }
+        if (o.status === "paid") {
+          S.me = await api("/api/me");
+          const box = $("#payBox");
+          if (box) box.innerHTML = `<div style="font-size:52px">🎉</div><h3>支付成功</h3><p>${o.kind === "coins" ? `${o.coins} 金币已到账，当前余额 ${S.me.coins}` : "VIP 已开通"}</p><button class="btn primary block" data-go="/me">完成</button>`;
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 2000));
+        if (!$("#payBox")) return;
+      }
+      const box = $("#payBox");
+      if (box) box.innerHTML = `<h3>还没有查到支付结果</h3><p style="color:var(--muted)">如果已经付款，通常 1 分钟内到账，可以稍后在「我的钱包」查看；有问题请联系客服。</p><button class="btn primary block" data-act="reload">再查一次</button><div style="height:10px"></div><button class="btn ghost block" data-go="/service">联系客服</button>`;
+    },
+  });
+
+
+  // ======================= 来电 / 消息提醒（推送） =======================
+  const isNative = () => !!window.Capacitor?.isNativePlatform?.();
+  function pushStateText() {
+    if (isNative()) return store.get("seeu.push") === "on" ? "已开启" : "未开启";
+    if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) return "此浏览器不支持";
+    return { granted: "已开启", denied: "已拒绝", default: "未开启" }[Notification.permission];
+  }
+  async function registerWebPush() {
+    const reg = await navigator.serviceWorker.register("sw.js");
+    await navigator.serviceWorker.ready;
+    const key = Uint8Array.from(atob(S.config.vapidPublicKey.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+    await api("/api/devices", { method: "POST", body: { provider: "webpush", token: JSON.stringify(sub.toJSON()) } });
+  }
+  async function registerNativePush(ask) {
+    const PN = window.Capacitor?.Plugins?.PushNotifications;
+    if (!PN) throw new ApiError(0, "App 缺少推送组件");
+    let perm = await PN.checkPermissions();
+    if (perm.receive !== "granted" && ask) perm = await PN.requestPermissions();
+    if (perm.receive !== "granted") throw new ApiError(0, "没有通知权限，请在系统设置里允许 SeeU 发送通知");
+    if (!registerNativePush.bound) {
+      registerNativePush.bound = true;
+      const platform = window.Capacitor.getPlatform();
+      PN.addListener("registration", (t) => api("/api/devices", { method: "POST", body: { provider: platform === "ios" ? "apns" : "fcm", token: t.value } }).catch(() => {}));
+      PN.addListener("registrationError", () => toast("推送注册失败（安卓需要配置 Firebase，见 README）"));
+      PN.addListener("pushNotificationActionPerformed", (a) => { const u = a.notification?.data?.url; if (u) location.hash = u.replace(/^\/?#/, "#"); });
+      if (platform === "android") {
+        PN.createChannel?.({ id: "calls", name: "来电", importance: 5, vibration: true, sound: "default" }).catch(() => {});
+        PN.createChannel?.({ id: "messages", name: "消息", importance: 4 }).catch(() => {});
+      }
+    }
+    await PN.register();
+    store.set("seeu.push", "on");
+  }
+  async function enablePush(ask) {
+    if (isNative()) return registerNativePush(ask);
+    if (pushStateText() === "此浏览器不支持") throw new ApiError(0, /iPhone|iPad/.test(navigator.userAgent) ? "iPhone 需要先把网页「添加到主屏幕」，从桌面图标打开后才能开启提醒" : "这个浏览器不支持消息提醒");
+    if (Notification.permission === "default" && ask) await Notification.requestPermission();
+    if (Notification.permission !== "granted") throw new ApiError(0, "通知权限被拒绝，请在浏览器设置里允许本网站发送通知");
+    await registerWebPush();
+  }
+  acts.enablePush = async () => {
+    try { await enablePush(true); toast("来电和消息提醒已开启"); } catch (e) { fail(e); }
+    const el = $("#pushState"); if (el) el.textContent = pushStateText();
+  };
+  // 登录后：已授权的静默续订；没问过的提示一次（需要用户点按钮才能弹系统授权）
+  function setupPush() {
+    const st = pushStateText();
+    if (st === "已开启") return enablePush(false).catch(() => {});
+    if (st !== "未开启" || store.get("seeu.pushAsked")) return;
+    store.set("seeu.pushAsked", "1");
+    setTimeout(() => !layer.innerHTML && dialog({ title: "开启来电提醒", text: "开启后，App 在后台或关闭时也能收到视频来电和新消息", ok: "开启", cancel: "以后再说", onOk: acts.enablePush }), 1500);
+  }
+  navigator.serviceWorker?.addEventListener?.("message", (e) => { if (e.data?.type === "open") location.href = e.data.url; });
 
   // ======================= 启动 =======================
+  window.I18N?.init();
   if (new URLSearchParams(location.search).get("invite") && !TOKEN) location.hash = "#/login";
   render();
 })();

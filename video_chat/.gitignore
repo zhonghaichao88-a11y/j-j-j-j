@@ -4,3 +4,8 @@ deploy/.env
 __pycache__/
 .pytest_cache/
 seeu.apk
+server/vapid_private.pem
+*.pem
+*.p8
+deploy/keys/
+mobile/android/app/google-services.json

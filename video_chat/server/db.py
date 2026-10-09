@@ -57,6 +57,11 @@ class User(Base):
     profile_rewarded: Mapped[bool] = mapped_column(Boolean, default=False)
     first_paid: Mapped[bool] = mapped_column(Boolean, default=False)
     banned: Mapped[bool] = mapped_column(Boolean, default=False)
+    # 实名（提现、开通接听、陪玩接单前必须完成）
+    real_name: Mapped[str] = mapped_column(String(20), default="")
+    id_masked: Mapped[str] = mapped_column(String(20), default="")
+    id_hash: Mapped[str] = mapped_column(String(64), default="", index=True)   # 防止一证多号
+    realname_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     is_test: Mapped[bool] = mapped_column(Boolean, default=False)   # 测试账号（seed 生成），上线前删除
     last_seen: Mapped[datetime] = mapped_column(DateTime, default=now)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
@@ -234,8 +239,68 @@ class Withdrawal(Base):
     coins: Mapped[int] = mapped_column(Integer)
     yuan: Mapped[float] = mapped_column(Float)
     account: Mapped[str] = mapped_column(String(60))
-    status: Mapped[str] = mapped_column(String(10), default="pending")
+    status: Mapped[str] = mapped_column(String(10), default="pending")   # pending / paid / rejected
+    note: Mapped[str] = mapped_column(String(100), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    handled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class Device(Base):
+    """推送设备：网页推送订阅、安卓 FCM token、苹果 APNs token。"""
+    __tablename__ = "devices"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(10))       # webpush / fcm / apns
+    token: Mapped[str] = mapped_column(Text)                 # webpush 时是订阅 JSON
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class GameSkill(Base):
+    """游戏陪玩技能：一个用户可以有多个游戏。"""
+    __tablename__ = "game_skills"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    game: Mapped[str] = mapped_column(String(20))
+    rank: Mapped[str] = mapped_column(String(20), default="")
+    price: Mapped[int] = mapped_column(Integer)              # 金币 / 单位
+    unit: Mapped[str] = mapped_column(String(4), default="局")  # 局 / 小时
+    intro: Mapped[str] = mapped_column(String(200), default="")
+    images: Mapped[list] = mapped_column(JSON, default=list)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    orders_done: Mapped[int] = mapped_column(Integer, default=0)
+    rating_sum: Mapped[int] = mapped_column(Integer, default=0)
+    rating_count: Mapped[int] = mapped_column(Integer, default=0)
+    deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class GameOrder(Base):
+    """陪玩订单。下单时金币托管在平台，完成后才结算给陪玩师。
+
+    状态：pending 待接单 → accepted 进行中 → delivered 陪玩师已完成待确认 → completed 已完成
+          pending 时买家可取消、陪玩师可拒绝 → canceled（全额退款）
+          accepted/delivered 时买家可申请退款 → disputed 由客服裁决 → refunded / completed
+    """
+    __tablename__ = "game_orders"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    skill_id: Mapped[int] = mapped_column(ForeignKey("game_skills.id"))
+    buyer_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    seller_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    game: Mapped[str] = mapped_column(String(20))
+    unit: Mapped[str] = mapped_column(String(4))
+    price: Mapped[int] = mapped_column(Integer)
+    qty: Mapped[int] = mapped_column(Integer)
+    total: Mapped[int] = mapped_column(Integer)
+    note: Mapped[str] = mapped_column(String(200), default="")
+    status: Mapped[str] = mapped_column(String(10), default="pending")
+    reason: Mapped[str] = mapped_column(String(200), default="")   # 取消 / 退款原因
+    stars: Mapped[int] = mapped_column(Integer, default=0)
+    review: Mapped[str] = mapped_column(String(200), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class Notice(Base):

@@ -72,6 +72,8 @@ echo   验证码点「获取验证码」会自动填好
 echo   充值选「模拟支付（开发模式）」
 echo   想自己打开：http://127.0.0.1:8000
 echo.
+echo   管理后台：http://127.0.0.1:8000/admin.html  密码 admin123（仅本地测试）
+echo.
 echo   关闭本窗口 = 停止服务
 echo ========================================
 echo.
@@ -95,6 +97,7 @@ if defined BROWSER (
 )
 
 set SEEU_DEV=1
+if not defined SEEU_ADMIN_TOKEN set SEEU_ADMIN_TOKEN=admin123
 python -m uvicorn server.main:app --host 127.0.0.1 --port 8000
 echo.
 echo 服务已停止。

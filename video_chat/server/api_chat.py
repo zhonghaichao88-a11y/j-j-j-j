@@ -155,8 +155,11 @@ def rtc_config():
     ice = [{"urls": config.STUN_URLS}]
     if config.TURN_URL:
         ice.append({"urls": config.TURN_URL.split(","), "username": config.TURN_USER, "credential": config.TURN_PASS})
+    from .push import enabled_providers, vapid_public_key
+    from .providers import alipay_ready, wxpay_ready
     return {"iceServers": ice, "ringTimeout": config.RING_TIMEOUT, "billInterval": config.BILL_INTERVAL,
-            "devMode": config.DEV_MODE}
+            "devMode": config.DEV_MODE, "vapidPublicKey": vapid_public_key(), "push": sorted(enabled_providers()),
+            "pay": {"alipay": alipay_ready(), "wechat": wxpay_ready(), "mock": config.DEV_MODE}}
 
 
 class CallIn(BaseModel):
@@ -174,7 +177,9 @@ async def start_call(body: CallIn, me: User = Depends(current_user), db: Session
     if me.id in hub.in_call:
         raise HTTPException(409, {"code": "self_busy", "msg": "你还有一个通话没有结束"})
     if not hub.online(peer.id):
-        raise HTTPException(409, {"code": "offline", "msg": "对方不在线"})
+        from .push import has_devices
+        if not has_devices(peer.id):   # 对方离线又没有可推送的设备，打不通
+            raise HTTPException(409, {"code": "offline", "msg": "对方不在线"})
     if peer.id in hub.in_call:
         raise HTTPException(409, {"code": "busy", "msg": "对方正在通话中，请稍后再试"})
     if settings_of(peer)["dnd"]:

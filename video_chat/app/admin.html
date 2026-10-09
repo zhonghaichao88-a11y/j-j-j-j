@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>SeeU 管理后台</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root { --c1: #36c6f4; --c2: #5b8cff; --text: #1d2129; --muted: #86909c; --line: #e5e6eb; --bg: #f2f3f5; --red: #f53f3f; --green: #00b42a; --orange: #ff7d00; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  button { font: inherit; cursor: pointer; border: 0; border-radius: 6px; padding: 6px 14px; background: #fff; border: 1px solid var(--line); }
+  button.primary { background: var(--c2); color: #fff; border-color: var(--c2); }
+  button.danger { background: var(--red); color: #fff; border-color: var(--red); }
+  button.ok { background: var(--green); color: #fff; border-color: var(--green); }
+  button:disabled { opacity: .5; cursor: default; }
+  input, textarea { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; outline: none; }
+  input:focus, textarea:focus { border-color: var(--c2); }
+  .hidden { display: none !important; }
+  #login { max-width: 360px; margin: 14vh auto; background: #fff; padding: 32px; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.06); }
+  #login h1 { margin: 0 0 20px; font-size: 22px; }
+  #login input { width: 100%; margin-bottom: 14px; }
+  #login button { width: 100%; height: 40px; }
+  #main { display: flex; min-height: 100vh; }
+  nav { width: 200px; flex: none; background: #1d2129; color: #c9cdd4; padding: 18px 0; }
+  nav h2 { color: #fff; font-size: 17px; margin: 0 20px 18px; }
+  nav a { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; cursor: pointer; }
+  nav a.on, nav a:hover { background: #2e3440; color: #fff; }
+  nav .n { min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--red); color: #fff; font-size: 12px; text-align: center; }
+  nav .logout { margin-top: 30px; color: var(--muted); }
+  section { flex: 1; min-width: 0; padding: 24px; }
+  h3 { margin: 0 0 16px; font-size: 18px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+  .card { background: #fff; border-radius: 10px; padding: 16px; }
+  .card b { display: block; font-size: 26px; }
+  .card span { color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: #f7f8fa; color: var(--muted); font-weight: 500; white-space: nowrap; }
+  td .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { display: inline-block; padding: 0 8px; border-radius: 10px; font-size: 12px; background: #f2f3f5; color: var(--muted); margin-right: 4px; }
+  .tag.g { background: #e8ffea; color: var(--green); } .tag.r { background: #ffece8; color: var(--red); } .tag.o { background: #fff7e8; color: var(--orange); }
+  .empty { padding: 40px; text-align: center; color: var(--muted); background: #fff; border-radius: 10px; }
+  .bar { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; }
+  .chat { display: grid; grid-template-columns: 300px 1fr; gap: 14px; height: calc(100vh - 110px); }
+  .chat .list, .chat .thread { background: #fff; border-radius: 10px; overflow: auto; }
+  .chat .item { padding: 10px 14px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .chat .item.on { background: #f2f7ff; }
+  .chat .item small { color: var(--muted); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .thread { display: flex; flex-direction: column; }
+  .msgs { flex: 1; overflow: auto; padding: 14px; }
+  .m { max-width: 70%; margin-bottom: 10px; padding: 8px 12px; border-radius: 10px; background: #f2f3f5; white-space: pre-wrap; }
+  .m.me { background: #e8f3ff; margin-left: auto; }
+  .m small { display: block; color: var(--muted); font-size: 11px; }
+  .reply { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
+  .reply textarea { flex: 1; height: 60px; resize: none; }
+  video.v { width: 220px; border-radius: 8px; background: #000; }
+  #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.8); color: #fff; padding: 8px 18px; border-radius: 8px; z-index: 9; }
+  @media (max-width: 760px) { #main { flex-direction: column; } nav { width: auto; display: flex; overflow-x: auto; padding: 8px; } nav h2, nav .logout { display: none; } nav a { white-space: nowrap; } .chat { grid-template-columns: 1fr; height: auto; } }
+</style>
+</head>
+<body>
+<div id="login">
+  <h1>SeeU 管理后台</h1>
+  <input id="tokenIn" type="password" placeholder="管理密钥（服务器上的 SEEU_ADMIN_TOKEN）">
+  <button class="primary" id="loginBtn">进入</button>
+</div>
+<div id="main" class="hidden">
+  <nav>
+    <h2>SeeU 管理后台</h2>
+    <a data-p="stats">数据概览</a>
+    <a data-p="verify">认证审核 <span class="n hidden" id="n-verify"></span></a>
+    <a data-p="reports">举报处理 <span class="n hidden" id="n-reports"></span></a>
+    <a data-p="withdrawals">提现打款 <span class="n hidden" id="n-withdrawals"></span></a>
+    <a data-p="service">客服消息 <span class="n hidden" id="n-service"></span></a>
+    <a data-p="disputes">陪玩申诉 <span class="n hidden" id="n-disputes"></span></a>
+    <a data-p="users">用户管理</a>
+    <a class="logout" id="logout">退出</a>
+  </nav>
+  <section id="page"></section>
+</div>
+<div id="toast" class="hidden"></div>
+<script src="config.js"></script>
+<script>
+(() => {
+  const API = (window.SEEU_API || "").replace(/\/$/, "");
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const media = (u) => (u && u.startsWith("/uploads") ? API + u : u || "");
+  let TOKEN = sessionStorage.getItem("seeu.admin") || "";
+  let page = "stats", chatUid = null;
+
+  function toast(t) { const el = $("#toast"); el.textContent = t; el.classList.remove("hidden"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.add("hidden"), 2000); }
+  async function api(path, { method = "GET", body } = {}) {
+    const r = await fetch(API + "/api/admin" + path, { method, headers: { "X-Admin-Token": TOKEN, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 403) { logout(); throw new Error("管理密钥不对"); }
+    if (!r.ok) throw new Error(typeof d.detail === "string" ? d.detail : d.detail?.msg || "操作失败");
+    return d;
+  }
+  const userCell = (u) => u ? `<b>${esc(u.name)}</b> <span class="tag">ID ${u.id}</span>${u.banned ? '<span class="tag r">已封禁</span>' : ""}${u.isTest ? '<span class="tag o">测试号</span>' : ""}<br><small>${esc(u.phone)} · ${esc(u.city || "")}</small>` : "-";
+  const table = (heads, rows) => rows.length ? `<table><tr>${heads.map((h) => `<th>${h}</th>`).join("")}</tr>${rows.join("")}</table>` : '<div class="empty">没有待处理的内容</div>';
+
+  const pages = {
+    async stats() {
+      const s = await api("/stats");
+      Object.entries(s.pending).forEach(([k, v]) => { const el = $(`#n-${k}`); if (el) { el.textContent = v; el.classList.toggle("hidden", !v); } });
+      const c = (v, t) => `<div class="card"><b>${v}</b><span>${t}</span></div>`;
+      return `<h3>数据概览</h3><div class="cards">${c(s.users, "注册用户")}${c(s.newToday, "今日新增")}${c(s.online, "当前在线")}${c(s.inCall, "正在通话")}${c(s.hosts, "接听主播")}
+        ${c(s.callsToday, "今日通话次数")}${c(s.callMinutesToday, "今日通话分钟")}${c("¥" + s.revenueToday.toFixed(2), "今日充值")}${c("¥" + s.revenueTotal.toFixed(2), "累计充值")}</div>
+        <h3 style="margin-top:24px">待处理</h3><div class="cards">${c(s.pending.verify, "认证待审核")}${c(s.pending.reports, "举报待处理")}${c(s.pending.withdrawals, "提现待打款")}${c(s.pending.service, "客服待回复")}${c(s.pending.disputes, "陪玩申诉")}</div>`;
+    },
+    async verify() {
+      const list = await api("/verify");
+      return `<h3>视频认证审核</h3><p style="color:var(--muted)">看视频里是不是本人真人、有没有按提示眨眼转头。通过后用户获得「已认证」标识和 10 金币。</p>` + table(["用户", "认证视频", "操作"], list.map((u) =>
+        `<tr><td>${userCell(u)}<br><small>${u.sex === "f" ? "女" : "男"} ${u.age} 岁 · 实名：${esc(u.realName || "未实名")}</small></td><td><video class="v" src="${esc(media(u.video))}" controls preload="metadata"></video></td>
+         <td><div class="acts"><button class="ok" data-a="verify" data-id="${u.id}" data-v="true">通过</button><button class="danger" data-a="verify" data-id="${u.id}" data-v="false">不通过</button></div></td></tr>`));
+    },
+    async reports() {
+      const list = await api("/reports");
+      return `<h3>举报处理</h3>` + table(["时间", "举报人", "被举报", "类型 / 原因", "内容", "操作"], list.map((r) =>
+        `<tr><td>${r.time}</td><td>${esc(r.reporter)}</td><td>${userCell(r.target)}</td><td><span class="tag">${{ user: "用户", post: "动态", message: "消息" }[r.type]}</span>${esc(r.reason)}</td><td>${esc(r.content) || "-"}</td>
+         <td><div class="acts"><button data-a="closeReport" data-id="${r.id}">不处理</button>${r.type === "post" ? `<button class="danger" data-a="closeReport" data-id="${r.id}" data-del="1">删除动态</button>` : ""}
+         ${r.target && !r.target.banned ? `<button class="danger" data-a="ban" data-id="${r.target.id}" data-r="${r.id}">封号</button>` : ""}</div></td></tr>`));
+    },
+    async withdrawals() {
+      const list = await api("/withdrawals");
+      return `<h3>提现打款</h3><p style="color:var(--muted)">按收款账户手动转账后点「已打款」。驳回会把收益退回给用户。</p>` + table(["时间", "用户", "金额", "收款账户", "操作"], list.map((w) =>
+        `<tr><td>${w.time}</td><td>${userCell(w.user)}</td><td><b>¥${w.yuan.toFixed(2)}</b><br><small>${w.coins} 金币</small></td><td>${esc(w.account)}</td>
+         <td><div class="acts"><button class="ok" data-a="wd" data-id="${w.id}" data-v="paid">已打款</button><button class="danger" data-a="wd" data-id="${w.id}" data-v="reject">驳回</button></div></td></tr>`));
+    },
+    async service() {
+      const list = await api("/service");
+      if (!chatUid && list.length) chatUid = list[0].user.id;
+      const thread = chatUid ? await api(`/service/${chatUid}`) : [];
+      return `<h3>客服消息</h3><div class="chat"><div class="list">${list.length ? list.map((x) => `<div class="item ${x.user.id === chatUid ? "on" : ""}" data-a="pickChat" data-id="${x.user.id}">${x.waiting ? '<span class="tag r">待回复</span>' : ""}<b>${esc(x.user.name)}</b> <span class="tag">ID ${x.user.id}</span><small>${x.time} · ${esc(x.last)}</small></div>`).join("") : '<div class="empty">暂无消息</div>'}</div>
+        <div class="thread"><div class="msgs" id="msgs">${thread.map((m) => `<div class="m ${m.me ? "" : "me"}">${esc(m.text)}<small>${m.me ? "用户" : "客服"} · ${m.time}</small></div>`).join("")}</div>
+        ${chatUid ? `<div class="reply"><textarea id="replyIn" placeholder="回复内容（Ctrl+Enter 发送）"></textarea><button class="primary" data-a="reply">发送</button></div>` : ""}</div></div>`;
+    },
+    async disputes() {
+      const list = await api("/disputes");
+      return `<h3>陪玩退款申诉</h3><p style="color:var(--muted)">先私信双方了解情况（可在「用户管理」里查 ID），再决定退款给买家还是结算给陪玩师。</p>` + table(["订单", "买家", "陪玩师", "金额", "买家退款理由", "操作"], list.map((o) =>
+        `<tr><td>#${o.id} ${esc(o.game)} × ${o.qty}${o.unit}<br><small>${o.time}${o.note ? " · 备注：" + esc(o.note) : ""}</small></td><td>${userCell(o.buyer)}</td><td>${userCell(o.seller)}</td><td>${o.total} 金币</td><td>${esc(o.reason)}</td>
+         <td><div class="acts"><button class="danger" data-a="dispute" data-id="${o.id}" data-v="true">退款给买家</button><button class="ok" data-a="dispute" data-id="${o.id}" data-v="false">结算给陪玩师</button></div></td></tr>`));
+    },
+    async users() {
+      const q = $("#uq")?.value || "";
+      const list = await api(`/users?q=${encodeURIComponent(q)}`);
+      return `<h3>用户管理</h3><div class="bar"><input id="uq" value="${esc(q)}" placeholder="ID / 手机号 / 昵称"><button class="primary" data-a="searchUsers">搜索</button></div>` + table(["用户", "状态", "金币 / 收益", "注册时间", "操作"], list.map((u) =>
+        `<tr><td>${userCell(u)}</td><td>${u.online === "offline" ? '<span class="tag">离线</span>' : '<span class="tag g">在线</span>'}${u.isHost ? `<span class="tag o">主播 ${u.price}/分</span>` : ""}${u.verify === "approved" ? '<span class="tag g">已认证</span>' : ""}${u.realName ? `<span class="tag g">实名 ${esc(u.realName)}</span>` : ""}</td>
+         <td>${u.coins} / ${u.earnings}</td><td>${u.created}</td>
+         <td><div class="acts"><button data-a="coins" data-id="${u.id}">调整金币</button>${u.banned ? `<button data-a="unban" data-id="${u.id}">解封</button>` : `<button class="danger" data-a="ban" data-id="${u.id}">封号</button>`}</div></td></tr>`));
+    },
+  };
+
+  async function show(p) {
+    page = p || page;
+    document.querySelectorAll("nav a[data-p]").forEach((a) => a.classList.toggle("on", a.dataset.p === page));
+    try { $("#page").innerHTML = await pages[page](); } catch (e) { toast(e.message); }
+    const msgs = $("#msgs"); if (msgs) msgs.scrollTop = msgs.scrollHeight;
+    if (page !== "stats") api("/stats").then((s) => Object.entries(s.pending).forEach(([k, v]) => { const el = $(`#n-${k}`); if (el) { el.textContent = v; el.classList.toggle("hidden", !v); } })).catch(() => {});
+  }
+  const acts = {
+    async verify(b) { await api(`/verify/${b.dataset.id}?approve=${b.dataset.v}`, { method: "POST" }); toast("已处理"); },
+    async closeReport(b) { await api(`/reports/${b.dataset.id}/close${b.dataset.del ? "?delete_post=true" : ""}`, { method: "POST" }); toast("已处理"); },
+    async ban(b) {
+      if (!confirm("确定封禁这个账号？封禁后立即下线，不能再登录使用。")) return;
+      await api(`/users/${b.dataset.id}/ban`, { method: "POST" });
+      if (b.dataset.r) await api(`/reports/${b.dataset.r}/close`, { method: "POST" });
+      toast("已封号");
+    },
+    async unban(b) { await api(`/users/${b.dataset.id}/ban?banned=false`, { method: "POST" }); toast("已解封"); },
+    async wd(b) {
+      const note = b.dataset.v === "reject" ? prompt("驳回原因（会通知用户）", "收款账户信息有误") : "";
+      if (note === null) return;
+      await api(`/withdrawals/${b.dataset.id}/${b.dataset.v}`, { method: "POST", body: { note } });
+      toast("已处理");
+    },
+    async dispute(b) { if (!confirm(b.dataset.v === "true" ? "确定退款给买家？" : "确定结算给陪玩师？")) return; await api(`/disputes/${b.dataset.id}?refund=${b.dataset.v}`, { method: "POST" }); toast("已处理"); },
+    async coins(b) {
+      const amount = parseInt(prompt("调整金币数量（正数增加、负数扣除）", "10"), 10);
+      if (!amount) return;
+      const reason = prompt("原因（会通知用户）", "活动补偿");
+      if (!reason) return;
+      await api(`/users/${b.dataset.id}/coins`, { method: "POST", body: { amount, reason } });
+      toast("已调整");
+    },
+    async pickChat(b) { chatUid = +b.dataset.id; },
+    async reply() {
+      const text = $("#replyIn").value.trim();
+      if (!text) return;
+      await api(`/service/${chatUid}`, { method: "POST", body: { text } });
+      toast("已回复");
+    },
+    async searchUsers() {},
+  };
+  document.addEventListener("click", async (e) => {
+    const nav = e.target.closest("nav a[data-p]");
+    if (nav) return show(nav.dataset.p);
+    const b = e.target.closest("[data-a]");
+    if (!b) return;
+    b.disabled = true;
+    try { await acts[b.dataset.a](b); await show(); } catch (err) { toast(err.message); } finally { b.disabled = false; }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.target.id === "replyIn" && e.key === "Enter" && (e.ctrlKey || e.metaKey)) document.querySelector('[data-a="reply"]')?.click();
+    if (e.target.id === "uq" && e.key === "Enter") show("users");
+  });
+  function logout() { TOKEN = ""; sessionStorage.removeItem("seeu.admin"); $("#main").classList.add("hidden"); $("#login").classList.remove("hidden"); }
+  $("#logout").onclick = logout;
+  async function login() {
+    TOKEN = $("#tokenIn").value.trim() || TOKEN;
+    try { await api("/stats"); } catch (e) { return toast(e.message); }
+    sessionStorage.setItem("seeu.admin", TOKEN);
+    $("#login").classList.add("hidden"); $("#main").classList.remove("hidden");
+    show("stats");
+    clearInterval(login.t); login.t = setInterval(() => page === "stats" && show(), 30000);
+  }
+  $("#loginBtn").onclick = login;
+  $("#tokenIn").onkeydown = (e) => e.key === "Enter" && login();
+  if (TOKEN) login();
+})();
+</script>
+</body>
+</html>

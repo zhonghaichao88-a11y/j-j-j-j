@@ -30,6 +30,15 @@ class Hub:
         t = self.drop_tasks.pop(uid, None)
         if t:
             t.cancel()
+        # 点开推送通知进来的：补发还在响铃的来电
+        call_id = self.in_call.get(uid)
+        if call_id:
+            from .core import pub_user
+            with SessionLocal() as db:
+                call = db.get(Call, call_id)
+                if call and call.status == "ringing" and call.callee_id == uid:
+                    caller = db.get(User, call.caller_id)
+                    await ws.send_json({"type": "call_invite", "call": call_out(call), "from": pub_user(caller, "busy")})
 
     async def disconnect(self, uid: int, ws: WebSocket):
         socks = self.conns.get(uid)
@@ -72,6 +81,10 @@ class Hub:
         payload = {"type": "message", "message": message_out(m), "from": sender}
         await self.send(m.to_id, payload)
         await self.send(m.from_id, payload)   # 同步到自己的其它设备
+        if not self.online(m.to_id) and m.kind != "call":
+            from .push import push_later
+            preview = {"text": m.content[:60], "image": "[图片]", "voice": "[语音]", "gift": f"[礼物] {m.content}"}.get(m.kind, "")
+            push_later(m.to_id, sender.get("name", "新消息"), preview, f"/#/chat/{m.from_id}", "message", f"chat-{m.from_id}")
 
     # ---------- 通话 ----------
     async def ring(self, call: Call, caller: dict):
@@ -79,6 +92,10 @@ class Hub:
         self.in_call[call.callee_id] = call.id
         await self.send(call.callee_id, {"type": "call_invite", "call": call_out(call), "from": caller})
         self.ring_tasks[call.id] = asyncio.create_task(self._ring_timeout(call.id))
+        if not self.online(call.callee_id):
+            from .push import push_later
+            what = "视频" if call.media == "video" else "语音"
+            push_later(call.callee_id, f"{caller.get('name', '')} 邀请你{what}通话", "点击接听", "/#/call", "call", f"call-{call.id}")
 
     async def _ring_timeout(self, call_id):
         await asyncio.sleep(config.RING_TIMEOUT)

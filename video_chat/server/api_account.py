@@ -1,4 +1,5 @@
 """账号、资料、上传、设置、任务、邀请、认证、钱包、充值、VIP、提现、系统消息、客服。"""
+import hashlib
 import random
 import re
 import secrets
@@ -6,12 +7,13 @@ import string
 import uuid
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import config
+from . import config, providers
 from .core import (PACKS, VIP_DAILY_COINS, VIP_PLANS, admin_only, change, current_user, get_db, make_token,
                    me_user, notice, settings_of)
 from .db import Ledger, Notice, Order, Report, SmsCode, User, Withdrawal
@@ -26,10 +28,11 @@ class SmsIn(BaseModel):
 
 
 def send_sms(phone: str, code: str):
-    """接短信服务商（阿里云/腾讯云短信）。开发模式下不真正发送。"""
-    if config.DEV_MODE:
-        return
-    raise HTTPException(503, "短信服务未配置")  # TODO: 接入短信服务商 SDK
+    """配置了阿里云短信就真发；开发模式下没配置则只把验证码返回给页面。"""
+    if config.ALIYUN_AK and config.SMS_TEMPLATE:
+        providers.send_sms_code(phone, code)
+    elif not config.DEV_MODE:
+        raise HTTPException(503, "短信服务未配置")
 
 
 @router.post("/auth/sms")
@@ -124,7 +127,7 @@ def update_settings(body: dict, user: User = Depends(current_user), db: Session 
     s = settings_of(user)
     if "beauty" in body:
         body["beauty"] = {**s["beauty"], **{k: max(0, min(100, int(v))) for k, v in body["beauty"].items()
-                                            if k in ("smooth", "white", "ruddy", "slim")}}
+                                            if k in ("smooth", "white", "ruddy")}}
     s.update(body)
     user.settings = s
     db.commit()
@@ -192,6 +195,34 @@ def invite(user: User = Depends(current_user), db: Session = Depends(get_db)):
                                                "paid": u.first_paid, "time": u.created_at.strftime("%m-%d")} for u in rows]}
 
 
+# ================= 实名认证 =================
+class RealnameIn(BaseModel):
+    name: str = Field(min_length=2, max_length=20)
+    idNo: str = Field(min_length=18, max_length=18)
+
+
+@router.post("/realname")
+def realname(body: RealnameIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    if user.realname_at:
+        raise HTTPException(400, "你已经完成实名认证")
+    try:
+        birth = providers.check_id_number(body.idNo)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if providers.age_on(birth) < 18:
+        raise HTTPException(403, "未满 18 周岁不能使用本平台")
+    id_hash = hashlib.sha256(f"{config.SECRET}:{body.idNo.upper()}".encode()).hexdigest()
+    if db.scalar(select(User.id).where(User.id_hash == id_hash, User.id != user.id)):
+        raise HTTPException(400, "这个身份证已经认证过其它账号")
+    if not providers.verify_identity(body.name.strip(), body.idNo.upper()):
+        raise HTTPException(400, "姓名和身份证号不一致")
+    user.real_name, user.id_hash = body.name.strip(), id_hash
+    user.id_masked = body.idNo[:3] + "*" * 11 + body.idNo[-4:]
+    user.realname_at = datetime.now()
+    db.commit()
+    return me_user(user)
+
+
 # ================= 视频认证 / 成为主播 =================
 class VerifyIn(BaseModel):
     video: str
@@ -218,6 +249,8 @@ class HostIn(BaseModel):
 def set_host(body: HostIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     if body.on and user.verify_status != "approved":
         raise HTTPException(403, "完成视频认证后才能开通接听收费")
+    if body.on and not user.realname_at:
+        raise HTTPException(403, {"code": "realname", "msg": "开通接听收费前需要先完成实名认证"})
     user.is_host, user.price, user.voice_price = body.on, body.price, body.voicePrice
     db.commit()
     return me_user(user)
@@ -240,7 +273,7 @@ class OrderIn(BaseModel):
 
 
 @router.post("/orders")
-def create_order(body: OrderIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def create_order(body: OrderIn, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
     if body.kind == "coins":
         if body.pack is None or not 0 <= body.pack < len(PACKS):
             raise HTTPException(400, "请选择充值档位")
@@ -255,13 +288,27 @@ def create_order(body: OrderIn, user: User = Depends(current_user), db: Session 
                       channel=body.channel)
     if body.channel == "mock" and not config.DEV_MODE:
         raise HTTPException(400, "支付方式不可用")
+    ready = {"mock": True, "alipay": providers.alipay_ready(), "wechat": providers.wxpay_ready(), "apple": False}[body.channel]
+    if not ready:
+        raise HTTPException(503, {"code": "pay_not_configured", "msg": "这个支付通道还没开通，请换一种方式或联系客服"})
     db.add(order)
     db.commit()
-    # 正式环境：在这里调用微信/支付宝统一下单接口，把返回的支付参数交给 App 拉起支付
-    pay = {"mock": True} if body.channel == "mock" else None
-    if pay is None:
-        raise HTTPException(503, {"code": "pay_not_configured", "msg": "支付通道尚未开通（需要商户号），开发阶段请使用模拟支付", "orderId": order.id})
+    subject = f"SeeU {order.coins} 金币" if order.kind == "coins" else f"SeeU VIP {order.vip_days} 天"
+    if body.channel == "mock":
+        pay = {"mock": True}
+    elif body.channel == "alipay":
+        pay = {"url": providers.alipay_pay_url(order.id, order.yuan, subject)}
+    else:
+        pay = {"url": providers.wxpay_h5_url(order.id, order.yuan, subject, request.client.host if request.client else "127.0.0.1")}
     return {"orderId": order.id, "yuan": order.yuan, "pay": pay}
+
+
+@router.get("/orders/{order_id}")
+def order_status(order_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    order = db.get(Order, order_id)
+    if not order or order.user_id != user.id:
+        raise HTTPException(404, "订单不存在")
+    return {"orderId": order.id, "status": order.status, "kind": order.kind, "yuan": order.yuan, "coins": order.coins}
 
 
 def fulfill_order(db: Session, order: Order):
@@ -299,10 +346,29 @@ async def mock_pay(order_id: str, user: User = Depends(current_user), db: Sessio
     return me_user(user)
 
 
-@router.post("/pay/notify/{channel}")
-def pay_notify(channel: str):
-    # TODO: 接入微信支付 / 支付宝 / 苹果内购的异步通知，验签通过后调用 fulfill_order
-    raise HTTPException(501, "支付回调尚未配置")
+def _settle(db: Session, info: dict | None) -> bool:
+    if not info:
+        return False
+    order = db.get(Order, info["order_id"])
+    if not order or abs(order.yuan - info["yuan"]) > 0.001:   # 金额对不上一律不认
+        return False
+    fulfill_order(db, order)
+    db.commit()
+    return True
+
+
+@router.post("/pay/notify/alipay", response_class=PlainTextResponse)
+async def alipay_notify(request: Request, db: Session = Depends(get_db)):
+    form = dict(await request.form())
+    return "success" if _settle(db, providers.alipay_parse_notify(form)) else "failure"
+
+
+@router.post("/pay/notify/wechat")
+async def wechat_notify(request: Request, db: Session = Depends(get_db)):
+    ok = _settle(db, providers.wxpay_parse_notify(dict(request.headers), await request.body()))
+    if not ok:
+        raise HTTPException(400, {"code": "FAIL", "message": "验签或订单校验失败"})
+    return {"code": "SUCCESS", "message": "成功"}
 
 
 class WithdrawIn(BaseModel):
@@ -312,10 +378,13 @@ class WithdrawIn(BaseModel):
 
 @router.post("/withdraw")
 def withdraw(body: WithdrawIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    if not user.is_host:
-        raise HTTPException(403, "充值的金币不能提现，主播收益才可以提现")
+    if user.earnings < body.coins and not user.is_host:
+        raise HTTPException(403, "充值的金币不能提现，主播 / 陪玩收益才可以提现")
+    if not user.realname_at:
+        raise HTTPException(403, {"code": "realname", "msg": "提现前需要先完成实名认证"})
     change(db, user, -body.coins, "提现申请", "earnings")
-    db.add(Withdrawal(user_id=user.id, coins=body.coins, yuan=body.coins / config.COINS_PER_YUAN, account=body.account))
+    db.add(Withdrawal(user_id=user.id, coins=body.coins, yuan=body.coins / config.COINS_PER_YUAN,
+                      account=f"{body.account}（{user.real_name}）"))
     notice(db, user.id, f"提现申请已提交：{body.coins / config.COINS_PER_YUAN:.2f} 元，1-3 个工作日到账")
     db.commit()
     return me_user(user)
@@ -355,7 +424,7 @@ class ServiceIn(BaseModel):
 def ask_service(body: ServiceIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     notice(db, user.id, body.text, "service", from_user=True)
     answer = next((a for k, a in FAQ.items() if k in body.text), "已收到你的问题，人工客服会尽快回复你。")
-    notice(db, user.id, answer, "service")
+    notice(db, user.id, "【自动回复】" + answer, "service")
     db.commit()
     return notices("service", user, db)
 
@@ -366,53 +435,3 @@ def notices_unread(user: User = Depends(current_user), db: Session = Depends(get
             for c in ("system", "service")}
 
 
-# ================= 管理接口（后台用，需 SEEU_ADMIN_TOKEN） =================
-admin = APIRouter(prefix="/api/admin", dependencies=[Depends(admin_only)])
-
-
-@admin.get("/pending")
-def pending(db: Session = Depends(get_db)):
-    return {
-        "verify": [{"id": u.id, "name": u.name, "video": u.verify_video} for u in
-                   db.scalars(select(User).where(User.verify_status == "pending"))],
-        "reports": [{"id": r.id, "reporter": r.reporter_id, "type": r.target_type, "target": r.target_id, "reason": r.reason}
-                    for r in db.scalars(select(Report).where(Report.status == "open"))],
-        "withdrawals": [{"id": w.id, "user": w.user_id, "yuan": w.yuan, "account": w.account}
-                        for w in db.scalars(select(Withdrawal).where(Withdrawal.status == "pending"))],
-    }
-
-
-@admin.post("/verify/{uid}")
-def review_verify(uid: int, approve: bool, db: Session = Depends(get_db)):
-    u = db.get(User, uid)
-    if not u or u.verify_status != "pending":
-        raise HTTPException(404)
-    u.verify_status = "approved" if approve else "rejected"
-    if approve:
-        change(db, u, 10, "视频认证奖励")
-    notice(db, u.id, "视频认证已通过，获得 10 金币，现在可以在「视频认证」页开通接听收费" if approve else "视频认证未通过，请正对镜头、光线充足后重新提交")
-    db.commit()
-    return {"ok": True}
-
-
-@admin.post("/service/{uid}")
-def service_reply(uid: int, body: ServiceIn, db: Session = Depends(get_db)):
-    notice(db, uid, body.text, "service")
-    db.commit()
-    return {"ok": True}
-
-
-@admin.post("/ban/{uid}")
-def ban(uid: int, banned: bool = True, db: Session = Depends(get_db)):
-    u = db.get(User, uid)
-    u.banned = banned
-    db.commit()
-    return {"ok": True}
-
-
-@admin.post("/reports/{rid}/close")
-def close_report(rid: int, db: Session = Depends(get_db)):
-    r = db.get(Report, rid)
-    r.status = "closed"
-    db.commit()
-    return {"ok": True}

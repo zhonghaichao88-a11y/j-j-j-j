@@ -8,7 +8,7 @@ services:
     environment:
       SEEU_DATABASE_URL: postgresql+psycopg://seeu:${DB_PASSWORD}@db:5432/seeu
       SEEU_TURN_URL: turn:${DOMAIN}:3478,turns:${DOMAIN}:5349
-    volumes: [ "uploads:/data/uploads" ]
+    volumes: [ "uploads:/data/uploads", "./keys:/data/keys:ro", "appdata:/data/app" ]
     depends_on: [ db ]
     restart: unless-stopped
 
@@ -37,4 +37,4 @@ services:
       --external-ip=${PUBLIC_IP} --min-port=49160 --max-port=49200 --no-cli
     restart: unless-stopped
 
-volumes: { uploads: {}, pgdata: {}, caddy: {} }
+volumes: { uploads: {}, pgdata: {}, caddy: {}, appdata: {} }

@@ -42,7 +42,7 @@ BANNERS = [
      "bg": "linear-gradient(120deg,#36c6f4,#5b8cff)"},
 ]
 DEFAULT_SETTINGS = {"dnd": False, "notify": True, "hideDistance": False, "hideNearby": False, "stealth": False,
-                    "lang": "简体中文", "beauty": {"smooth": 50, "white": 40, "ruddy": 30, "slim": 20}, "beautyOn": False}
+                    "lang": "简体中文", "beauty": {"smooth": 50, "white": 40, "ruddy": 30}, "beautyOn": False}
 
 
 # ---------------- 数据库会话 ----------------
@@ -156,6 +156,8 @@ def me_user(u: User, status="online") -> dict:
         "settings": settings_of(u), "inviteCode": u.invite_code,
         "signedToday": u.last_sign == date.today(), "sharedToday": u.last_share == date.today(),
         "profileRewarded": u.profile_rewarded,
+        "realname": bool(u.realname_at), "realName": (u.real_name[:1] + "*" * (len(u.real_name) - 1)) if u.real_name else "",
+        "idMasked": u.id_masked,
     })
     return d
 

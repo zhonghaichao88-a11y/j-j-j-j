@@ -2,38 +2,11 @@
 
 运行（在 video_chat 目录下）: python -m pytest server/tests -q
 """
-import os
-import tempfile
 import time
 
-TMP = tempfile.mkdtemp()
-os.environ.update(SEEU_DATABASE_URL=f"sqlite:///{TMP}/t.db", SEEU_UPLOAD_DIR=f"{TMP}/up", SEEU_DEV="1",
-                  SEEU_ADMIN_TOKEN="adm", SEEU_BILL_INTERVAL="1", SEEU_RING_TIMEOUT="2")
+import pytest
 
-import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-
-from server.main import app  # noqa: E402
-
-
-@pytest.fixture(scope="module")
-def c():
-    with TestClient(app) as client:
-        yield client
-
-
-def login(c, phone, invite=""):
-    code = c.post("/api/auth/sms", json={"phone": phone}).json()["devCode"]
-    r = c.post("/api/auth/login", json={"phone": phone, "code": code, "invite": invite}).json()
-    return {"Authorization": f"Bearer {r['token']}"}, r["me"], r["token"]
-
-
-def recv_until(ws, typ, limit=20):
-    for _ in range(limit):
-        m = ws.receive_json()
-        if m["type"] == typ:
-            return m
-    raise AssertionError(f"没收到 {typ}")
+from .conftest import ADMIN, ID_A, ID_B, login, recv_until
 
 
 @pytest.fixture(scope="module")
@@ -71,10 +44,13 @@ def test_become_host(c, users):
     assert c.put("/api/me/host", headers=hb, json={"price": 30}).status_code == 403  # 未认证不能开通
     v = c.post("/api/upload", headers=hb, data={"kind": "video"}, files={"file": ("v.mp4", b"fakevideo")}).json()["url"]
     assert c.post("/api/verify", headers=hb, json={"video": v}).json()["verifyStatus"] == "pending"
-    assert c.get("/api/admin/pending").status_code == 403
-    pend = c.get("/api/admin/pending", headers={"X-Admin-Token": "adm"}).json()
-    assert pend["verify"][0]["id"] == b["id"]
-    c.post(f"/api/admin/verify/{b['id']}?approve=true", headers={"X-Admin-Token": "adm"})
+    assert c.get("/api/admin/verify").status_code == 403
+    pend = c.get("/api/admin/verify", headers=ADMIN).json()
+    assert pend[0]["id"] == b["id"]
+    c.post(f"/api/admin/verify/{b['id']}?approve=true", headers=ADMIN)
+    r = c.put("/api/me/host", headers=hb, json={"price": 30, "voicePrice": 15})
+    assert r.status_code == 403 and r.json()["detail"]["code"] == "realname"   # 还没实名
+    assert c.post("/api/realname", headers=hb, json={"name": "王小雨", "idNo": ID_B}).json()["realname"]
     me = c.put("/api/me/host", headers=hb, json={"price": 30, "voicePrice": 15}).json()
     assert me["isHost"] and me["verified"] and me["coins"] == 10  # 认证奖励 10
 

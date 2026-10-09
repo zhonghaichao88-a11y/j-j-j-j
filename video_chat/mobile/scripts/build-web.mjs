@@ -12,4 +12,6 @@ rmSync(www, { recursive: true, force: true });
 mkdirSync(www);
 cpSync(join(root, "..", "app"), www, { recursive: true });
 writeFileSync(join(www, "config.js"), `window.SEEU_API = ${JSON.stringify(api)};\n`);
+rmSync(join(www, "admin.html"), { force: true });   // 管理后台不打进 App
+rmSync(join(www, "i18n"), { recursive: true, force: true });   // 翻译源文件，App 只需要生成好的 i18n.js
 console.log(`已生成 www/，后端地址：${api || "(空)"}`);
