@@ -14,6 +14,10 @@ video_chat/
 
 ## 一、本地运行
 
+**Windows：双击 `一键启动.bat`**。它会自动检查 Python、安装依赖、生成测试账号、启动服务，然后打开两个浏览器窗口：普通窗口当用户 A，无痕窗口当测试主播 B。需要先装 Python 3.10 或以上，安装时勾选「Add Python to PATH」。
+
+其它系统，或者想手动启动：
+
 ```bash
 cd video_chat
 pip install -r server/requirements.txt
