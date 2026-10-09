@@ -100,6 +100,47 @@ def job(a):
     return pd.DataFrame(rows, columns=['coin', 'bounce', 'wait', 'dmin', 'exit', 't', 't_in', 't_out', 'ret']) if rows else None
 
 
+def walk(df, c, filt, bx=0.02, w=12):
+    """和程序一样一根一根走，只算一组参数：反弹 bx、等 w 根、出场 ATR 止盈 2 倍止损 3 倍 48h；filt(i, 离低点) 不过就跳过并冷却 1 小时"""
+    import talib
+    O, H, L, C = (df[x].values.astype(float) for x in ('o', 'h', 'l', 'c'))
+    r24 = df.c.pct_change(288); oi24 = df.oi / df.oi.shift(288) - 1
+    lsh = df.ls.iloc[11::12]; lz = (lsh - lsh.rolling(168, min_periods=48).mean()) / lsh.rolling(168, min_periods=48).std()
+    lsz = lz.reindex(df.index, method='ffill')
+    sig = np.flatnonzero(((r24 < -0.05) & (oi24 > 0.05) & (df.fund > 0) & (lsz > 0)).fillna(False).values)
+    n = len(C); sig = sig[sig + 2 < n]
+    if not len(sig): return None
+    k = df[['h', 'l', 'c']].copy(); k.attrs = {}; k.index = pd.to_datetime(k.index, unit='ms')
+    k1 = k.resample('1h', label='left', closed='left').agg({'h': 'max', 'l': 'min', 'c': 'last'}).dropna()
+    s = pd.Series(talib.ATR(k1.h.values, k1.l.values, k1.c.values, 14), index=(k1.index + pd.Timedelta('1h')).values.astype('datetime64[ms]').astype(np.int64))
+    atr1 = s.reindex(df.index, method='ffill').values
+    lo24 = df.l.rolling(288).min().values; T5 = df.index.values.astype(np.int64)
+    rows = []; free_at = -1; skip_until = -1
+    for i in sig:
+        if i <= free_at or T5[i] < skip_until: continue
+        if not filt(i, C[i] / lo24[i] - 1):
+            skip_until = T5[i] + 3_600_000; continue
+        px = C[i] * (1 + bx); j0 = None
+        for j in range(i + 1, min(i + 1 + w, n)):
+            if H[j] >= px: j0 = j; break
+        if j0 is None:
+            free_at = i + w; continue
+        a = atr1[i]
+        if not (a > 0): continue
+        e = max(O[j0], px); fee = MAKER; st, tg = e + 3 * a, e - 2 * a
+        end = min(j0 + 576 - 1, n - 1); xp = None
+        for j in range(j0, end + 1):
+            if H[j] >= st:
+                xp = max(O[j], st) * (1 + STOP_SLIP); fee += TAKER; break
+            if j > j0 and L[j] <= tg:
+                xp = tg; fee += MAKER; break
+        if xp is None:
+            j = end; xp = C[j] * (1 + SLIP); fee += TAKER
+        free_at = j
+        rows.append((c, int(T5[i]), int(T5[j0]), int(T5[j]), -(xp / e - 1) - fee))
+    return pd.DataFrame(rows, columns=['coin', 't', 't_in', 't_out', 'ret']) if rows else None
+
+
 def main():
     if not os.path.exists(OUT):
         jobs = [(r, f[:-8]) for r in ROOTS for f in sorted(os.listdir(f'{r}/k')) if f.endswith('.parquet')]

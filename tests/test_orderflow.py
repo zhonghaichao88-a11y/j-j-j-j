@@ -1148,6 +1148,49 @@ def test_trap_mode_b_skips_when_sar_below(tmp_path, monkeypatch):
     asyncio.run(go())
 
 
+def test_trap_mode_c_needs_4pct_above_low_and_uses_atr(tmp_path, monkeypatch):
+    """C：离 24 小时低点超过 4% 才做（3% 的信号 A 会做、C 不做）；做的话挂空在上方 2%，止盈 2 倍 / 止损 3 倍 ATR，不看清洗"""
+    import asyncio
+    app, eng, t0 = _trap_setup(tmp_path, monkeypatch, "C")
+    seen = []
+
+    async def aux(inst):
+        seen.append(inst); return {"sar_above": False, "atr": 0.01}          # C 不看 SAR
+    app.trap_aux_cb = aux
+
+    async def go():
+        eng.on_trade(0.95, 10, False, t0 - 300_000)
+        eng.on_trade(0.88, 10, False, t0 - 290_000)                            # 24 小时最低 0.88 → 收 0.929 离低点 5.6%
+        for k in range(3):
+            eng.on_trade(0.93 - k * 0.001, 10, False, t0 + k * 300_000)
+        eng.on_trade(0.929, 1, False, t0 + 2 * 300_000 + 500)
+        await asyncio.sleep(0.01)
+        assert seen == [eng.inst] and len(eng.limit_orders) == 1
+        s, d, until = eng.limit_orders[0]
+        assert abs(s.entry - d["price"] * 1.02) < 1e-9 and until == d["t"] + 300_000 + 60 * 60_000
+        assert abs(s.stop - (s.entry + 0.03)) < 1e-9 and abs(s.target - (s.entry - 0.02)) < 1e-9
+        eng.on_trade(s.entry + 0.0005, 1, True, t0 + 3 * 300_000 + 1000)
+        pos = app.acct.positions
+        assert len(pos) == 1 and pos[0].mode == "C"
+        eng.ext["oi_hist"] = [(t0 + 3 * 300_000 - 3_600_000, 1e6), (t0 + 4 * 300_000, 0.9e6)]
+        for k in range(4, 17):                                                   # 多头被清洗：C 不平
+            eng.on_trade(s.entry - 0.005 - k * 0.0002, 10, False, t0 + k * 300_000)
+        assert len(app.acct.positions) == 1
+    asyncio.run(go())
+
+
+def test_trap_mode_c_skips_3pct_above_low(tmp_path, monkeypatch):
+    app, eng, t0 = _trap_setup(tmp_path, monkeypatch, "C")
+    eng.on_trade(0.95, 10, False, t0 - 300_000)
+    eng.on_trade(0.90, 10, False, t0 - 290_000)                                # 离低点 3.2%：A 会做，C 不做
+    for k in range(3):
+        eng.on_trade(0.93 - k * 0.001, 10, False, t0 + k * 300_000)
+    eng.on_trade(0.929, 1, False, t0 + 2 * 300_000 + 500)
+    sig = [s for s in eng.signals if s["kind"] == "trap_short"]
+    assert len(sig) == 1 and "要超过 4%" in sig[0]["skip"] and eng.limit_orders == [] and app.acct.positions == []
+    assert E.trap_cfg({})["mode"] == "C"                                          # 默认 C
+
+
 def test_trap_mode_from_page(monkeypatch):
     import of_app as A
     monkeypatch.setattr(A, "save_cfg", lambda: None)

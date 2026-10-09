@@ -94,14 +94,17 @@ TRAP = {"drop": 0.05,           # 24 小时跌超 5%
         "flush_drop": 0.02,     # 平仓：1 小时跌超 2% ……
         "flush_oi": 0.03,       # …… 且持仓量 1 小时降超 3%（多头被清洗）
         "size_pct": 10.0,       # 每笔用权益的 10%
-        "mode": "A",            # 进场方式（网页上切换；回测见 分析/策略实验室/做空重做/）：
-                                #   orig 原版：信号后市价空（196 币重测 PF 1.05 / 1.22 / 1.08，空在低位）
-                                #   A 反弹 2% 再空 + 离 24 小时低点超过 2% 才做，出场同原版（PF 1.35 / 1.37 / 1.37，回撤 3~5%）
-                                #   B 反弹 2% 再空 + 4 小时 SAR 在价格上方，止盈 2 倍 / 止损 3 倍 1 小时 ATR、48 小时，不看清洗（PF 1.32 / 1.41 / 1.43）
-        "bounce": 0.02,         # A / B：在信号收盘价上方这么多挂空单
-        "fill_min": 60}         # A / B：挂单等多久（分钟），没成交就撤
-TRAP_MODES = {"orig": "原版：信号后市价空", "A": "A：反弹2%再空 + 离24h低点>2%（推荐，最稳）",
-              "B": "B：反弹2%再空 + 4h SAR在上方 + ATR出场（单多些）"}
+        "mode": "C",            # 进场方式（网页上切换；回测见 分析/策略实验室/做空调参/，按程序挂单规则模拟，196 个币三段）：
+                                #   orig 原版：信号后市价空（PF 1.05 / 1.22 / 1.08，空在低位）
+                                #   A 反弹 2% 再空 + 离 24 小时低点超过 2% 才做，出场同原版（PF 1.06 / 1.18 / 1.03，基本保本）
+                                #   B 反弹 2% 再空 + 4 小时 SAR 在价格上方，止盈 2 倍 / 止损 3 倍 1 小时 ATR、48 小时，不看清洗（PF 1.22 / 1.21 / 1.29，每天 0.3~0.5 单）
+                                #   C 反弹 2% 再空 + 离 24 小时低点超过 4%，出场同 B（PF 1.36 / 1.45 / 1.36，每天 0.1~0.2 单，调参后最好的一组）
+        "bounce": 0.02,         # A / B / C：在信号收盘价上方这么多挂空单
+        "fill_min": 60}         # A / B / C：挂单等多久（分钟），没成交就撤
+TRAP_MODES = {"orig": "原版：信号后市价空", "A": "A：反弹2%再空 + 离24h低点>2%（复查后基本保本）",
+              "B": "B：反弹2%再空 + 4h SAR在上方 + ATR出场（单多些）",
+              "C": "C：反弹2%再空 + 离24h低点>4% + ATR出场（推荐，最稳）"}
+TRAP_ATR = ("B", "C")           # 这两种用 1 小时 ATR 止盈止损，不看清洗
 # 三个急跌抄底（只做多，见 of_nfi.py 和 分析/策略实验室/NFI信号对比/）
 DIP_NAMES = {"nfi_5m": "NFI头部币急跌（5分钟）", "nfi_15m": "头部币15分钟急跌", "vn_dip": "大跌抄底（按波动）"}
 NFI_DIP = {"tp_pct": 3.0,        # nfi_5m / nfi_15m：止盈 3%
@@ -497,7 +500,7 @@ class SymbolEngine:
         bar = b5[-1]
         r60, oi60, _ = self.flush_state(b5)
         held = [p for p in self.app.acct.positions if p.sym == self.inst and p.kind == "trap_short"]
-        cover = [p for p in held if p.mode != "B"]
+        cover = [p for p in held if p.mode not in TRAP_ATR]
         if cover and trap_exit_ok(r60, oi60, tc):
             for p in cover:
                 self.app.close_now(self, p, bar.c, f"多头被清洗（1小时 {r60:+.1%}，持仓 {oi60:+.1%}），平空", bar.t)
@@ -512,24 +515,26 @@ class SymbolEngine:
         if not trap_entry_ok(r24, oi24, fund, lsz, tc):
             return
         self._trap_t = bar.t
-        mode = tc.get("mode", "A") if tc.get("mode") in TRAP_MODES else "A"
+        mode = tc.get("mode", "C") if tc.get("mode") in TRAP_MODES else "C"
         note = f"24小时 {r24:+.1%}，持仓 24 小时 {oi24:+.1%}，资金费 {fund:+.4%}，散户多空比 z {lsz:+.1f}（多头越跌越补）"
         if mode == "orig":
             s = Signal("trap_short", -1, bar.c * (1 + tc["stop"]), bar.c * 0.1, bar.t, note)
             d = self._trap_d(s, bar, "orig")
             self.pending.append((s, d))
             return
-        if mode == "A":
+        if mode in ("A", "C"):
             lows = [b.l for b in b5[-288:]]
-            lo24 = min(lows)
-            if bar.c <= lo24 * 1.02:
-                d = self._trap_d(Signal("trap_short", -1, 0.0, 0.0, bar.t, note), bar, "A")
-                d["skip"] = f"离 24 小时低点只有 {bar.c / lo24 - 1:+.1%}，太低了不追空（A 做法）"
+            lo24 = min(lows); need = 0.02 if mode == "A" else 0.04
+            if bar.c <= lo24 * (1 + need):
+                d = self._trap_d(Signal("trap_short", -1, 0.0, 0.0, bar.t, note), bar, mode)
+                d["skip"] = f"离 24 小时低点只有 {bar.c / lo24 - 1:+.1%}（要超过 {need:.0%}），太低了不追空（{mode} 做法）"
                 self._trap_skip_t = bar.t
                 return
-            self._trap_limit(bar, note, "A", None)
-            return
-        cb = getattr(self.app, "trap_aux_cb", None)              # B：要 4 小时 SAR 和 1 小时 ATR，后台去欧易拉K线
+            if mode == "A":
+                self._trap_limit(bar, note, "A", None)
+                return
+            note += f"，离 24h 低点 {bar.c / lo24 - 1:+.1%}"
+        cb = getattr(self.app, "trap_aux_cb", None)              # B / C：要 1 小时 ATR（B 还要 4 小时 SAR），后台去欧易拉K线
         if cb is None:
             return
         self._trap_busy = True
@@ -541,11 +546,14 @@ class SymbolEngine:
                 aux = {"err": str(e)}
             finally:
                 self._trap_busy = False
-            if not aux or aux.get("err") or not aux["sar_above"]:
+            if not aux or aux.get("err") or (mode == "B" and not aux["sar_above"]) or not (aux.get("atr") or 0) > 0:
                 self._trap_skip_t = bar.t
-            if not aux or aux.get("err"):
-                d = self._trap_d(Signal("trap_short", -1, 0.0, 0.0, bar.t, note), bar, "B")
+            if not aux or aux.get("err") or not (aux.get("atr") or 0) > 0:
+                d = self._trap_d(Signal("trap_short", -1, 0.0, 0.0, bar.t, note), bar, mode)
                 d["skip"] = f"读 4 小时 SAR / 1 小时 ATR 失败（{(aux or {}).get('err', '')}），不做"
+                return
+            if mode == "C":
+                self._trap_limit(bar, note + f"，ATR {aux['atr']:.6g}", "C", aux["atr"])
                 return
             if not aux["sar_above"]:
                 d = self._trap_d(Signal("trap_short", -1, 0.0, 0.0, bar.t, note), bar, "B")
@@ -562,10 +570,10 @@ class SymbolEngine:
         return d
 
     def _trap_limit(self, bar, note, mode, atr):
-        """A / B：在信号收盘价上方 bounce 挂空单，fill_min 分钟内价格涨到才成交（和回测一样：信号后 12 根 5 分钟）"""
+        """A / B / C：在信号收盘价上方 bounce 挂空单，fill_min 分钟内价格涨到才成交（和回测一样：信号后 12 根 5 分钟）"""
         tc = trap_cfg(self.app.cfg)
         entry = bar.c * (1 + tc["bounce"])
-        if mode == "B":
+        if mode in TRAP_ATR:
             stop, target = entry + 3 * atr, entry - 2 * atr
         else:
             stop, target = entry * (1 + tc["stop"]), entry * 0.1
