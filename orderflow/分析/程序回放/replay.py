@@ -104,7 +104,7 @@ def _now():
     return CLOCK.t
 
 
-def replay(c, cfg_over, t0=None, t1=None, dips=None, feats=None, df=None, regime=None, aux='okx'):
+def replay(c, cfg_over, t0=None, t1=None, dips=None, feats=None, df=None, regime=None, aux='okx', vol_at_close=False):
     """跑一个币。dips: [(kind, bar_t, ref, stop, target, note)]（回测算好的急跌信号，按程序方式送进去）。
     返回 (signals, trades, log)"""
     df = load(c) if df is None else df
@@ -149,7 +149,7 @@ def replay(c, cfg_over, t0=None, t1=None, dips=None, feats=None, df=None, regime
         eng._oi_change = types.MethodType(_oi_change, eng)
         if not (set(cfg.get('enabled', [])) & set(E.SIGNAL_NAMES)):     # ③ 没勾旧形态打法：旧形态识别器只出提示不下单，跳过
             eng.det.on_bar = lambda b: []
-        if not (set(cfg.get('enabled', [])) & set(E.PB_NAMES)):
+        if not (set(cfg.get('enabled', [])) & set(E.PB_NAMES)) or eng.pb_tf == '5m':   # 实战打法用 5 分钟时也只要 5 分钟K线
             for tf in [t for t in eng.builders if t != '5m']:
                 del eng.builders[tf]
             eng._wire()
@@ -217,11 +217,18 @@ def replay(c, cfg_over, t0=None, t1=None, dips=None, feats=None, df=None, regime
                 eng.dip_signal(kind, ref, stop, target, bar_t, note)
             trade(t + 21_000, O[i], 1e-12, True)
             sv = max(V[i] - BV[i], 0.0)
-            if C[i] >= O[i]:
-                trade(t + 60_000, L[i], sv, False); trade(t + 120_000, H[i], BV[i], True)
+            if vol_at_close:                            # 实战打法核对：和回测 sweep_redo 一样，买卖量都放在收盘价那一格
+                qa, qb = 1e-12, 1e-12
             else:
-                trade(t + 60_000, H[i], BV[i], True); trade(t + 120_000, L[i], sv, False)
-            trade(t + 240_000, C[i], 1e-12, True)
+                qa, qb = sv, BV[i]
+            if C[i] >= O[i]:
+                trade(t + 60_000, L[i], qa, False); trade(t + 120_000, H[i], qb, True)
+            else:
+                trade(t + 60_000, H[i], qb, True); trade(t + 120_000, L[i], qa, False)
+            if vol_at_close:
+                trade(t + 240_000, C[i], sv, False); trade(t + 241_000, C[i], BV[i], True)
+            else:
+                trade(t + 240_000, C[i], 1e-12, True)
             await settle()
     asyncio.run(run())
     trades = pd.DataFrame(app.history)
