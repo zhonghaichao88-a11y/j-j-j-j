@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SeeU</string>
+    <string name="title_activity_main">SeeU</string>
+    <string name="package_name">com.seeu.videochat</string>
+    <string name="custom_url_scheme">com.seeu.videochat</string>
+</resources>

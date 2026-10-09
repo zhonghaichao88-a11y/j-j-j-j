@@ -1,0 +1,40 @@
+# 一台云服务器部署全部服务：
+#   cp .env.example .env && 修改 .env
+#   docker compose up -d --build
+services:
+  api:
+    build: { context: .., dockerfile: deploy/Dockerfile }
+    env_file: .env
+    environment:
+      SEEU_DATABASE_URL: postgresql+psycopg://seeu:${DB_PASSWORD}@db:5432/seeu
+      SEEU_TURN_URL: turn:${DOMAIN}:3478,turns:${DOMAIN}:5349
+    volumes: [ "uploads:/data/uploads" ]
+    depends_on: [ db ]
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: seeu, POSTGRES_PASSWORD: "${DB_PASSWORD}", POSTGRES_DB: seeu }
+    volumes: [ "pgdata:/var/lib/postgresql/data" ]
+    restart: unless-stopped
+
+  # HTTPS（自动申请证书）+ 反向代理。手机浏览器和 App 只有在 https 下才能用摄像头
+  caddy:
+    image: caddy:2-alpine
+    ports: [ "80:80", "443:443" ]
+    environment: { DOMAIN: "${DOMAIN}" }
+    volumes: [ "./Caddyfile:/etc/caddy/Caddyfile:ro", "caddy:/data" ]
+    depends_on: [ api ]
+    restart: unless-stopped
+
+  # TURN 中转：双方在不同网络（4G ↔ 宽带）时音视频要靠它转发，否则经常连不上
+  turn:
+    image: coturn/coturn:4.6
+    network_mode: host
+    command: >
+      -n --listening-port=3478 --fingerprint --lt-cred-mech
+      --user=${SEEU_TURN_USER}:${SEEU_TURN_PASS} --realm=${DOMAIN}
+      --external-ip=${PUBLIC_IP} --min-port=49160 --max-port=49200 --no-cli
+    restart: unless-stopped
+
+volumes: { uploads: {}, pgdata: {}, caddy: {} }

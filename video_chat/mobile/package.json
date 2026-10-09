@@ -1,0 +1,21 @@
+{
+  "name": "seeu-mobile",
+  "version": "0.2.0",
+  "private": true,
+  "description": "SeeU 安卓/苹果 App 外壳（Capacitor），页面来自 ../app",
+  "scripts": {
+    "web": "node scripts/build-web.mjs",
+    "sync": "npm run web && npx cap sync",
+    "android": "npm run sync && node scripts/patch-native.mjs && npx cap open android",
+    "ios": "npm run sync && node scripts/patch-native.mjs && npx cap open ios",
+    "apk": "npm run sync && node scripts/patch-native.mjs && cd android && ./gradlew assembleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}

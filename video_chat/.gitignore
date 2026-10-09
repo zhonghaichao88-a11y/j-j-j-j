@@ -1,0 +1,6 @@
+server/seeu.db*
+server/uploads/
+deploy/.env
+__pycache__/
+.pytest_cache/
+seeu.apk

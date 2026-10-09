@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>下载 SeeU</title>
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<style>
+  :root { --c1: #36c6f4; --c2: #5b8cff; --text: #1d2129; --muted: #8a9099; --bg: #f5f8fc; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: linear-gradient(180deg, #e6f6ff, var(--bg) 50%); color: var(--text);
+         font: 15px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  main { max-width: 440px; margin: 0 auto; padding: 56px 20px 40px; text-align: center; }
+  .logo { width: 88px; height: 88px; margin: 0 auto; border-radius: 24px; box-shadow: 0 12px 30px rgba(54,198,244,.35); }
+  h1 { margin: 20px 0 4px; font-size: 30px; }
+  .sub { color: var(--muted); margin: 0 0 30px; }
+  .btn { display: flex; align-items: center; justify-content: center; gap: 10px; height: 56px; margin: 12px 0; border-radius: 28px;
+         font-size: 17px; font-weight: 700; text-decoration: none; color: #fff; background: linear-gradient(135deg, var(--c1), var(--c2));
+         box-shadow: 0 8px 20px rgba(54,198,244,.35); }
+  .btn.dark { background: #1d2129; box-shadow: 0 8px 20px rgba(0,0,0,.2); }
+  .btn.ghost { background: #fff; color: var(--text); box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+  .btn svg { width: 24px; height: 24px; fill: currentColor; }
+  .btn.disabled { opacity: .5; pointer-events: none; }
+  .card { margin-top: 26px; padding: 18px; border-radius: 16px; background: #fff; text-align: left; box-shadow: 0 2px 12px rgba(0,0,0,.05); }
+  .card h3 { margin: 0 0 8px; font-size: 16px; }
+  .card ol { margin: 0; padding-left: 20px; color: #4e5560; }
+  .hide { display: none; }
+  .tip { position: fixed; inset: 0; background: rgba(0,0,0,.75); color: #fff; z-index: 9; padding: 30px; text-align: right; font-size: 17px; }
+  .tip b { font-size: 40px; }
+  footer { margin-top: 30px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <img class="logo" src="../icon.svg" alt="SeeU">
+  <h1>SeeU</h1>
+  <p class="sub">真实认证 · 一对一视频交友</p>
+
+  <a class="btn" id="android" href="seeu.apk" download>
+    <svg viewBox="0 0 24 24"><path d="M17.5 9.5h-11A1.5 1.5 0 0 0 5 11v6a1.5 1.5 0 0 0 1.5 1.5H7V21a1 1 0 0 0 2 0v-2.5h6V21a1 1 0 0 0 2 0v-2.5h.5A1.5 1.5 0 0 0 19 17v-6a1.5 1.5 0 0 0-1.5-1.5zM3 10a1 1 0 0 0-1 1v5a1 1 0 0 0 2 0v-5a1 1 0 0 0-1-1zm18 0a1 1 0 0 0-1 1v5a1 1 0 0 0 2 0v-5a1 1 0 0 0-1-1zM15.5 4.2l1-1.6a.4.4 0 0 0-.7-.4l-1 1.7a6.5 6.5 0 0 0-5.6 0l-1-1.7a.4.4 0 1 0-.7.4l1 1.6A5.3 5.3 0 0 0 5.5 8.5h13a5.3 5.3 0 0 0-3-4.3zM9.5 7a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5zm5 0a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5z"/></svg>
+    安卓版下载
+  </a>
+  <a class="btn dark" id="ios" href="#">
+    <svg viewBox="0 0 24 24"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7a4.5 4.5 0 0 0-3.6-1.9c-1.5-.2-3 .9-3.7.9-.8 0-2-.9-3.2-.9a4.8 4.8 0 0 0-4 2.4c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.2-.8s1.9.8 3.2.8 2.1-1.2 2.9-2.4a10 10 0 0 0 1.3-2.7 4.2 4.2 0 0 1-2.4-3.9zM14 5.4A4.2 4.2 0 0 0 15 2.3a4.3 4.3 0 0 0-2.8 1.4 4 4 0 0 0-1 3 3.6 3.6 0 0 0 2.8-1.3z"/></svg>
+    <span id="iosText">iPhone 版</span>
+  </a>
+  <a class="btn ghost" href="../">直接用网页版</a>
+
+  <div class="card hide" id="iosGuide">
+    <h3>iPhone 先用「添加到主屏幕」</h3>
+    <ol>
+      <li>用 <b>Safari</b> 打开本页面</li>
+      <li>点底部的「分享」按钮</li>
+      <li>选择「添加到主屏幕」</li>
+      <li>桌面上会出现 SeeU 图标，打开就和 App 一样使用</li>
+    </ol>
+  </div>
+  <div class="card hide" id="androidGuide">
+    <h3>安卓安装提示</h3>
+    <ol>
+      <li>下载完成后点击安装包</li>
+      <li>如提示「禁止安装未知来源应用」，按提示允许本次安装</li>
+      <li>首次打开请允许摄像头和麦克风权限，否则无法视频通话</li>
+    </ol>
+  </div>
+  <footer>平台倡导文明交友，未成年人禁止使用。谨防诈骗，切勿私下转账。</footer>
+</main>
+<div class="tip hide" id="wxTip"><b>↗</b><br>微信里不能直接下载<br>请点右上角「…」选择<br>「在浏览器打开」</div>
+<script>
+  // App Store 上架或 TestFlight 公测链接，拿到后填在这里
+  const IOS_URL = "";
+  const ua = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isAndroid = /Android/i.test(ua);
+  const inWeChat = /MicroMessenger|QQ\//i.test(ua);
+  const ios = document.getElementById("ios");
+  if (IOS_URL) ios.href = IOS_URL;
+  else {
+    document.getElementById("iosText").textContent = "iPhone 版（添加到主屏幕）";
+    ios.onclick = (e) => { e.preventDefault(); document.getElementById("iosGuide").classList.remove("hide"); document.getElementById("iosGuide").scrollIntoView({ behavior: "smooth" }); };
+  }
+  if (isIOS) { document.getElementById("android").remove(); if (!IOS_URL) document.getElementById("iosGuide").classList.remove("hide"); }
+  if (isAndroid) { document.getElementById("androidGuide").classList.remove("hide"); ios.remove(); }
+  // 安装包不存在时（还没打包）提示
+  fetch("seeu.apk", { method: "HEAD" }).then((r) => { if (!r.ok) { const a = document.getElementById("android"); a.classList.add("disabled"); a.lastChild.textContent = " 安卓版即将上线"; } }).catch(() => {});
+  if (inWeChat) document.querySelectorAll(".btn").forEach((b) => b.addEventListener("click", (e) => { if (b.id === "android") { e.preventDefault(); document.getElementById("wxTip").classList.remove("hide"); } }));
+</script>
+</body>
+</html>

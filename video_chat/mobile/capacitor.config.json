@@ -1,0 +1,7 @@
+{
+  "appId": "com.seeu.videochat",
+  "appName": "SeeU",
+  "webDir": "www",
+  "android": { "allowMixedContent": false },
+  "ios": { "contentInset": "never" }
+}
