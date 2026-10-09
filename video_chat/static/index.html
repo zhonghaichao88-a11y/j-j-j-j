@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>见面 SeeU · 视频聊天</title>
+<style>
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-2: #1f232c;
+  --line: #2a2f3a;
+  --text: #e9ecf1;
+  --muted: #8b93a3;
+  --brand: #4f7cff;
+  --brand-2: #7a5cff;
+  --danger: #ef4444;
+  --ok: #22c55e;
+  --radius: 16px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+input { font: inherit; color: inherit; }
+svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.hidden { display: none !important; }
+
+/* ---------- 大厅 ---------- */
+#lobby {
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 48px;
+  align-items: center;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 40px 24px;
+}
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; margin-bottom: 28px; }
+.logo i { width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, var(--brand), var(--brand-2)); display: grid; place-items: center; }
+.logo i svg { width: 18px; height: 18px; color: #fff; }
+h1 { font-size: 40px; line-height: 1.2; margin: 0 0 12px; letter-spacing: -.5px; }
+.sub { color: var(--muted); margin: 0 0 32px; font-size: 16px; }
+.field { display: block; margin-bottom: 14px; }
+.field span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.field input {
+  width: 100%; height: 48px; padding: 0 14px; border-radius: 12px;
+  background: var(--panel); border: 1px solid var(--line); outline: none;
+}
+.field input:focus { border-color: var(--brand); }
+.row { display: flex; gap: 10px; }
+.btn {
+  height: 48px; padding: 0 20px; border-radius: 12px; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
+}
+.btn-primary { background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #fff; }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-ghost { background: var(--panel-2); border: 1px solid var(--line); }
+.btn-ghost:hover { border-color: #3a4150; }
+.divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; margin: 22px 0; }
+.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.features { display: flex; gap: 18px; margin-top: 32px; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
+.features span { display: inline-flex; align-items: center; gap: 6px; }
+.features svg { width: 16px; height: 16px; color: var(--ok); }
+
+.preview {
+  position: relative; aspect-ratio: 4 / 3; border-radius: 24px; overflow: hidden;
+  background: radial-gradient(circle at 30% 20%, #232838, var(--panel));
+  border: 1px solid var(--line);
+  box-shadow: 0 30px 80px rgba(0,0,0,.45);
+}
+.preview video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.preview .controls { position: absolute; left: 0; right: 0; bottom: 18px; display: flex; justify-content: center; gap: 12px; }
+.preview .hint { position: absolute; top: 16px; left: 16px; font-size: 12px; padding: 4px 10px; border-radius: 999px; background: rgba(0,0,0,.45); backdrop-filter: blur(8px); }
+
+/* ---------- 圆形按钮 ---------- */
+.round {
+  width: 52px; height: 52px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(40,45,56,.85); backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,.06);
+  transition: background .15s, transform .1s;
+}
+.round:hover { background: rgba(60,66,80,.95); }
+.round:active { transform: scale(.94); }
+.round.off { background: var(--danger); border-color: transparent; }
+.round.on { background: var(--brand); border-color: transparent; }
+.round.leave { background: var(--danger); width: 64px; border-radius: 26px; }
+.round .slash { display: none; }
+.round.off .slash { display: inline; }
+
+/* ---------- 头像占位 ---------- */
+.avatar {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 40%, #262b38, #171a21);
+}
+.avatar b {
+  width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 38px; font-weight: 600; color: #fff;
+  background: linear-gradient(135deg, var(--brand), var(--brand-2));
+}
+
+/* ---------- 房间 ---------- */
+#room { height: 100%; display: flex; flex-direction: column; }
+.topbar {
+  height: 60px; flex: none; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; border-bottom: 1px solid var(--line);
+}
+.room-info { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.room-code {
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 10px;
+  background: var(--panel); border: 1px solid var(--line); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px;
+}
+.room-code svg { width: 16px; height: 16px; color: var(--muted); }
+.pill { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.dot.bad { background: #f59e0b; }
+.timer { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 14px; }
+
+.stage { flex: 1; display: flex; min-height: 0; }
+.grid {
+  flex: 1; min-width: 0; padding: 16px; display: grid; gap: 12px;
+  grid-template-columns: repeat(var(--cols, 1), 1fr);
+  grid-auto-rows: 1fr;
+}
+.tile {
+  position: relative; border-radius: var(--radius); overflow: hidden; background: var(--panel);
+  border: 2px solid transparent; transition: border-color .2s; min-height: 0;
+}
+.tile.speaking { border-color: var(--ok); }
+.tile video { width: 100%; height: 100%; object-fit: cover; display: block; background: #000; }
+.tile.mirror video { transform: scaleX(-1); }
+.tile.screen video { object-fit: contain; transform: none; }
+.tile .name {
+  position: absolute; left: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 8px; font-size: 13px; background: rgba(0,0,0,.55); backdrop-filter: blur(6px);
+}
+.tile .name svg { width: 14px; height: 14px; color: var(--danger); }
+
+/* 一对一：对方全屏，自己画中画 */
+.grid.duo { display: block; position: relative; }
+.grid.duo .tile:not(.self) { position: absolute; inset: 16px; }
+.grid.duo .tile.self {
+  position: absolute; right: 32px; bottom: 32px; width: 22%; min-width: 140px; aspect-ratio: 3 / 4; height: auto;
+  z-index: 2; box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+.grid.duo .tile.self .avatar b { width: 56px; height: 56px; font-size: 22px; }
+
+.waiting {
+  position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 14px; color: var(--muted);
+}
+.waiting strong { color: var(--text); font-size: 18px; }
+.pulse { width: 14px; height: 14px; margin: 0 auto; border-radius: 50%; background: var(--brand); animation: pulse 1.6s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(79,124,255,.6); } 100% { box-shadow: 0 0 0 22px rgba(79,124,255,0); } }
+
+/* 聊天侧栏 */
+.chat {
+  width: 340px; flex: none; display: flex; flex-direction: column;
+  background: var(--panel); border-left: 1px solid var(--line);
+}
+.chat header { height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid var(--line); font-weight: 600; }
+.messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.msg { max-width: 85%; }
+.msg .meta { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+.msg .bubble { padding: 8px 12px; border-radius: 14px 14px 14px 4px; background: var(--panel-2); word-break: break-word; white-space: pre-wrap; }
+.msg.mine { align-self: flex-end; }
+.msg.mine .meta { text-align: right; }
+.msg.mine .bubble { border-radius: 14px 14px 4px 14px; background: var(--brand); color: #fff; }
+.msg.sys { align-self: center; font-size: 12px; color: var(--muted); }
+.composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
+.composer input { flex: 1; height: 42px; padding: 0 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); outline: none; }
+.composer input:focus { border-color: var(--brand); }
+.composer button { width: 42px; height: 42px; border-radius: 10px; background: var(--brand); color: #fff; display: grid; place-items: center; }
+.composer svg { width: 18px; height: 18px; }
+
+.dock {
+  flex: none; height: 84px; display: flex; align-items: center; justify-content: center; gap: 14px;
+  border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom);
+}
+.badge-wrap { position: relative; }
+.badge { position: absolute; top: -2px; right: -2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); font-size: 11px; display: grid; place-items: center; }
+
+.toast {
+  position: fixed; left: 50%; top: 20px; transform: translateX(-50%);
+  background: #262b36; border: 1px solid var(--line); padding: 10px 16px; border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.4); z-index: 50; font-size: 14px; transition: opacity .3s;
+}
+
+@media (max-width: 860px) {
+  #lobby { grid-template-columns: 1fr; gap: 28px; padding: 24px 16px; }
+  .preview { order: -1; }
+  h1 { font-size: 30px; }
+  .chat { position: fixed; inset: 0; width: auto; z-index: 20; }
+  .topbar { padding: 0 12px; }
+  .timer, .pill .label { display: none; }
+  .grid { padding: 8px; gap: 8px; }
+  .grid.duo .tile:not(.self) { inset: 8px; }
+  .grid.duo .tile.self { right: 18px; bottom: 18px; width: 30%; min-width: 100px; }
+  .dock { gap: 10px; }
+  .round { width: 48px; height: 48px; }
+  .hide-mobile { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- 图标 -->
+<svg style="display:none">
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3z"/></symbol>
+  <symbol id="i-screen" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4M9 10l3-3 3 3M12 7v7"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M3 15c5-4 13-4 18 0l-2 3-3.5-1.2V14a12 12 0 0 0-7 0v2.8L5 18z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+  <symbol id="i-video" viewBox="0 0 24 24"><path d="M15 10l5-3v10l-5-3zM3 7h12v10H3z"/></symbol>
+  <symbol id="i-flip" viewBox="0 0 24 24"><path d="M20 7h-3l-2-3H9L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M9 13a3 3 0 0 1 5-2.2M15 13a3 3 0 0 1-5 2.2"/></symbol>
+</svg>
+
+<!-- ========== 大厅 ========== -->
+<section id="lobby">
+  <div>
+    <div class="logo"><i><svg><use href="#i-video"/></svg></i>见面 SeeU</div>
+    <h1>打开网页，<br>马上视频见面</h1>
+    <p class="sub">免下载、免注册。创建房间，把链接发给朋友，最多 6 人同时视频。</p>
+
+    <label class="field"><span>你的昵称</span>
+      <input id="nameInput" maxlength="20" placeholder="例如：小明" autocomplete="nickname">
+    </label>
+    <button class="btn btn-primary" id="createBtn" style="width:100%"><svg><use href="#i-video"/></svg>创建新房间</button>
+
+    <div class="divider">或加入已有房间</div>
+    <div class="row">
+      <input id="codeInput" class="field" style="flex:1;margin:0;height:48px;padding:0 14px;border-radius:12px;background:var(--panel);border:1px solid var(--line);outline:none" placeholder="输入房间号，如 abc-defg-hij">
+      <button class="btn btn-ghost" id="joinBtn">加入</button>
+    </div>
+
+    <div class="features">
+      <span><svg><use href="#i-check"/></svg>点对点加密传输</span>
+      <span><svg><use href="#i-check"/></svg>屏幕共享</span>
+      <span><svg><use href="#i-check"/></svg>文字聊天</span>
+      <span><svg><use href="#i-check"/></svg>手机电脑都能用</span>
+    </div>
+  </div>
+
+  <div class="preview">
+    <video id="previewVideo" autoplay muted playsinline></video>
+    <div class="avatar hidden" id="previewAvatar"><b>?</b></div>
+    <span class="hint" id="previewHint">摄像头预览</span>
+    <div class="controls">
+      <button class="round" id="pMic" title="麦克风"><svg><use href="#i-mic"/><path class="slash" d="M3 3l18 18"/></svg></button>
+      <button class="round" id="pCam" title="摄像头"><svg><use href="#i-cam"/><path class="slash" d="M3 3l18 18"/></svg></button>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 房间 ========== -->
+<section id="room" class="hidden">
+  <div class="topbar">
+    <div class="room-info">
+      <button class="room-code" id="copyBtn" title="复制邀请链接"><span id="roomCodeText">---</span><svg><use href="#i-copy"/></svg></button>
+      <span class="pill"><i class="dot" id="connDot"></i><span class="label" id="connLabel">已连接</span> · <span id="peerCount">1</span> 人</span>
+    </div>
+    <span class="timer" id="timer">00:00</span>
+  </div>
+
+  <div class="stage">
+    <div class="grid" id="grid">
+      <div class="waiting" id="waiting">
+        <div class="pulse"></div>
+        <strong>等待对方加入…</strong>
+        <span>点击左上角房间号，复制链接发给朋友</span>
+      </div>
+    </div>
+    <aside class="chat hidden" id="chat">
+      <header>聊天<button id="closeChat" title="关闭"><svg><use href="#i-x"/></svg></button></header>
+      <div class="messages" id="messages"></div>
+      <form class="composer" id="composer">
+        <input id="chatInput" maxlength="500" placeholder="发送消息…" autocomplete="off">
+        <button type="submit" title="发送"><svg><use href="#i-send"/></svg></button>
+      </form>
+    </aside>
+  </div>
+
+  <div class="dock">
+    <button class="round" id="micBtn" title="麦克风"><svg><use href="#i-mic"/><path class="slash" d="M3 3l18 18"/></svg></button>
+    <button class="round" id="camBtn" title="摄像头"><svg><use href="#i-cam"/><path class="slash" d="M3 3l18 18"/></svg></button>
+    <button class="round hidden" id="flipBtn" title="切换前后摄像头"><svg><use href="#i-flip"/></svg></button>
+    <button class="round hide-mobile" id="screenBtn" title="共享屏幕"><svg><use href="#i-screen"/></svg></button>
+    <span class="badge-wrap"><button class="round" id="chatBtn" title="聊天"><svg><use href="#i-chat"/></svg></button><span class="badge hidden" id="unread">0</span></span>
+    <button class="round leave" id="leaveBtn" title="挂断"><svg><use href="#i-phone"/></svg></button>
+  </div>
+</section>
+
+<div class="toast hidden" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
