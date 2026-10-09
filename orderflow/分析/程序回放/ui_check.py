@@ -26,10 +26,11 @@ def wait_cfg(check, t=5):
 
 
 with sync_playwright() as p:
-    b = p.chromium.launch(executable_path=None)
+    b = p.chromium.launch(executable_path='/opt/pw-browsers/chromium')
     pg = b.new_page()
     pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.on('console', lambda m: errs.append(m.text) if m.type == 'error' else None)
+    pg.on('console', lambda m: errs.append(m.text) if m.type == 'error' and 'Failed to load resource' not in m.text else None)
+    pg.on('response', lambda r: errs.append(f'{r.status} {r.url}') if r.status >= 400 and not r.url.endswith('favicon.ico') else None)
     pg.goto(url); pg.wait_for_selector('#sigs input[type=checkbox]', timeout=90_000)
     boxes = pg.query_selector_all('#sigs input[type=checkbox]')
     kinds = [x.get_attribute('data-k') for x in boxes]
