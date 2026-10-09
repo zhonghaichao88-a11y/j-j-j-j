@@ -5,6 +5,7 @@
   离 24h 低点：不限 / >1% / >2% / >3% / >4%
   出场：原版（被清洗就平）止损 3% / 5% / 8%，48h；ATR 止盈 2 倍止损 3 倍 48h
   大盘：不分 / 只在熊市
+模拟和程序一样：有仓位或有挂单在等时，新信号不理；离低点不够的信号跳过后冷却 1 小时；挂单到时没成交就撤。
 挑法：三段（2021-12~2023-12 / 2024-01~2025-03 / 2025-04~2026-09）每段 ≥30 笔、PF ≥ 1.25、胜率 ≥ 45%、组合赚钱、前后两半 PF ≥ 1，
   过关的按"三段组合收益相乘"排（单多又稳的排前面）；再看最好那组旁边的参数是不是也好（不是碰巧）；
   另外做一次"只用前两段挑、第三段检验"。"""
@@ -14,7 +15,7 @@ sys.path.insert(0, '/home/user/ext/long/lab'); sys.path.insert(0, '/home/user/j-
 import data
 from sim import TAKER, MAKER, SLIP, STOP_SLIP
 HERE = os.path.dirname(os.path.abspath(__file__)); N = '/home/user/ext/nfisig'
-OUT = f'{N}/trap_tune.parquet'
+OUT = f'{N}/trap_tune2.parquet'
 ROOTS = ['/home/user/ext/oos/f5', '/home/user/ext/oos/f6', '/home/user/ext/long']
 BOUNCE = [0.0, 0.005, 0.01, 0.015, 0.02, 0.025, 0.03]; WAIT = [6, 12, 24]
 EXITS = {'原版 止损3%': 0.03, '原版 止损5%': 0.05, '原版 止损8%': 0.08, 'ATR止盈2倍止损3倍': None}
@@ -43,39 +44,60 @@ def job(a):
     s = pd.Series(talib.ATR(k1.h.values, k1.l.values, k1.c.values, 14), index=(k1.index + pd.Timedelta('1h')).values.astype('datetime64[ms]').astype(np.int64))
     atr1 = s.reindex(df.index, method='ffill').values
     lo24 = df.l.rolling(288).min().values
-    n = len(C); rows = []
-    for i in sig:
-        if i + 2 >= n: continue
-        dist = C[i] / lo24[i] - 1
-        for bx in BOUNCE:
-            for w in (WAIT if bx > 0 else [0]):
+    n = len(C); T5 = df.index.values.astype(np.int64)
+    sig = sig[sig + 2 < n]
+    dist = C[sig] / lo24[sig] - 1
+
+    def outcome(i, j0, e, fee0, sl):
+        fee = fee0; a = atr1[i]
+        if sl is None:
+            if not (a > 0): return None
+            st, tg = e + 3 * a, e - 2 * a
+        else:
+            st, tg = e * (1 + sl), None
+        end = min(j0 + 576 - 1, n - 1); xp = None
+        for j in range(j0, end + 1):
+            if H[j] >= st:
+                xp = max(O[j], st) * (1 + STOP_SLIP); fee += TAKER; break
+            if j > j0 and tg is not None and L[j] <= tg:
+                xp = tg; fee += MAKER; break
+            if sl is not None and j > j0 and flush[j]:
+                xp = C[j] * (1 + SLIP); fee += TAKER; break
+        if xp is None:
+            j = end; xp = C[j] * (1 + SLIP); fee += TAKER
+        return j, -(xp / e - 1) - fee
+
+    rows = []
+    for bx in BOUNCE:
+        for w in (WAIT if bx > 0 else [0]):
+            # 每个信号挂单的成交位置（和后面怎么走无关，先算好）
+            fill = {}
+            for i in sig:
                 if bx == 0:
-                    j0, e, fee0 = i + 1, O[i + 1] * (1 - SLIP), TAKER
+                    fill[i] = (i + 1, O[i + 1] * (1 - SLIP), TAKER)
                 else:
-                    px = C[i] * (1 + bx); j0 = None
+                    px = C[i] * (1 + bx); fill[i] = None
                     for j in range(i + 1, min(i + 1 + w, n)):
-                        if H[j] >= px: j0 = j; break
-                    if j0 is None: continue
-                    e, fee0 = max(O[j0], px), MAKER
+                        if H[j] >= px: fill[i] = (j, max(O[j], px), MAKER); break
+            cache = {}
+            for dn in (0, 0.01, 0.02, 0.03, 0.04):
                 for ex, sl in EXITS.items():
-                    fee = fee0; a = atr1[i]
-                    if sl is None:
-                        if not (a > 0): continue
-                        st, tg = e + 3 * a, e - 2 * a
-                    else:
-                        st, tg = e * (1 + sl), None
-                    end = min(j0 + 576 - 1, n - 1); xp = None
-                    for j in range(j0, end + 1):
-                        if H[j] >= st:
-                            xp = max(O[j], st) * (1 + STOP_SLIP); fee += TAKER; break
-                        if j > j0 and tg is not None and L[j] <= tg:
-                            xp = tg; fee += MAKER; break
-                        if sl is not None and j > j0 and flush[j]:
-                            xp = C[j] * (1 + SLIP); fee += TAKER; break
-                    if xp is None:
-                        j = end; xp = C[j] * (1 + SLIP); fee += TAKER
-                    rows.append((c, bx, w, ex, int(df.index[i]), int(df.index[j0]), int(df.index[j]), -(xp / e - 1) - fee, dist))
-    return pd.DataFrame(rows, columns=['coin', 'bounce', 'wait', 'exit', 't', 't_in', 't_out', 'ret', 'dist']) if rows else None
+                    # 和程序一样一根一根走：有仓位 / 有挂单等着时新信号不理；离低点不够的信号跳过并冷却 1 小时
+                    free_at = -1; skip_until = -1
+                    for q, i in enumerate(sig):
+                        if i <= free_at or T5[i] < skip_until: continue
+                        if dn and not (dist[q] > dn):
+                            skip_until = T5[i] + 3_600_000; continue
+                        f = fill[i]
+                        if f is None:
+                            free_at = i + w; continue            # 挂单没成交，等到撤单才接新信号
+                        key = (i, ex)
+                        if key not in cache: cache[key] = outcome(i, f[0], f[1], f[2], sl)
+                        r = cache[key]
+                        if r is None: continue
+                        jx, ret = r; free_at = jx
+                        rows.append((c, bx, w, dn, ex, int(T5[i]), int(T5[f[0]]), int(T5[jx]), ret))
+    return pd.DataFrame(rows, columns=['coin', 'bounce', 'wait', 'dmin', 'exit', 't', 't_in', 't_out', 'ret']) if rows else None
 
 
 def main():
@@ -84,7 +106,7 @@ def main():
         with Pool(4) as p:
             res = [x for x in p.map(job, jobs, chunksize=1) if x is not None]
         D = pd.concat(res, ignore_index=True)
-        D = D.drop_duplicates(['coin', 'bounce', 'wait', 'exit', 't'])        # 几个数据目录同一个币同一段时间只算一次
+        D = D.drop_duplicates(['coin', 'bounce', 'wait', 'dmin', 'exit', 't'])        # 几个数据目录同一个币同一段时间只算一次
         D.to_parquet(OUT)
     D = pd.read_parquet(OUT)
     D = D[(D.t >= pd.Timestamp('2021-12-01').value // 10**6) & (D.t < pd.Timestamp('2026-10-01').value // 10**6)]
@@ -97,10 +119,10 @@ def main():
     from itemsets import evaluate
     DAYS = [761, 455, 548]; SEGN = ['2021-12~2023-12', '2024-01~2025-03', '2025-04~2026-09']
     out = []
-    for (bx, w, ex), g in D.groupby(['bounce', 'wait', 'exit']):
-        for dn in (0, 0.01, 0.02, 0.03, 0.04):
+    for (bx, w, dn, ex), g in D.groupby(['bounce', 'wait', 'dmin', 'exit']):
+        if True:
             for rn in ('不分大盘', '熊'):
-                m = g[(g.dist > dn) if dn else np.ones(len(g), bool)]
+                m = g
                 if rn == '熊': m = m[m.bull == False]
                 rs = []
                 for s in range(3):
