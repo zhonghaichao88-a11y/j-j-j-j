@@ -47,6 +47,9 @@ def backtest(k):
         reg = RP.btc_regime()
         B = B[[reg.get(int(t - 300_000) - int(t - 300_000) % 86_400_000) is True for t in B.t]]
         B = B.assign(t_in=B.t, t_out=B.t + (B.d.astype(np.int64) - 1) * 300_000, ret=B.y.astype(float), t=B.t - 300_000)
+    elif k == 'sweep':
+        B = pd.read_parquet(f'{N}/sweep_redo.parquet'); B = B[B.y7.notna() & (B.d7 >= 0)]
+        B = B.assign(t_in=B.t.astype(np.int64), t_out=B.t.astype(np.int64) + (B.d7.astype(np.int64) - 1) * 300_000, ret=B.y7.astype(float))
     else:
         return None
     return B[['coin', 't', 't_in', 't_out', 'ret']].drop_duplicates(['coin', 't_in'])
@@ -65,7 +68,7 @@ if __name__ == '__main__':
     out = [f'【{k}】已回放 {len(done)} 个币，程序成交 {len(P)} 笔']
     B = backtest(k)
     if B is not None and len(P):
-        t0 = ms('2020-01-01') if k in ('nfi5', 'nfi15', 'vn') else ms('2021-12-01')
+        t0 = ms('2020-01-01') if k in ('nfi5', 'nfi15', 'vn') else ms('2022-01-10') if k == 'sweep' else ms('2021-12-01')
         B = B[B.coin.isin(done) & (B.t >= t0)]
         P2 = P[P.t_in >= t0]
         M = P2.merge(B, on=['coin', 't_in'], how='outer', suffixes=('_p', '_b'), indicator=True)

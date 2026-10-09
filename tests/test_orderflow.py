@@ -885,6 +885,34 @@ def test_old_dca_paper_adds_and_takes_profit_on_average(tmp_path, monkeypatch):
     assert app.acct.positions == [] and app.history[-1]["why"] == "止盈" and app.history[-1]["pnl"] > 0
 
 
+def test_trade_return_counts_planned_capital_and_half_close(tmp_path, monkeypatch):
+    """每笔收益按开仓时计划占用的资金算：补仓单只开了第一份（1/4）就止盈，收益是整单的 1/4 那么多，不会被放大成 +2%；
+    实战打法到 1R 平掉的一半也要算进这笔的盈亏（权益只加一次）"""
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    app = E.OrderFlowApp({"auto": True, "enabled": ["absorption"], "old_dca": DCA}, None, None, False)
+    eng = FakeEng(); app.engines[eng.inst] = eng
+    app.try_open(eng, C.Signal("absorption", 1, 99.9, 100.2, 0), {}, 100.0, 0)
+    pos = app.acct.positions[0]
+    assert abs(pos.cap - 100.0) < 0.5                                       # 整单 = 1000 × 10%
+    app.check_exits(eng, pos.target + 0.01, 1)                             # 只开了第一份就止盈
+    h = app.history[-1]
+    assert h["why"] == "止盈" and 0.003 < h["ret"] < 0.006                 # 约 +2% × 1/4（扣手续费），不是 +2%
+    # 实战打法：1R 平一半，剩下的保本出场 → 记录里的盈亏 = 两半合计，权益只加一次
+    app2 = E.OrderFlowApp({"auto": True, "enabled": ["pb_sweep"]}, None, None, False)
+    eng2 = FakeEng(); app2.engines[eng2.inst] = eng2
+    eq0 = app2.acct.equity
+    app2.try_open(eng2, C.Signal("pb_sweep", 1, 99.0, 103.0, 0), {}, 100.0, 0)
+    p2 = app2.acct.positions[0]
+    app2.check_exits(eng2, p2.entry + p2.risk + 0.01, 1)                  # 到 1R：平一半，止损移到保本
+    assert p2.half_done and p2.realized > 0
+    app2.check_exits(eng2, p2.entry - 0.01, 2)                             # 回到保本：剩下一半平掉
+    h2 = app2.history[-1]
+    assert abs(h2["pnl"] - (app2.acct.equity - eq0)) < 1e-3 and h2["pnl"] > 0
+    assert abs(h2["ret"] - h2["pnl"] / p2.cap) < 1e-5
+
+
 def test_old_dca_live_adds_then_replaces_oco(tmp_path, monkeypatch):
     """实盘（假交易所）：补仓市价加 → 撤旧的止盈止损 → 按总张数、新均价止盈、原止损重挂"""
     monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))

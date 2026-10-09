@@ -284,6 +284,8 @@ class Position:
     dca_unit: float = 0.0    # 补仓：权重 1 对应多少币
     dca_tp: float = 0.0      # 补仓：均价止盈比例
     mode: str = ""           # 多头摊平做空用的哪种做法（B 不看"多头被清洗"平仓）
+    cap: float = 0.0         # 开仓时这一单计划占用的资金（名义金额；补仓单 = 补满时的整单）。每笔收益按它算
+    realized: float = 0.0    # 模拟盘：已经部分平掉（1R 平一半）实现的盈亏，平仓记录里要加上
 
 
 @dataclass
@@ -1176,11 +1178,17 @@ class OrderFlowApp:
             fill = price * (1 + s.side * PaperBroker.slip)
             pos = Position(eng.inst, s.kind, s.side, qty, fill, s.stop, s.target, ts, ts + hold, "paper", False, risk=abs(fill - s.stop), mode=d.get("mode", ""))
             self._dca_mark(pos, dca)
+            self._set_cap(pos)
             self._add_position(eng, s, d, pos)
             return
         self.opening.add(eng.inst)
         d["skip"] = "正在下单…"
         asyncio.get_event_loop().create_task(self._open_live(eng, s, d, qty, price, ts, hold, dca))
+
+    @staticmethod
+    def _set_cap(pos):
+        """这一单计划占用的资金：普通单 = 开仓数量 × 价；补仓单 = 补满时的整单（第一笔只开了其中一份）"""
+        pos.cap = (pos.dca_unit * sum(pos.dca_wt) if pos.dca_lv else pos.qty) * pos.entry
 
     def _dca_mark(self, pos, dca):
         if dca:
@@ -1209,6 +1217,7 @@ class OrderFlowApp:
                            mode=d.get("mode", ""))
             d.pop("skip", None)
             self._dca_mark(pos, dca)
+            self._set_cap(pos)
             self._add_position(eng, s, d, pos)
             if not r["algo_id"]:
                 msg = f"{eng.inst} 开仓了，但没查到止盈止损单！请马上到欧易 App 检查这笔仓位"
@@ -1300,6 +1309,7 @@ class OrderFlowApp:
         pnl = pos.side * (px - pos.entry) * half - PaperBroker.fee * (pos.entry + px) * half
         self.acct.equity += pnl
         self.acct.day_pnl += pnl
+        pos.realized += pnl
         pos.qty -= half
         pos.half_done = True
         pos.stop = pos.entry
@@ -1405,22 +1415,24 @@ class OrderFlowApp:
         if not pos.live:
             self.acct.equity += pnl
         self.acct.day_pnl += pnl
+        total = pnl if real else pnl + pos.realized      # 这一单全部盈亏（模拟盘 1R 平掉的一半已经记进权益，这里只算进记录）
         self.acct.closed += 1
-        self.acct.wins += pnl > 0
+        self.acct.wins += total > 0
+        cap = pos.cap or pos.entry * pos.qty
         rec = {"sym": pos.sym, "kind": ALL_NAMES[pos.kind], "side": pos.side, "entry": pos.entry,
-               "exit": exit_px, "pnl": round(pnl, 4), "why": why, "t_open": pos.t_open, "t_close": ts,
+               "exit": exit_px, "pnl": round(total, 4), "why": why, "t_open": pos.t_open, "t_close": ts,
                "live": pos.live, "real": bool(real), "k": pos.kind,
-               "ret": round(pnl / (pos.entry * pos.qty), 6) if pos.entry and pos.qty else 0.0}
+               "ret": round(total / cap, 6) if cap else 0.0}     # 按开仓时计划占用的资金算（补仓单没补满、平过一半都不会被放大）
         self.history.append(rec)
         with open(TRADE_LOG, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
         eng = self.engines.get(pos.sym)
         if pos.kind in PB_NAMES and eng is not None:
-            eng.pb.record_result(pnl > 0)
+            eng.pb.record_result(total > 0)
         tag = "实盘" if pos.live else "模拟盘"
-        msg = f"[{tag}] 平仓 {pos.sym} {why} 盈亏 {pnl:+.2f}U" + ("（欧易真实盈亏）" if real else "")
+        msg = f"[{tag}] 平仓 {pos.sym} {why} 盈亏 {total:+.2f}U" + ("（欧易真实盈亏）" if real else "")
         self.say(msg)
-        of_notify.push(f"订单流：{why} {pos.sym.split('-')[0]} {pnl:+.2f}U", msg)
+        of_notify.push(f"订单流：{why} {pos.sym.split('-')[0]} {total:+.2f}U", msg)
         self._guard(pos.kind)
         self.save()
 
