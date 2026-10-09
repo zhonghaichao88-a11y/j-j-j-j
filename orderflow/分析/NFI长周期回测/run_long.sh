@@ -7,7 +7,5 @@ run() { y=$1; tr=$2
   mkdir -p nfi/long_$y
   nice -n 5 $B -c nfi/cfg_long_$y.json --timerange $tr --backtest-directory nfi/long_$y > nfi/log_long_$y.txt 2>&1 && ls nfi/long_$y/*.zip >/dev/null 2>&1 && touch nfi/long_$y.done
 }
-( run 2020 20200401-20210101; run 2022 20220101-20230101; run 2024 20240101-20250101; run 2026 20260101-20260930 ) &
-( run 2021 20210101-20220101; run 2023 20230101-20240101; run 2025 20250101-20260101 ) &
-wait
+run 2020 20200401-20210101; run 2021 20210101-20220101; run 2022 20220101-20230101; run 2023 20230101-20240101; run 2024 20240101-20250101; run 2025 20250101-20260101; run 2026 20260101-20260930
 touch nfi/long_all.done
