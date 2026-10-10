@@ -40,4 +40,13 @@ for kind, (k, note) in MAP.items():
     r = stat(P, 'ret'); r['note'] = note
     for tf in js: js[tf][kind] = r
     print(kind, r)
+# 过关 / 不过关按回放后的结论定（利润全靠一次行情、最近几年不赚的，PF 再高也不过关）
+OK = {'flush_spot': True, 'nfi_5m': True, 'nfi_15m': True, 'squeeze_long': False, 'vn_dip': False, 'trap_short': False, 'momo_long': False}
+NOTE = {'nfi_15m': '程序回放 54 个头部币 2020~2026，2024 年亏，回撤 53%，仓位要小',
+        'squeeze_long': '程序回放 币安148币 2021-12~2026-09 PF 1.48，但最近一段的利润全靠 2025-10 一次暴跌反弹（61 笔），去掉后 PF 0.49；不建议',
+        'vn_dip': '程序回放 54 个头部币 2020~2026 PF 1.65，但 2024 年亏、2026 年保本；先不开'}
+for tf in js:
+    for k, ok in OK.items():
+        js[tf][k]['ok'] = ok
+        if k in NOTE: js[tf][k]['note'] = NOTE[k]
 json.dump(js, open(F, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
