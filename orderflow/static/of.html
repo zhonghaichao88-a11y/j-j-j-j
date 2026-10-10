@@ -76,7 +76,7 @@ th{color:var(--mute);font-weight:normal}
     <div class="row">拿 <input id="sq_hold_h" type="number" step="1" style="width:50px"> 小时　每笔用权益 <input id="sq_size_pct" type="number" step="1" style="width:50px"> %　止损 = 涨幅 × <input id="sq_stop_x" type="number" step="0.5" style="width:50px"></div>
     <div class="row"><button id="saveSq">保存</button> <small style="color:var(--mute)">保存后马上生效</small></div>
     <h3>多头摊平做空 进场方式</h3>
-    <div class="row"><select id="trap_mode"><option value="C">C：反弹2%再空 + 离24h低点>4% + ATR出场（推荐，最稳）</option><option value="A">A：反弹2%再空 + 离24h低点>2%（复查后基本保本）</option><option value="B">B：反弹2%再空 + 4h SAR在上方 + ATR出场（单多些）</option><option value="orig">原版：信号后马上市价空（会空在低位）</option></select> <button id="saveTrap">保存</button></div>
+    <div class="row"><select id="trap_mode"><option value="C">C：反弹2%再空 + 离24h低点>4% + ATR出场（程序回放 PF 1.06）</option><option value="A">A：反弹2%再空 + 离24h低点>2%（PF 1.03）</option><option value="B">B：反弹2%再空 + 4h SAR在上方 + ATR出场（PF 1.00）</option><option value="orig">原版：信号后马上市价空（PF 1.10）</option></select> <button id="saveTrap">保存</button></div>
     <div class="row"><small style="color:var(--mute)">196 币三段回测：A PF 1.35/1.37/1.37 回撤3~5%；B PF 1.32/1.41/1.43 回撤6~12%；原版 1.05/1.22/1.08。A、B 等反弹 1 小时没成交就撤（约一半信号等不到）</small></div>
     <h3>急跌抄底参数 <small style="color:var(--mute);font-weight:normal">NFI头部币急跌（5分钟）、头部币15分钟急跌 共用；只做 NFI 头部币名单</small></h3>
     <div class="row">止盈 <input id="nd_tp_pct" type="number" step="0.5" style="width:50px"> %　止损 <input id="nd_stop_pct" type="number" step="0.5" style="width:50px"> %　最多拿 <input id="nd_hold_h" type="number" step="1" style="width:50px"> 小时　每笔用权益 <input id="nd_size_pct" type="number" step="1" style="width:50px"> %</div>
