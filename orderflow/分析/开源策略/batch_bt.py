@@ -13,6 +13,7 @@ PAIRS = ['BTC', 'ETH', 'SOL', 'XRP', 'BNB', 'DOGE', 'ADA', 'AVAX', 'LINK', 'DOT'
 NP = int(sys.argv[3]) if len(sys.argv) > 3 else 20
 OUT = f'{RUN}/结果_{STAGE}.csv'
 OK_TF = {'5m', '15m', '1h', '4h', '1d'}
+RETRY = os.environ.get('RETRY') == '1'
 
 
 def cfg(path, tr, futures=False):
@@ -49,7 +50,14 @@ def local_imports(p):
 
 def job(r):
     sid = r['h'] + '_' + r['cls']; wd = f'{RUN}/{STAGE}/{sid}'
-    if os.path.exists(f'{wd}/done.json'): return json.load(open(f'{wd}/done.json'))
+    if os.path.exists(f'{wd}/done.json'):
+        try:
+            old = json.load(open(f'{wd}/done.json'))
+        except ValueError:
+            old = None
+        # 报错重跑：只重跑一次（重跑过的记 retried，被打断续上时不再从头来）
+        if old is not None and not (RETRY and old.get('err') and not old.get('retried')):
+            return old
     os.makedirs(f'{wd}/s', exist_ok=True); os.makedirs(f'{wd}/bt', exist_ok=True); os.makedirs(f'{wd}/user_data/csvs', exist_ok=True)   # 有的策略要往这里写文件
     files = {r['path']} | local_imports(r['path'])
     SHIM = ('import numpy as _np_shim\n'                      # numpy 2.0 删掉的旧写法，老策略还在用：补回来（不改策略逻辑）
@@ -123,6 +131,8 @@ def job(r):
     shutil.rmtree(f'{wd}/user_data', ignore_errors=True)        # 有的策略往这里写一堆 CSV：跑完就删（不删会把磁盘写满）
     if big > 200 * 2**20:
         res['note'] = f'策略往硬盘写了 {big / 2**20:.0f}MB 文件（已删）'
+    if RETRY:
+        res['retried'] = True
     tmp = f'{wd}/done.json.tmp'
     json.dump(res, open(tmp, 'w'), ensure_ascii=False)
     os.replace(tmp, f'{wd}/done.json')           # 先写临时文件再改名：中途被杀不会留下空的 done.json

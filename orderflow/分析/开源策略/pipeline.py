@@ -22,7 +22,7 @@ def sh(args, env=None):
 
 while busy(): time.sleep(30)                    # 先等手动起的那几个跑完，免得同一个策略两边同时跑
 for st, idx in STAGES:
-    log('初筛', st); sh(['batch_bt.py', st, '20240101-20260101', '20'], {'INDEX': f'{SRC}/{idx}', 'NPROC': '4'})
+    log('初筛', st); sh(['batch_bt.py', st, '20240101-20260101', '20'], {'INDEX': f'{SRC}/{idx}', 'NPROC': '2'})   # 剩下的多是之前报错的，2 个一起跑免得内存不够
 
 for st, idx in STAGES:                           # 报错重跑（每批只做一次）
     mark = f'{RUN}/{st}/_retry_done'
@@ -34,9 +34,9 @@ for st, idx in STAGES:                           # 报错重跑（每批只做�
         except ValueError:                       # 写到一半的（磁盘满/被杀）：删掉重跑
             os.remove(f); continue
         e = d.get('err') or ''
-        if not e or any(x in e for x in NO_FIX): continue
+        if not e or d.get('retried') or any(x in e for x in NO_FIX): continue
         if 'spot markets' in e: short.add(d['id'])
-        ids.append(d['id']); os.remove(f)
+        ids.append(d['id'])                      # 不删结果文件：batch_bt 用 RETRY=1 重跑一次，记 retried
     rows = json.load(open(f'{SRC}/{idx}'))
     for r in rows:
         if r['h'] + '_' + r['cls'] in short: r['short'] = True
@@ -44,7 +44,8 @@ for st, idx in STAGES:                           # 报错重跑（每批只做�
     open(f'{RUN}/{st}/_retry_ids.txt', 'w').write('\n'.join(ids))
     log('报错重跑', st, len(ids), '个（其中改合约模式', len(short), '个）')
     # 重跑只开 2 个：一个 freqtrade 回测要 4~5G 内存，4 个一起跑会被系统杀掉（第一遍就有一些是这样失败的）
-    sh(['batch_bt.py', st, '20240101-20260101', '20'], {'INDEX': f'{SRC}/_retry_{st}.json', 'ONLY': f'{RUN}/{st}/_retry_ids.txt', 'NPROC': '2'})
+    sh(['batch_bt.py', st, '20240101-20260101', '20'], {'INDEX': f'{SRC}/_retry_{st}.json', 'ONLY': f'{RUN}/{st}/_retry_ids.txt', 'NPROC': '2',
+                                                        'RETRY': '1'})
     open(mark, 'w').write('ok')
 
 sh(['rank.py'])
