@@ -379,7 +379,7 @@ class Backtest:
             return amount * price, amount
         return stake, stake / price
 
-    def run(self, data, pairs=None, full=None, startup=0):
+    def run(self, data, pairs=None, full=None, startup=0, consume=False):
         """full: {pair: 算好指标的完整K线（含预热的 startup 根）}——策略回调里用 dp.get_analyzed_dataframe 时要用；
         data 是去掉预热之后的（= full.iloc[startup:]）"""
         import numpy as np
@@ -401,6 +401,8 @@ class Backtest:
             arr[p] = (ts[1:], d["open"].to_numpy()[1:], d["high"].to_numpy()[1:], d["low"].to_numpy()[1:],
                       d["close"].to_numpy()[1:], el[1:], xl[1:], et[1:] if et is not None else None, xt[1:] if xt is not None else None)
             idx[p] = 0
+            if consume:                                # 全部币回测省内存：转成数组后把原表扔掉
+                data[p] = None
         if not arr:
             return []
         step = st.tf_min * 60_000

@@ -100,15 +100,17 @@ for y, q in quarters:
         ticks[p] = (tick_over_time(d), None)
         a, fa = st.analyze(d, p, keep_full=True)
         a = a.iloc[st.startup:].reset_index(drop=True)
+        a = a[[c for c in a.columns if c != 'volume' and (c not in ('enter_tag', 'exit_tag') or (a[c] != '').any())]]
+        del d
         if len(a) > 1:
             data[p] = a
             if uses_dp:
                 cols = list(fa.columns) if KEEP is None else [c for c in fa.columns if c in KEEP or c in (
-                    'date', 'open', 'high', 'low', 'close', 'volume', 'enter_long', 'exit_long', 'enter_tag', 'exit_tag')]
+                    'date', 'open', 'high', 'low', 'close', 'enter_long', 'exit_long')]
                 full[p] = fa[cols].reset_index(drop=True)
     pairs = sorted(data)
     T = pd.DataFrame(sb_engine.Backtest(st, max_open=10, fee=0.0007, ticks=ticks, wallet=1000, tradable_ratio=0.99).run(
-        data, pairs, full=full or None, startup=st.startup))
+        data, pairs, full=full or None, startup=st.startup, consume=True))
     T.to_csv(of, index=False)
     json.dump(pairs, open(f'{OUT}/coins{y}q{q}.json', 'w'))
     print(y, f'q{q}', '币', len(pairs), '单', len(T), f'下载 {t_dl:.0f}s 共 {time.time() - tt:.0f}s', flush=True)
