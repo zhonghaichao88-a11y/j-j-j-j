@@ -39,7 +39,8 @@ for st, idx in STAGES:                           # 报错重跑（每批只做�
     json.dump(rows, open(f'{SRC}/_retry_{st}.json', 'w'), ensure_ascii=False)
     open(f'{RUN}/{st}/_retry_ids.txt', 'w').write('\n'.join(ids))
     log('报错重跑', st, len(ids), '个（其中改合约模式', len(short), '个）')
-    sh(['batch_bt.py', st, '20240101-20260101', '20'], {'INDEX': f'{SRC}/_retry_{st}.json', 'ONLY': f'{RUN}/{st}/_retry_ids.txt', 'NPROC': '4'})
+    # 重跑只开 2 个：一个 freqtrade 回测要 4~5G 内存，4 个一起跑会被系统杀掉（第一遍就有一些是这样失败的）
+    sh(['batch_bt.py', st, '20240101-20260101', '20'], {'INDEX': f'{SRC}/_retry_{st}.json', 'ONLY': f'{RUN}/{st}/_retry_ids.txt', 'NPROC': '2'})
     open(mark, 'w').write('ok')
 
 sh(['rank.py'])
