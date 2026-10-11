@@ -19,7 +19,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, '/home/user/j-j-j-j/orderflow')
 import of_engine as E
 import of_notify
-ROOTS = ['/home/user/ext/oos/f5', '/home/user/ext/oos/f6', '/home/user/ext/long']
+ROOTS = ['/home/user/ext/oos/f5', '/home/user/ext/oos/f6', '/home/user/ext/long', '/home/user/ext/more']
 BNK = '/home/user/ext/bnk'
 
 
@@ -30,7 +30,8 @@ def _cat(parts):
 
 def load(c):
     """一个币全部数据，5 分钟一行（index = 毫秒）"""
-    k = pd.read_parquet(f'{BNK}/{c}.parquet').sort_values('ts').drop_duplicates('ts').set_index('ts')
+    kp = f'{BNK}/{c}.parquet' if os.path.exists(f'{BNK}/{c}.parquet') else f'/home/user/ext/more/k/{c}.parquet'   # 豆包包里没有的币用补下载的
+    k = pd.read_parquet(kp).sort_values('ts').drop_duplicates('ts').set_index('ts')
     df = pd.DataFrame({'o': k.open, 'h': k.high, 'l': k.low, 'c': k.close, 'v': k.volume, 'bv': k.taker_buy_volume,
                        'qv': k.quote_volume, 'bq': k.taker_buy_quote_volume}).astype(float)
     met, spot, fund = [], [], []
