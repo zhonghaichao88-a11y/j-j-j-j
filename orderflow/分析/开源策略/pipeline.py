@@ -7,7 +7,7 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__)); PY = '/home/user/ext/ftvenv/bin/python'
 RUN = '/home/user/ext/ftrun'; SRC = '/home/user/ext/srcs'
 STAGES = [('screen', '_index.json'), ('screen2', '_index_new.json'), ('screen3', '_index_3.json')]
-NO_FIX = ('tensorflow', 'xgboost', 'optuna', 'torch', 'keras')       # 要装大型机器学习库的不重跑
+NO_FIX = ('tensorflow', 'xgboost', 'optuna', 'torch', 'keras', '写大量文件')       # 要装大型机器学习库的不重跑
 log = lambda *a: print(time.strftime('%m-%d %H:%M'), *a, flush=True)
 
 
@@ -29,7 +29,11 @@ for st, idx in STAGES:                           # 报错重跑（每批只做�
     if os.path.exists(mark): continue
     ids, short = [], set()
     for f in glob.glob(f'{RUN}/{st}/*/done.json'):
-        d = json.load(open(f)); e = d.get('err') or ''
+        try:
+            d = json.load(open(f))
+        except ValueError:                       # 写到一半的（磁盘满/被杀）：删掉重跑
+            os.remove(f); continue
+        e = d.get('err') or ''
         if not e or any(x in e for x in NO_FIX): continue
         if 'spot markets' in e: short.add(d['id'])
         ids.append(d['id']); os.remove(f)

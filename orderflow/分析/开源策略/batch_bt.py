@@ -119,7 +119,13 @@ def job(r):
     else:
         err = [l for l in log.split('\n') if 'Error' in l or 'error' in l or 'TIMEOUT' in l]
         res['err'] = (err[-1] if err else log[-300:])[:300]
-    json.dump(res, open(f'{wd}/done.json', 'w'), ensure_ascii=False)
+    big = sum(os.path.getsize(os.path.join(r_, f_)) for r_, _, fs_ in os.walk(f'{wd}/user_data') for f_ in fs_)
+    shutil.rmtree(f'{wd}/user_data', ignore_errors=True)        # 有的策略往这里写一堆 CSV：跑完就删（不删会把磁盘写满）
+    if big > 200 * 2**20:
+        res['note'] = f'策略往硬盘写了 {big / 2**20:.0f}MB 文件（已删）'
+    tmp = f'{wd}/done.json.tmp'
+    json.dump(res, open(tmp, 'w'), ensure_ascii=False)
+    os.replace(tmp, f'{wd}/done.json')           # 先写临时文件再改名：中途被杀不会留下空的 done.json
     return res
 
 
