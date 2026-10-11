@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>策略机</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1d2330;--mut:#6b7280;--line:#e5e7eb;--acc:#2563eb;--up:#059669;--dn:#dc2626;--warn:#b45309;--chip:#eef2ff}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0f1115;--card:#171a21;--fg:#e5e7eb;--mut:#9ca3af;--line:#2a2f3a;--acc:#60a5fa;--up:#34d399;--dn:#f87171;--warn:#fbbf24;--chip:#1e293b}}
+:root[data-theme="dark"]{--bg:#0f1115;--card:#171a21;--fg:#e5e7eb;--mut:#9ca3af;--line:#2a2f3a;--acc:#60a5fa;--up:#34d399;--dn:#f87171;--warn:#fbbf24;--chip:#1e293b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+header h1{font-size:18px;margin:0 8px 0 0}
+.badge{padding:2px 10px;border-radius:999px;font-weight:600;font-size:13px}
+.paper{background:var(--chip);color:var(--acc)}
+.live{background:#fee2e2;color:#b91c1c}
+.mut{color:var(--mut)}
+main{max-width:1200px;margin:0 auto;padding:12px 16px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0}
+.card h2{font-size:16px;margin:0 0 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kv{background:var(--bg);border-radius:8px;padding:8px 10px}
+.kv b{display:block;font-size:18px}
+.tbl{width:100%;overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+.up{color:var(--up)}.dn{color:var(--dn)}.warn{color:var(--warn)}
+button{font:inherit;padding:5px 12px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+button.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
+button.red{background:#dc2626;color:#fff;border-color:#dc2626}
+input[type=number],input[type=text],select{font:inherit;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg);width:110px}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:6px 0}
+.strat{border:1px solid var(--line);border-radius:8px;padding:12px;margin:8px 0}
+.rules{margin:6px 0 8px;padding-left:18px;color:var(--mut)}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--acc)}
+.ev{font-size:13px;padding:3px 0;border-bottom:1px dashed var(--line)}
+.ev .k{display:inline-block;min-width:40px;font-weight:600}
+#msg{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#111827;color:#fff;padding:8px 16px;border-radius:8px;display:none;z-index:9;max-width:90vw}
+.logs{font:12px/1.5 Consolas,monospace;max-height:240px;overflow:auto;white-space:pre-wrap;color:var(--mut)}
+details summary{cursor:pointer;color:var(--acc)}
+</style>
+</head>
+<body>
+<header>
+  <h1>策略机</h1>
+  <span id="mode" class="badge paper">模拟盘</span>
+  <span id="feed" class="mut">连接中…</span>
+  <span style="flex:1"></span>
+  <label><input type="checkbox" id="paused"> 暂停开新单</label>
+  <button id="btnMode">切换到实盘</button>
+</header>
+<main>
+  <div class="card" id="loading">
+    <div id="stage">启动中…</div>
+    <div class="bar" style="margin-top:8px"><i id="pbar" style="width:0"></i></div>
+  </div>
+
+  <div class="card">
+    <h2>成绩（<span id="modeName">模拟盘</span>）</h2>
+    <div class="grid" id="stats"></div>
+  </div>
+
+  <div class="card">
+    <h2>持仓 <span class="mut" id="openCount"></span></h2>
+    <div class="tbl"><table>
+      <thead><tr><th>币</th><th>策略</th><th>开仓时间</th><th>开仓价</th><th>现价</th><th>盈亏</th><th>盈亏(U)</th><th>资金(U)</th><th>拿了</th><th>止损价</th><th>到点平</th><th></th></tr></thead>
+      <tbody id="opens"></tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <h2>策略</h2>
+    <div id="strats"></div>
+  </div>
+
+  <div class="card">
+    <h2>最近信号和开平仓</h2>
+    <div id="events"></div>
+  </div>
+
+  <div class="card">
+    <h2>历史成交</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>币</th><th>策略</th><th>开仓</th><th>平仓</th><th>开仓价</th><th>平仓价</th><th>收益</th><th>盈亏(U)</th><th>原因</th></tr></thead>
+      <tbody id="hist"></tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <h2>设置</h2>
+    <div class="row">当天亏损超过 <input type="number" id="brake" min="0" max="100" step="0.5"> % 就当天不再开新单（0 = 不限制，和回测一样）
+      <button id="saveBrake">保存</button></div>
+    <div class="row">选币：<select id="coins"><option value="backtest">回测用的那批币（推荐）</option><option value="all">欧易全部 USDT 合约</option></select>
+      <button id="saveCoins">保存（重启后生效）</button></div>
+    <details><summary>运行日志</summary><div class="logs" id="logs"></div></details>
+  </div>
+</main>
+<div id="msg"></div>
+<script>
+const $=id=>document.getElementById(id);
+const REASON={stop_loss:'止损',trailing_stop_loss:'移动止盈',roi:'到时间平仓',exit_signal:'卖出信号',manual:'手动平仓',exchange:'交易所已平'};
+const KIND={open:'开',close:'平',skip:'跳过',error:'出错',brake:'刹车'};
+let S=null, BT={}, editing=new Set();
+function toast(t){const m=$('msg');m.textContent=t;m.style.display='block';clearTimeout(m._t);m._t=setTimeout(()=>m.style.display='none',4000)}
+async function api(path,body){const r=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.detail||('出错 '+r.status));return j}
+const fmt=v=>{if(v==null)return '-';const x=(+v).toPrecision(6);return x.includes('.')&&!x.includes('e')?x.replace(/0+$/,'').replace(/\.$/,''):x};
+const pct=v=>v==null?'-':((v>=0?'+':'')+(v*100).toFixed(2)+'%');
+const cls=v=>v>0?'up':(v<0?'dn':'');
+const tm=ms=>{const d=new Date(ms);return (d.getMonth()+1)+'-'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
+const mins=m=>m<60?m+'分':(Math.floor(m/60)+'时'+(m%60)+'分');
+function statBox(name,s){return `<div class="kv"><span class="mut">${name}</span><b class="${cls(s.pnl)}">${s.pnl>=0?'+':''}${(+s.pnl).toFixed(2)}U</b><span class="mut">${s.n} 单 · 胜率 ${(s.win*100).toFixed(0)}% · 盈亏比 ${s.pf==null?'-':s.pf}</span></div>`}
+function render(){
+  if(!S)return;
+  $('mode').textContent=S.mode==='live'?'实盘':'模拟盘';$('mode').className='badge '+(S.mode==='live'?'live':'paper');
+  $('modeName').textContent=S.mode==='live'?'实盘':'模拟盘';
+  $('btnMode').textContent=S.mode==='live'?'切换回模拟盘':'切换到实盘';
+  if(!editing.has('paused'))$('paused').checked=S.paused;
+  const lc=S.last_candle?tm(S.last_candle+300000):'-';
+  $('feed').textContent=`${S.coins} 个币 · 最新K线 ${lc} 收盘 · 价格 ${S.price_age_s==null?'-':S.price_age_s+'秒前'} · 本根K线信号 ${S.signals_now} 个`;
+  $('loading').style.display=S.ready?'none':'block';
+  $('stage').textContent=S.progress.stage+(S.progress.total?`（${S.progress.done}/${S.progress.total}）`:'');
+  $('pbar').style.width=(S.progress.total?100*S.progress.done/S.progress.total:5)+'%';
+  $('stats').innerHTML=statBox('今天',S.today)+statBox('最近 7 天',S.week)+statBox('全部',S.all);
+  $('openCount').textContent=S.open.length?`${S.open.length} 单`:'';
+  $('opens').innerHTML=S.open.map(o=>`<tr><td><b>${o.coin}</b></td><td>${o.strat.split('_')[0]}</td><td>${tm(o.open_ts)}</td><td>${fmt(o.open)}</td><td>${fmt(o.price)}</td>
+    <td class="${cls(o.ret)}">${pct(o.ret)}</td><td class="${cls(o.pnl)}">${o.pnl>=0?'+':''}${o.pnl.toFixed(3)}</td><td>${o.stake}</td><td>${mins(o.mins)}</td>
+    <td>${fmt(o.stop)}${o.trailing?' <span class="up">移动中</span>':''}</td><td>${o.time_exit_in==null?'-':mins(o.time_exit_in)+'后'}</td>
+    <td><button data-close="${o.coin}">平仓</button></td></tr>`).join('')||'<tr><td colspan="12" class="mut">没有持仓</td></tr>';
+  renderStrats();
+  $('events').innerHTML=S.events.slice(0,40).map(e=>`<div class="ev"><span class="mut">${tm(e.t)}</span> <span class="k ${e.kind==='open'?'up':e.kind==='error'?'dn':e.kind==='close'?'':'mut'}">${KIND[e.kind]||e.kind}</span> ${e.coin?'<b>'+e.coin+'</b> ':''}${e.text}</div>`).join('')||'<div class="mut">还没有</div>';
+  if(!editing.has('brake'))$('brake').value=S.brake;
+  if(!editing.has('coins'))$('coins').value=S.coins_mode;
+  $('logs').textContent=S.logs.join('\n');
+}
+function btTable(name){
+  const b=BT[name];if(!b||!b.years)return '';
+  const rows=Object.entries(b.years).map(([y,r])=>`<tr><td>${y}${y==='2026'?'（到9月）':''}</td><td>${r.n}</td><td>${(r.win*100).toFixed(0)}%</td><td>${r.pf}</td><td>${r.dd}%</td><td>${r.per_day}</td></tr>`).join('');
+  return `<details><summary>回测成绩（${b.desc||''}）</summary><div class="tbl"><table><thead><tr><th>年份</th><th>单数</th><th>胜率</th><th>盈亏比</th><th>最大回撤</th><th>每天几单</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="mut" style="margin-top:6px">${b.parity||''}</div></details>`;
+}
+function renderStrats(){
+  const box=$('strats');
+  if(document.activeElement && box.contains(document.activeElement))return;   // 正在填数字时不刷新
+  box.innerHTML=S.strategies.map(s=>{
+    const r=s.rules||{};
+    return `<div class="strat"><div class="row"><label><input type="checkbox" data-en="${s.name}" ${s.enabled?'checked':''} ${s.error?'disabled':''}> <b>${s.title}</b></label>
+      <span class="mut">持仓 ${s.open}/${s.max_open} · 资金 ${s.equity}U（在用 ${s.used}U）</span></div>
+      ${s.error?`<div class="dn">加载失败：${s.error}</div>`:''}
+      <div class="mut">${s.note||''}</div>
+      <ul class="rules">${['roi','stoploss','trailing','exit'].filter(k=>r[k]).map(k=>'<li>'+r[k]+'</li>').join('')}</ul>
+      <div class="row">本金 <input type="number" data-cap="${s.name}" value="${s.capital}" min="1" step="1"> U
+        最多同时 <input type="number" data-mo="${s.name}" value="${s.max_open}" min="1" max="50" step="1"> 单
+        <button data-save="${s.name}">保存</button>
+        <span class="mut">每单 ≈ 本金 ÷ 单数 = ${(s.capital/s.max_open).toFixed(2)}U</span></div>
+      ${btTable(s.name)}</div>`}).join('');
+}
+async function refresh(){try{S=await api('/api/status');render()}catch(e){$('feed').textContent='程序没连上（黑窗口关了？）'}}
+async function loadHist(){try{const j=await api('/api/trades?limit=200');$('hist').innerHTML=j.rows.map(r=>`<tr><td><b>${r.coin}</b></td><td>${r.strat.split('_')[0]}</td><td>${tm(r.open_ts)}</td><td>${tm(r.close_ts)}</td><td>${fmt(r.open)}</td><td>${fmt(r.close)}</td><td class="${cls(r.ret)}">${pct(r.ret)}</td><td class="${cls(r.pnl)}">${r.pnl>=0?'+':''}${(+r.pnl).toFixed(3)}</td><td>${REASON[r.reason]||r.reason}</td></tr>`).join('')||'<tr><td colspan="9" class="mut">还没有成交</td></tr>'}catch(e){}}
+document.addEventListener('focusin',e=>{if(e.target.id)editing.add(e.target.id)});
+document.addEventListener('focusout',e=>{if(e.target.id)setTimeout(()=>editing.delete(e.target.id),1500)});
+document.addEventListener('click',async e=>{
+  const t=e.target;
+  try{
+    if(t.dataset.close){if(!confirm(`按市价平掉 ${t.dataset.close}？`))return;await api('/api/close',{coin:t.dataset.close});toast('已平仓');}
+    else if(t.dataset.en){await api('/api/strategy',{name:t.dataset.en,enabled:t.checked});toast(t.checked?'已勾选，下一根K线收盘开始看信号':'已取消（已有持仓照常按规则平）');}
+    else if(t.dataset.save){const n=t.dataset.save;await api('/api/strategy',{name:n,capital:document.querySelector(`[data-cap="${n}"]`).value,max_open:document.querySelector(`[data-mo="${n}"]`).value});toast('已保存');t.blur();}
+    else if(t.id==='saveBrake'){await api('/api/settings',{daily_loss_limit_pct:$('brake').value});toast('已保存');}
+    else if(t.id==='saveCoins'){const j=await api('/api/settings',{coins:$('coins').value});toast(j.note||'已保存');}
+    else if(t.id==='btnMode'){
+      if(S.mode==='live'){if(!confirm('切换回模拟盘？（实盘要先没有持仓）'))return;await api('/api/mode',{mode:'paper'});toast('已切到模拟盘');}
+      else{const c=prompt(`切换到实盘会用你的欧易账户真实下单。\n确认的话请输入：${S.live_confirm}`);if(c==null)return;await api('/api/mode',{mode:'live',confirm:c});toast('已切到实盘');}
+    }
+    else if(t.id==='paused'){await api('/api/pause',{paused:t.checked});toast(t.checked?'已暂停开新单':'已恢复开新单');}
+    else return;
+    refresh();
+  }catch(err){toast(err.message);if(t.type==='checkbox')t.checked=!t.checked}
+});
+(async()=>{try{BT=await api('/api/backtest')}catch(e){}refresh();loadHist();setInterval(refresh,2000);setInterval(loadHist,15000)})();
+</script>
+</body>
+</html>
