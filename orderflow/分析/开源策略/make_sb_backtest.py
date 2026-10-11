@@ -22,6 +22,9 @@ for name, d in STRATS.items():
     out[name] = {'years': years,
                  'desc': 'freqtrade 回测：欧易 98 个币（现在还在交易的），最多同时 10 单、平分资金，每边手续费 0.07%，2021~2026 每季度分开跑',
                  'parity': f'本程序的回测引擎和 freqtrade 逐单对账：{len(par)} 个季度共 {n_all} 单，{n_same} 单完全一样'
-                           f'（开仓/平仓时间、平仓原因、收益率）。注意：回测假设移动止盈正好在止盈价成交，实盘每 2 秒看一次价，会差一点。'}
+                           f'（开仓/平仓时间、平仓原因、收益率）。',
+                 'realism': '更接近实盘的测法（freqtrade 用 1 分钟K线细化，30 个大币，2025-01~2026-09，7 个季度）：盈亏比 1.83 → 1.56，'
+                            '每单平均 +0.76% → +0.52%。差别全在"移动止盈"：回测假设正好在止盈价成交，实际会晚一点、差一点。'
+                            '实盘大概按这个打七折来看；本程序对有持仓的币用实时价格推送，尽量少差。'}
 json.dump(out, open(OUT, 'w'), ensure_ascii=False, indent=1)
 print(json.dumps(out, ensure_ascii=False, indent=1)[:1500])

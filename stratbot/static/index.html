@@ -141,7 +141,7 @@ function btTable(name){
   const b=BT[name];if(!b||!b.years)return '';
   const rows=Object.entries(b.years).map(([y,r])=>`<tr><td>${y}${y==='2026'?'（到9月）':''}</td><td>${r.n}</td><td>${(r.win*100).toFixed(0)}%</td><td>${r.pf}</td><td>${r.dd}%</td><td>${r.per_day}</td></tr>`).join('');
   return `<details><summary>回测成绩（${b.desc||''}）</summary><div class="tbl"><table><thead><tr><th>年份</th><th>单数</th><th>胜率</th><th>盈亏比</th><th>最大回撤</th><th>每天几单</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="mut" style="margin-top:6px">${b.parity||''}</div></details>`;
+    <div class="mut" style="margin-top:6px">${b.parity||''}</div>${b.realism?`<div class="warn" style="margin-top:4px">${b.realism}</div>`:''}</details>`;
 }
 function renderStrats(){
   const box=$('strats');
