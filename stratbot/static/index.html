@@ -32,6 +32,7 @@ button{font:inherit;padding:5px 12px;border-radius:6px;border:1px solid var(--li
 button.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
 button.red{background:#dc2626;color:#fff;border-color:#dc2626}
 input[type=number],input[type=text],select{font:inherit;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg);width:110px}
+select{width:auto;max-width:100%}
 .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:6px 0}
 .strat{border:1px solid var(--line);border-radius:8px;padding:12px;margin:8px 0}
 .rules{margin:6px 0 8px;padding-left:18px;color:var(--mut)}
@@ -120,7 +121,7 @@ function render(){
   $('btnMode').textContent=S.mode==='live'?'切换回模拟盘':'切换到实盘';
   if(!editing.has('paused'))$('paused').checked=S.paused;
   const lc=S.last_candle?tm(S.last_candle+300000):'-';
-  $('feed').textContent=`${S.coins} 个币 · 最新K线 ${lc} 收盘 · 价格 ${S.price_age_s==null?'-':S.price_age_s+'秒前'} · 本根K线信号 ${S.signals_now} 个`;
+  $('feed').textContent=`${S.coins} 个币 · 最新K线 ${lc} 收盘 · 价格 ${S.price_age_s==null?'-':S.price_age_s+'秒前'} · 实时推送${S.ws_ok?'已连':'未连'} · 本根K线信号 ${S.signals_now} 个`;
   $('loading').style.display=S.ready?'none':'block';
   $('stage').textContent=S.progress.stage+(S.progress.total?`（${S.progress.done}/${S.progress.total}）`:'');
   $('pbar').style.width=(S.progress.total?100*S.progress.done/S.progress.total:5)+'%';

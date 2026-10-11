@@ -64,6 +64,8 @@ class Bot:
         self.last_candle = 0
         self.lock = asyncio.Lock()
         self.foreign: set = set()               # 欧易账户上不是本程序开的仓（不碰、也不再开这些币）
+        self.ws_ok = False                      # 持仓币的实时价格推送（WebSocket）连着没有
+        self.ws_ts = 0
         self.strats: dict[str, sb_loader.Strategy] = {}
         self.load_errors: dict = {}
         self._load_strategies()
@@ -143,7 +145,7 @@ class Bot:
                 await asyncio.sleep(10)
         self.ready = True
         self.progress = {"stage": "运行中", "done": len(self.coins), "total": len(self.coins)}
-        await asyncio.gather(self._price_loop(), self._candle_loop())
+        await asyncio.gather(self._price_loop(), self._candle_loop(), self._ws_loop())
 
     def _coin_list(self, swaps):
         mode = self.cfg.get("coins", "backtest")
@@ -365,8 +367,60 @@ class Bot:
                     self.say(f"最新价拿不到超过 1 分钟：{e}（实盘时交易所有保护止损）", "warning")
             await asyncio.sleep(float(self.cfg.get("price_interval_s", 2)))
 
-    async def _exits(self):
+    async def _ws_loop(self):
+        """有持仓的币订阅欧易实时价格推送：价格一变就检查要不要平（移动止盈只回落 0.1%，每 2 秒看一次会晚）。
+        断了 5 秒后重连；推送断的时候还有每 2 秒一次的价格兜底。"""
+        import websockets
+        urls = ["wss://ws.okx.com/ws/v5/public", "wss://ws.okx.com:8443/ws/v5/public"]   # 有的代理不放行 8443 端口：两个轮流试
+        k = 0
+        while True:
+            url = urls[k % len(urls)]
+            try:
+                kw = {"ping_interval": 20, "open_timeout": 10, "max_size": 2 ** 22}
+                if self.proxy:
+                    kw["proxy"] = self.proxy
+                async with websockets.connect(url, **kw) as ws:
+                    subbed: set = set()
+                    self.ws_ok = True
+                    while True:
+                        want = {t.pair for t in self.trades}
+                        add, rem = want - subbed, subbed - want
+                        if add:
+                            await ws.send(json.dumps({"op": "subscribe", "args": [{"channel": "tickers", "instId": i} for i in sorted(add)]}))
+                            subbed |= add
+                        if rem:
+                            await ws.send(json.dumps({"op": "unsubscribe", "args": [{"channel": "tickers", "instId": i} for i in sorted(rem)]}))
+                            subbed -= rem
+                        try:
+                            msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=1))
+                        except asyncio.TimeoutError:
+                            continue
+                        if msg.get("arg", {}).get("channel") != "tickers" or "data" not in msg:
+                            continue
+                        for d in msg["data"]:
+                            i, px = d.get("instId"), float(d.get("last") or 0)
+                            if not px:
+                                continue
+                            self.prices[i] = px
+                            self.ws_ts = now_ms()
+                            if any(t.pair == i for t in self.trades):
+                                async with self.lock:
+                                    await self._exits(only=i)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001
+                if self.ws_ok:
+                    self.say(f"实时价格推送断了（{e}），5 秒后重连；这期间每 2 秒查一次价格", "warning")
+                self.ws_ok = False
+                k += 1
+                await asyncio.sleep(5)
+
+    async def _exits(self, only=None):
         for t in list(self.trades):
+            if only and t.pair != only:
+                continue
+            if t not in self.trades:              # 等锁的时候已经被平掉了
+                continue
             st = self.strats.get(t.strat)
             px = self.prices.get(t.pair)
             if st is None or not px:
@@ -519,4 +573,5 @@ class Bot:
                 "today": self.stats(self.closed_since(day0)), "week": self.stats(self.closed_since(now - 7 * 86_400_000)),
                 "all": self.stats(self.closed_since(0)), "signals_now": signals_now,
                 "brake": self.cfg.get("daily_loss_limit_pct", 0), "coins_mode": self.cfg.get("coins", "backtest"),
+                "ws_ok": self.ws_ok, "ws_age_s": round((now - self.ws_ts) / 1000) if self.ws_ts else None,
                 "live_confirm": LIVE_CONFIRM}

@@ -47,14 +47,13 @@ for p in pairs:
         data[p] = a.set_index('ts')
 print('币数', len(data), flush=True)
 one = {}
-if TICKS == '1m':                                   # 1 分钟K线：{币: DataFrame 按 5 分钟K线开盘时间分组}
+if TICKS == '1m':                                   # 1 分钟K线：{币: (时间数组, 开高低收数组)}，按时间查 5 分钟K线里的 5 根
     for p in data:
         f = f"/home/user/ext/ft/data_1m/okx/{p.replace('/', '_')}-1m.feather"
         if os.path.exists(f):
             m1 = pd.read_feather(f)
-            m1['ts'] = sb_engine.to_ms(m1['date'])
-            m1['c5'] = (m1.ts // 300_000) * 300_000
-            one[p] = {k: g[['ts', 'open', 'high', 'low', 'close']].to_numpy() for k, g in m1.groupby('c5')}
+            m1 = m1[(m1.date >= t0) & (m1.date <= t1)]
+            one[p] = (sb_engine.to_ms(m1['date']), m1[['open', 'high', 'low', 'close']].to_numpy())
     print('有 1 分钟K线的币', len(one), flush=True)
 
 # ---- 用临时目录跑真正的 Bot（不碰真的 sb_state.json）
@@ -81,8 +80,13 @@ async def run():
         ticks = {}                                   # 时间偏移 -> {inst: 价}
         for p, r in rows.items():
             i = inst_of[p]
-            m = one.get(p, {}).get(T) if one else None
-            if m is not None and len(m):
+            m = None
+            if p in one:
+                tsa, px_ = one[p]
+                a0, a1 = tsa.searchsorted(T), tsa.searchsorted(T + step)
+                if a1 > a0:
+                    m = [(tsa[k], *px_[k]) for k in range(a0, a1)]
+            if m:
                 for ts_, o_, h_, l_, c_ in m:
                     base = int(ts_) - T
                     a_, b_ = (l_, h_) if c_ >= o_ else (h_, l_)
@@ -122,7 +126,7 @@ else:
 ft = ft[ft.exit_reason != 'force_exit']
 ft['open_c'] = sb_engine.to_ms(pd.to_datetime(ft.open_date, utc=True))
 ft['close_c'] = sb_engine.to_ms(pd.to_datetime(ft.close_date, utc=True))
-m = mine.merge(ft[['pair', 'open_c', 'close_c', 'exit_reason', 'profit_ratio']], on=['pair', 'open_c'], how='outer', indicator=True,
+m = mine.merge(ft[['pair', 'open_c', 'close_c', 'exit_reason', 'profit_ratio', 'open_rate', 'close_rate']], on=['pair', 'open_c'], how='outer', indicator=True,
                suffixes=('', '_ft'))
 both = m[m._merge == 'both']
 same_exit = both[(both.close_c == both.close_c_ft) & (both.reason == both.exit_reason)]
@@ -131,6 +135,11 @@ print(f'程序 {len(mine)} 单，freqtrade {len(ft)} 单（不算回测结束强
 both = both.assign(d=(both.ret - both.profit_ratio).abs())
 print(f'同一单收益率差：中位 {both.d.median() * 100:.3f}%，平均 {both.d.mean() * 100:.3f}%；'
       f'程序合计 {mine.ret.sum() * 100:.1f}%，freqtrade 合计 {ft.profit_ratio.sum() * 100:.1f}%（每单收益率相加）')
+both = both.assign(entry_gap=(both.open / both.open_rate - 1), exit_gap=(both.close / both.close_rate - 1))
+print(f'开仓价差（程序/freqtrade-1）：平均 {both.entry_gap.mean() * 100:+.3f}%；平仓价差：平均 {both.exit_gap.mean() * 100:+.3f}%')
+print('按 freqtrade 平仓原因，同一单收益率差（程序-freqtrade）平均：',
+      {k: f'{v * 100:+.3f}%（{n} 单）' for (k, v), n in zip(both.groupby('exit_reason').apply(lambda g: (g.ret - g.profit_ratio).mean()).items(),
+                                                    both.groupby('exit_reason').size())})
 print('平仓原因（程序）：', mine.reason.value_counts().to_dict())
 print('平仓原因（freqtrade）：', ft.exit_reason.value_counts().to_dict())
 json.dump({'mine': len(mine), 'ft': len(ft), 'same_open': len(both), 'same_exit': len(same_exit),
