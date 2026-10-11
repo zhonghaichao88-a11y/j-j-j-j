@@ -913,6 +913,29 @@ def test_trade_return_counts_planned_capital_and_half_close(tmp_path, monkeypatc
     assert abs(h2["ret"] - h2["pnl"] / p2.cap) < 1e-5
 
 
+def test_flush_only_coins_listed_long_enough(tmp_path, monkeypatch):
+    """清洗接盘只做上线满 min_age_d 天的币（默认 365）；读不到上线时间不挡；设 0 不限"""
+    monkeypatch.setattr(E, "STATE_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(E, "TRADE_LOG", str(tmp_path / "t.jsonl"))
+    monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))
+    now = 2_000_000_000_000
+    def go(list_days, cfg=None):
+        app = E.OrderFlowApp({"auto": True, "enabled": ["flush_spot"], "btc_ma_days": 0, "flush_filters": {}, **(cfg or {})}, None, None, False)
+        eng = FakeEng(); eng.list_time = 0 if list_days is None else now - list_days * 86_400_000
+        d = {}
+        app.try_open(eng, C.Signal("flush_spot", 1, 90.0, 120.0, 0), d, 100.0, now)
+        return d, app.acct.positions
+    d, pos = go(100)
+    assert pos == [] and "上线才 100 天" in d["skip"]
+    d, pos = go(400)
+    assert len(pos) == 1
+    d, pos = go(None)                                                       # 读不到上线时间：不挡
+    assert len(pos) == 1
+    d, pos = go(100, {"flush": {"min_age_d": 0}})                          # 设成 0：不限
+    assert len(pos) == 1
+    assert E.flush_cfg({})["min_age_d"] == 365
+
+
 def test_old_dca_live_adds_then_replaces_oco(tmp_path, monkeypatch):
     """实盘（假交易所）：补仓市价加 → 撤旧的止盈止损 → 按总张数、新均价止盈、原止损重挂"""
     monkeypatch.setattr(E, "LOG_FILE", str(tmp_path / "log.txt"))

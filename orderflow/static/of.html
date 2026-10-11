@@ -66,6 +66,7 @@ th{color:var(--mute);font-weight:normal}
     <div class="row">1小时跌超 <input id="fl_drop" type="number" step="0.5" style="width:56px"> %　持仓量1小时降超 <input id="fl_oi_drop" type="number" step="0.5" style="width:56px"> %</div>
     <div class="row">现货主动买卖大于 <input id="fl_spot_flow" type="number" step="1" style="width:56px"> %　拿 <input id="fl_hold_h" type="number" step="1" style="width:50px"> 小时</div>
     <div class="row">每笔用权益 <input id="fl_size_pct" type="number" step="1" style="width:50px"> %　止损 = 跌幅 × <input id="fl_stop_x" type="number" step="0.5" style="width:50px">　挂单等 <input id="fl_fill_min" type="number" step="1" style="width:46px"> 分钟</div>
+    <div class="row">只做上线满 <input id="fl_min_age_d" type="number" step="30" min="0" style="width:56px"> 天的币 <small style="color:var(--mute)">（0 = 不限；新币回放回撤大很多）</small></div>
     <div class="row"><button id="saveFlush">保存</button> <small style="color:var(--mute)">保存后马上生效</small></div>
     <h3>追强势币参数 <small style="color:var(--mute);font-weight:normal">不管大盘；胜率只有四成，靠少数暴涨的币赚钱</small></h3>
     <div class="row">24小时涨超 <input id="mo_rise" type="number" step="1" style="width:56px"> %　1小时成交额 ≥ 平时 <input id="mo_vol_x" type="number" step="0.5" style="width:50px"> 倍</div>
@@ -343,7 +344,7 @@ function saveCfg(){ const en=[...$('#sigs').querySelectorAll('input:checked')].m
   if(b.auto && en.length===0){ alert('先勾选至少一种打法'); $('#auto').checked=false; b.auto=false; }
   post('/api/cfg',b); }
 const FL_PCT=['drop','oi_drop','spot_flow'];
-function fillFlush(){ const f=(S.cfg||{}).flush||{}; for(const k of ['drop','oi_drop','spot_flow','hold_h','size_pct','stop_x','fill_min']){
+function fillFlush(){ const f=(S.cfg||{}).flush||{}; for(const k of ['drop','oi_drop','spot_flow','hold_h','size_pct','stop_x','fill_min','min_age_d']){
   const el=$('#fl_'+k); if(!el||el===document.activeElement||f[k]==null) continue; el.value= FL_PCT.includes(k)? +(f[k]*100).toFixed(2) : f[k]; } }
 const SQ_PCT=['rise','oi_drop'], SQ_KEYS=['rise','oi_drop','hold_h','size_pct','stop_x'];
 function fillSq(){ const f=(S.cfg||{}).squeeze||{}; for(const k of SQ_KEYS){ const el=$('#sq_'+k);
@@ -353,7 +354,7 @@ function fillMo(){ const f=(S.cfg||{}).momo||{}; for(const k of MO_KEYS){ const 
   if(!el||el===document.activeElement||f[k]==null) continue; el.value= MO_PCT.includes(k)? +(f[k]*100).toFixed(2) : f[k]; } }
 $('#saveMo').onclick=()=>{ const f={}; for(const k of MO_KEYS){ const v=parseFloat($('#mo_'+k).value); if(!isNaN(v)) f[k]= MO_PCT.includes(k)? v/100 : v; } post('/api/cfg',{momo:f}); };
 $('#saveSq').onclick=()=>{ const f={}; for(const k of SQ_KEYS){ const v=parseFloat($('#sq_'+k).value); if(!isNaN(v)) f[k]= SQ_PCT.includes(k)? v/100 : v; } post('/api/cfg',{squeeze:f}); };
-$('#saveFlush').onclick=()=>{ const f={}; for(const k of ['drop','oi_drop','spot_flow','hold_h','size_pct','stop_x','fill_min']){
+$('#saveFlush').onclick=()=>{ const f={}; for(const k of ['drop','oi_drop','spot_flow','hold_h','size_pct','stop_x','fill_min','min_age_d']){
   const v=parseFloat($('#fl_'+k).value); if(!isNaN(v)) f[k]= FL_PCT.includes(k)? v/100 : v; } post('/api/cfg',{flush:f}); };
 const ND_KEYS=['tp_pct','stop_pct','hold_h','size_pct'], VD_KEYS=['th1','th4','tp_atr','sl_atr','hold_h','size_pct','bull_only','all_coins'];
 function fillDip(){ const a=(S.cfg||{}).nfi_dip||{}, b=(S.cfg||{}).vn_dip||{};

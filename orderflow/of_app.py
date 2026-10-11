@@ -106,6 +106,7 @@ async def start_symbol(inst: str):
         await seed_momo(eng, inst)
         seed_from_v7(eng, inst)
         eng.category = str(info.get("instCategory") or "1")    # 1=加密币，3=股票合约 等
+        eng.list_time = int(info.get("listTime") or 0)          # 欧易合约上线时间（清洗接盘只做上线满一年的币）
         core.engines[inst] = eng
         # 补当前这根K线的足迹：先把实时成交存起来，拉完最近的历史成交再按时间顺序喂进去，不会乱序
         buf = []

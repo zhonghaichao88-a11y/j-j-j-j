@@ -5,7 +5,7 @@ sys.argv = ['x']
 import compare as C
 from itemsets import evaluate
 F = '/home/user/j-j-j-j/orderflow/of_backtest_result.json'
-MAP = {'flush_spot': ('flush', '程序回放 币安148币 2021-12~2026-09（默认：大盘过滤+持仓24h不涨），三段都赚'),
+MAP = {   # 清洗接盘的数来自 age_test.py（成交额前 150 + 上线满 1 年），不在这里算
        'squeeze_long': ('squeeze', '程序回放 币安148币 2021-12~2026-09'),
        'momo_long': ('momo', '程序回放 币安148币 2021-12~2026-09，2022~2023 亏，回撤 62%'),
        'trap_short': ('trapC', '程序回放 币安148币 2021-12~2026-09（C 做法；A 1.03 / B 1.00 / 原版 1.10，都只是保本）'),
