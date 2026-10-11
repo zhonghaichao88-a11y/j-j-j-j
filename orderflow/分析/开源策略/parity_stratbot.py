@@ -66,6 +66,11 @@ for p in pairs:
     if len(a) > 1:
         data[p] = a
         full[p] = fa.reset_index(drop=True)              # 策略回调用的完整指标表（含预热）
+        if os.environ.get('KEEP_ONLY'):                 # 核对"只留回调用到的列"和全部列结果一样
+            keep = sb_loader.callback_columns(st)
+            if keep is not None:
+                full[p] = full[p][[c for c in full[p].columns if c in keep or c in ('date', 'open', 'high', 'low', 'close', 'volume',
+                                                                                     'enter_long', 'exit_long', 'enter_tag', 'exit_tag')]]
 print('算信号', round(time.time() - tt), '秒，币数', len(data), flush=True)
 mk = json.load(open('/home/user/ext/okx_ccxt_markets.json'))     # ccxt 读的欧易下单限制（freqtrade 回测用的就是这个）
 markets = {p: mk[p] for p in pairs if p in mk}

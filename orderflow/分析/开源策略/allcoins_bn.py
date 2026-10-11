@@ -14,11 +14,14 @@ import sb_loader, sb_engine  # noqa: E402
 from numpy import format_float_positional
 
 cls = sys.argv[1]
+SPATH = os.environ.get('STRAT_FILE')                 # 策略文件（不在 stratbot/strategies 里时给路径）
 OUT = f'/home/user/ext/ftrun/allbn_{cls}'
 CACHE = '/home/user/ext/bnm'
 os.makedirs(OUT, exist_ok=True); os.makedirs(CACHE, exist_ok=True)
 SYMS = json.load(open('/home/user/ext/bn_um_usdt.json'))
-st = sb_loader.Strategy(cls)
+st = sb_loader.Strategy(cls, SPATH)
+KEEP = sb_loader.callback_columns(st)                 # 回调里用到的列（全部币时只留这些，省内存）
+uses_dp = st.use_custom_stoploss or st.has_custom_exit or st.has_confirm_exit or st.has_confirm_entry
 cli = httpx.Client(timeout=60, headers={'User-Agent': 'Mozilla/5.0'}, follow_redirects=True)
 COLS = ['open_time', 'open', 'high', 'low', 'close', 'volume']
 
@@ -88,18 +91,24 @@ for y, q in quarters:
     t_dl = time.time() - tt
     w0 = t0 - pd.Timedelta(minutes=st.tf_min * st.startup)
     a0, a1 = int(w0.timestamp() * 1000), int(t1.timestamp() * 1000)
-    data, ticks = {}, {}
+    data, ticks, full = {}, {}, {}
     for s in SYMS:
         d = load(s, months, a0, a1)
         if d is None:
             continue
         p = s[:-4] + '/USDT'
         ticks[p] = (tick_over_time(d), None)
-        a = st.analyze(d, p).iloc[st.startup:].reset_index(drop=True)
+        a, fa = st.analyze(d, p, keep_full=True)
+        a = a.iloc[st.startup:].reset_index(drop=True)
         if len(a) > 1:
             data[p] = a
+            if uses_dp:
+                cols = list(fa.columns) if KEEP is None else [c for c in fa.columns if c in KEEP or c in (
+                    'date', 'open', 'high', 'low', 'close', 'volume', 'enter_long', 'exit_long', 'enter_tag', 'exit_tag')]
+                full[p] = fa[cols].reset_index(drop=True)
     pairs = sorted(data)
-    T = pd.DataFrame(sb_engine.Backtest(st, max_open=10, fee=0.0007, ticks=ticks, wallet=1000, tradable_ratio=0.99).run(data, pairs))
+    T = pd.DataFrame(sb_engine.Backtest(st, max_open=10, fee=0.0007, ticks=ticks, wallet=1000, tradable_ratio=0.99).run(
+        data, pairs, full=full or None, startup=st.startup))
     T.to_csv(of, index=False)
     json.dump(pairs, open(f'{OUT}/coins{y}q{q}.json', 'w'))
     print(y, f'q{q}', '币', len(pairs), '单', len(T), f'下载 {t_dl:.0f}s 共 {time.time() - tt:.0f}s', flush=True)

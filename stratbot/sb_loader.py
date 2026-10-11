@@ -419,3 +419,26 @@ def fill_missing(df, tf_min=5):
         d[c] = d[c].fillna(d["close"])
     d["volume"] = d["volume"].fillna(0)
     return d.rename_axis("date").reset_index()
+
+
+def callback_columns(st):
+    """策略回调（自定义止损/平仓/确认）里用到的K线列名：从源码里找字符串。回调里有拼出来的列名（f-string）就返回 None（= 全部保留）。
+    全部币回测时只留这些列，省内存（结果不变：回调只看得到这些列）"""
+    import ast
+    import inspect
+    import textwrap
+    names = set()
+    for m in ("custom_stoploss", "custom_exit", "custom_sell", "confirm_trade_exit", "confirm_trade_entry"):
+        fn = getattr(type(st.s), m, None)
+        if fn is None or getattr(IStrategy, m, None) is fn:
+            continue
+        try:
+            tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+        except (OSError, TypeError, SyntaxError):
+            return None
+        for node in ast.walk(tree):
+            if isinstance(node, ast.JoinedStr):
+                return None
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                names.add(node.value)
+    return names
