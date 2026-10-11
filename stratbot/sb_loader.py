@@ -135,13 +135,31 @@ class IStrategy:
     can_short = False
     position_adjustment_enable = False
     process_only_new_candles = True
-    order_types = {"entry": "market", "exit": "market", "stoploss": "market", "stoploss_on_exchange": False}
+    order_types = {"entry": "limit", "exit": "limit", "stoploss": "limit", "stoploss_on_exchange": False,
+                   "stoploss_on_exchange_interval": 60}           # freqtrade 默认值
+    order_time_in_force = {"entry": "GTC", "exit": "GTC"}
 
     def __init__(self, config=None):
         self.config = config or {}
 
     def informative_pairs(self):
         return []
+
+    # freqtrade 的默认回调（策略没写就用这些）
+    def custom_stoploss(self, pair, trade, current_time, current_rate, current_profit, after_fill=False, **kwargs):
+        return self.stoploss
+
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        return self.custom_sell(pair, trade, current_time, current_rate, current_profit, **kwargs)
+
+    def custom_sell(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        return None
+
+    def confirm_trade_entry(self, pair, order_type, amount, rate, time_in_force, current_time, entry_tag, side, **kwargs):
+        return True
+
+    def confirm_trade_exit(self, pair, trade, order_type, amount, rate, time_in_force, exit_reason, current_time, **kwargs):
+        return True
 
 
 class _Trade:
@@ -170,6 +188,8 @@ class _DP:
 
     def __init__(self):
         self.frames = {}
+        self.analyzed = {}
+        self.limit = {}
 
     def get_pair_dataframe(self, pair, timeframe=None, candle_type=""):
         import pandas as pd
@@ -178,9 +198,20 @@ class _DP:
 
     historic_ohlcv = get_pair_dataframe
 
+    analyzed: dict = {}
+    limit: dict = {}
+
     def get_analyzed_dataframe(self, pair, timeframe):
+        """算好指标的K线。回测时只给到"上一根收盘K线"为止、最多 1000 根（和 freqtrade 回测一样）；实盘给全部"""
         import pandas as pd
-        return pd.DataFrame(), None
+        from datetime import datetime, timezone
+        df = self.analyzed.get(pair)
+        if df is None:
+            return pd.DataFrame(), datetime.fromtimestamp(0, timezone.utc)
+        end = self.limit.get(pair)
+        if end is not None:
+            df = df.iloc[max(0, end - 1000):end]
+        return df, datetime.now(timezone.utc)
 
     def current_whitelist(self):
         return sorted({p for p, _ in self.frames})
@@ -284,26 +315,38 @@ class Strategy:
         self.tf_min = TF_MIN[self.timeframe]
         self.startup = int(g("startup_candle_count", 0) or 0)
         self.v3 = hasattr(cls, "populate_entry_trend") and "populate_entry_trend" in cls.__dict__
+        # 策略自己写的回调（照 freqtrade 规则调用）
+        over = lambda m: any(m in b.__dict__ for b in cls.__mro__[:-1] if b is not IStrategy)
+        self.use_custom_stoploss = bool(g("use_custom_stoploss", False))
+        self.has_custom_exit = over("custom_exit") or over("custom_sell")
+        self.has_confirm_exit = over("confirm_trade_exit")
+        self.has_confirm_entry = over("confirm_trade_entry")
+        import inspect
+        self.stop_uses_after_fill = over("custom_stoploss") and "after_fill" in inspect.getfullargspec(s.custom_stoploss).args
+        ot = dict(IStrategy.order_types); ot.update(g("order_types") or {})
+        self.order_types = ot
+        tif = g("order_time_in_force") or {}
+        self.tif_entry = tif.get("entry", tif.get("buy", "GTC"))
+        self.tif_exit = tif.get("exit", tif.get("sell", "GTC"))
         # 本程序不支持的功能：用到就拒绝加载（宁可不跑，也不能跑出和回测不一样的结果）
         bad = []
-        if g("use_custom_stoploss", False):
-            bad.append("自定义止损 custom_stoploss")
         if g("position_adjustment_enable", False):
             bad.append("加仓 position_adjustment")
         if g("can_short", False):
             bad.append("做空")
-        for meth in ("custom_exit", "custom_sell", "custom_entry_price", "custom_exit_price", "confirm_trade_entry",
-                     "confirm_trade_exit", "custom_stake_amount", "leverage", "custom_roi"):
-            if meth in cls.__dict__ or any(meth in b.__dict__ for b in cls.__mro__[1:-1] if b is not IStrategy):
+        for meth in ("custom_entry_price", "custom_exit_price", "custom_stake_amount", "custom_roi", "bot_loop_start",
+                     "order_filled", "adjust_trade_position", "adjust_entry_price", "adjust_exit_price", "adjust_order_price",
+                     "check_entry_timeout", "check_exit_timeout"):
+            if over(meth):
                 bad.append(meth)
-        if g("informative_pairs") and cls.informative_pairs is not IStrategy.informative_pairs:
+        if g("use_custom_roi", False):
+            bad.append("custom_roi")
+        if over("informative_pairs"):
             try:
                 if s.informative_pairs():
                     bad.append("别的周期/别的币的K线 informative_pairs")
             except Exception:  # noqa: BLE001
                 bad.append("informative_pairs")
-        if self.trailing_stop and self.trailing_stop_positive is None and self.trailing_only_offset_is_reached:
-            pass
         self.unsupported = bad
 
     def _apply_params(self, cls):
@@ -317,25 +360,31 @@ class Strategy:
                 if isinstance(p, _Param):
                     p.value = v
 
-    def analyze(self, df, pair="BTC/USDT:USDT"):
+    def analyze(self, df, pair="BTC/USDT:USDT", keep_full=False):
         """df: date(UTC)/open/high/low/close/volume，按时间排好、没有缺K线。返回加了 enter_long / exit_long 的表"""
         import pandas as pd
         meta = {"pair": pair}
         d = df.copy()
         d = self.s.populate_indicators(d, meta)
-        if self.v3:
-            d = self.s.populate_entry_trend(d, meta)
-            d = self.s.populate_exit_trend(d, meta)
-            el = d["enter_long"] if "enter_long" in d else pd.Series(0, index=d.index)
-            xl = d["exit_long"] if "exit_long" in d else pd.Series(0, index=d.index)
-        else:
-            d = self.s.populate_buy_trend(d, meta)
-            d = self.s.populate_sell_trend(d, meta)
-            el = d["buy"] if "buy" in d else pd.Series(0, index=d.index)
-            xl = d["sell"] if "sell" in d else pd.Series(0, index=d.index)
+        # 和 freqtrade advise_entry / advise_exit 一样：先放空标签列，再算信号，老写法的 buy/sell 列改名
+        d.loc[:, "enter_tag"] = ""
+        d = self.s.populate_entry_trend(d, meta) if self.v3 else self.s.populate_buy_trend(d, meta)
+        if "enter_long" not in d.columns:
+            d = d.rename({"buy": "enter_long", "buy_tag": "enter_tag"}, axis="columns")
+        d.loc[:, "exit_tag"] = ""
+        d = self.s.populate_exit_trend(d, meta) if self.v3 else self.s.populate_sell_trend(d, meta)
+        if "exit_long" not in d.columns:
+            d = d.rename({"sell": "exit_long"}, axis="columns")
+        col = lambda name: d[name] if name in d and not isinstance(d[name], pd.DataFrame) else (
+            d[name].iloc[:, -1] if name in d else pd.Series(0 if "long" in name else "", index=d.index))
         out = df[["date", "open", "high", "low", "close", "volume"]].copy()
-        out["enter_long"] = (pd.to_numeric(el, errors="coerce").fillna(0) == 1).astype(int).values
-        out["exit_long"] = (pd.to_numeric(xl, errors="coerce").fillna(0) == 1).astype(int).values
+        out["enter_long"] = (pd.to_numeric(col("enter_long"), errors="coerce").fillna(0) == 1).astype(int).values
+        out["exit_long"] = (pd.to_numeric(col("exit_long"), errors="coerce").fillna(0) == 1).astype(int).values
+        for tag in ("enter_tag", "exit_tag"):
+            v = col(tag)
+            out[tag] = v.where(v.notna(), "").astype(str).replace("nan", "").values
+        if keep_full:
+            return out, d
         return out
 
     def settings_text(self):
@@ -347,8 +396,12 @@ class Strategy:
         ex = ""
         if self.use_exit_signal:
             ex = "卖出信号出现时平仓" + (f"（只在赚超过 {self.exit_profit_offset * 100:g}% 时）" if self.exit_profit_only else "")
+        cu = "、".join(x for x, on in (("自定义止损（策略自己按情况收紧止损）", self.use_custom_stoploss),
+                                        ("自定义平仓条件", self.has_custom_exit),
+                                        ("平仓前再确认一次（不满足就先不平）", self.has_confirm_exit),
+                                        ("开仓前再确认一次", self.has_confirm_entry)) if on)
         return {"roi": roi, "stoploss": f"止损 {self.stoploss * 100:g}%", "trailing": tr, "exit": ex,
-                "timeframe": self.timeframe}
+                "custom": ("另外还有：" + cu) if cu else "", "timeframe": self.timeframe}
 
 
 def fill_missing(df, tf_min=5):

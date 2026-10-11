@@ -38,6 +38,11 @@ def coin_of(inst):
     return inst.split("-")[0]
 
 
+def pair_of(inst):
+    """给策略看的币名（freqtrade 合约写法）"""
+    return f"{coin_of(inst)}/USDT:USDT"
+
+
 class Bot:
     def __init__(self, cfg: dict, env: dict, cfg_path: str):
         self.cfg, self.env, self.cfg_path = cfg, env, cfg_path
@@ -248,13 +253,21 @@ class Bot:
                     self.sig.pop((name, i), None)
                     continue
                 try:
-                    a = st.analyze(df, f"{coin_of(i)}/USDT:USDT")
+                    pn = self.pair_name(i)
+                    a, full = st.analyze(df, pn, keep_full=True)
+                    if getattr(st.s, "dp", None) is not None:
+                        st.s.dp.analyzed[pn] = full              # 策略回调里 dp.get_analyzed_dataframe 拿到的（实盘给全部）
                     last = a.iloc[-1]
                     self.sig[(name, i)] = {"ts": int(last["date"].timestamp() * 1000), "enter": int(last["enter_long"]),
-                                           "exit": int(last["exit_long"])}
+                                           "exit": int(last["exit_long"]), "etag": str(last.get("enter_tag", "") or ""),
+                                           "xtag": str(last.get("exit_tag", "") or "")}
                 except Exception as e:  # noqa: BLE001
                     self.sig.pop((name, i), None)
                     self.say(f"{name} 算 {coin_of(i)} 出错：{e}", "error")
+
+    @staticmethod
+    def pair_name(i):
+        return pair_of(i)
 
     # ------------------------------------------------------------ 开仓
     def strat_money(self, name):
@@ -301,7 +314,7 @@ class Bot:
                 if not price:
                     self.event("skip", name, i, "还没拿到最新价")
                     continue
-                ok = await self._open(name, st, i, price, stake)
+                ok = await self._open(name, st, i, price, stake, s.get("etag", ""))
                 if ok:
                     held.add(i)
         self.save_state()
@@ -312,10 +325,13 @@ class Bot:
         n = int(stake / (price * ct) / lot + 1e-9) * lot
         return round(n, 8), mn, ct
 
-    async def _open(self, name, st, i, price, stake):
+    async def _open(self, name, st, i, price, stake, tag=""):
         n, mn, ct = self.contracts_for(i, stake, price)
         if n < mn or n <= 0:
             self.event("skip", name, i, f"每单资金 {stake:.2f}U 不够欧易最小下单（{mn} 张 ≈ {mn * ct * price:.2f}U），本金加大一点才做得了")
+            return False
+        if not sb_engine.confirm_entry(st, self.pair_name(i), n * ct, price, sb_engine._dt(now_ms()), tag):
+            self.event("skip", name, i, "策略的开仓确认（confirm_trade_entry）拒绝了这单")
             return False
         tick = (self.inst.get(i) or {}).get("tick")
         if self.mode == "paper":
@@ -344,7 +360,10 @@ class Bot:
             fill = r["fill"] or price
             t = sb_engine.Trade(i, name, now_ms(), fill, r["contracts"] * ct, fee, fee, tick=tick, stake=r["contracts"] * ct * fill)
             t.contracts, t.order_id, t.algo_id = r["contracts"], r.get("order_id", ""), r.get("algo_id", "")
+        t.enter_tag = tag or ""
         t.adjust_stop_loss(t.open_rate, st.stoploss, initial=True)
+        sb_engine.stoploss_adjust(st, t, t.open_rate, bound_profit=t.ratio(t.open_rate), after_fill=True,
+                                  ctx={"pair": self.pair_name(i), "now": sb_engine._dt(now_ms())})
         self.trades.append(t)
         self.save_state()
         msg = f"开多 {coin_of(i)} {t.contracts:g} 张 @ {t.open_rate:.6g}（{t.stake:.2f}U），止损 {t.stop_loss:.6g}"
@@ -426,9 +445,10 @@ class Bot:
             if st is None or not px:
                 continue
             s = self.sig.get((t.strat, t.pair)) or {}
-            reason = sb_engine.check_exit_live(st, t, px, now_ms(), s.get("enter", 0), s.get("exit", 0))
-            if reason:
-                await self.close(t, px, reason)
+            r = sb_engine.check_exit_live(st, t, px, now_ms(), s.get("enter", 0), s.get("exit", 0),
+                                          pair=self.pair_name(t.pair), exit_tag=s.get("xtag", ""))
+            if r:
+                await self.close(t, px, r[1])
 
     REASON = {"stop_loss": "止损", "trailing_stop_loss": "移动止盈", "roi": "到时间/到目标平仓", "exit_signal": "卖出信号",
               "manual": "手动平仓", "exchange": "交易所已平（保护止损触发或在 App 里平的）"}

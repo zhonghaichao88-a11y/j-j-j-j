@@ -47,6 +47,8 @@ class Trade:
         self.is_stop_loss_trailing = False
         self.max_rate = None
         self.min_rate = None
+        self.enter_tag = ""
+        self.custom = {}                        # 策略用 set_custom_data 存的东西
         # 实盘用
         self.order_id = ""
         self.algo_id = ""
@@ -77,7 +79,7 @@ class Trade:
         self.max_rate = max(hi, self.max_rate or self.open_rate)
         self.min_rate = min(lo, self.min_rate or self.open_rate)
 
-    def adjust_stop_loss(self, price, stoploss, initial=False):
+    def adjust_stop_loss(self, price, stoploss, initial=False, allow_refresh=False):
         if stoploss is None or (initial and not (self.stop_loss is None or self.stop_loss == 0)):
             return
         new = to_tick(price * (1 - abs(stoploss / self.leverage)), self.tick, ROUND_UP_STOP)
@@ -85,8 +87,9 @@ class Trade:
             self._set(new, stoploss)
             self.initial_stop_loss = to_tick(new, self.tick, ROUND_UP_STOP)
             self.initial_stop_loss_pct = -abs(stoploss)
-        elif new > self.stop_loss:
-            self.is_stop_loss_trailing = True
+        elif allow_refresh or new > self.stop_loss:
+            if not allow_refresh:
+                self.is_stop_loss_trailing = True
             self._set(new, stoploss)
 
     def _set(self, stop, pct):
@@ -105,21 +108,127 @@ class Trade:
         return t
 
 
+class _Order:
+    def __init__(self, t: "Trade"):
+        self.side = self.ft_order_side = "buy"
+        self.order_type = "market"
+        self.status = "closed"
+        self.safe_price = self.price = self.average = t.open_rate
+        self.safe_filled = self.filled = self.amount = self.safe_amount = self.safe_amount_after_fee = t.amount
+        self.safe_cost = self.cost = t.amount * t.open_rate
+        self.order_date_utc = self.order_filled_utc = _dt(t.open_time)
+        self.ft_is_open = False
+        self.ft_order_tag = t.enter_tag
+
+
+def _dt(ms):
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(ms / 1000, timezone.utc)
+
+
+class FtTrade:
+    """给策略回调（custom_stoploss / custom_exit / confirm_trade_exit）看的持仓，字段名和 freqtrade 的 Trade 一样"""
+
+    is_short = False
+    is_open = True
+    trade_direction = "long"
+    entry_side = "buy"
+    exit_side = "sell"
+    nr_of_successful_entries = 1
+    nr_of_successful_exits = 0
+    has_open_orders = False
+    liquidation_price = None
+    realized_profit = 0.0
+    exit_reason = None
+    close_rate = None
+    close_date = None
+
+    def __init__(self, t: "Trade", pair):
+        self._t = t
+        self.pair = pair
+        self.open_date = self.open_date_utc = _dt(t.open_time)
+
+    def __getattr__(self, k):
+        if k == "stake_amount":
+            return self._t.stake
+        if k == "open_trade_value":
+            return self._t.open_value()
+        if k in ("open_rate", "amount", "max_rate", "min_rate", "stop_loss", "initial_stop_loss", "stop_loss_pct",
+                 "initial_stop_loss_pct", "is_stop_loss_trailing", "leverage", "fee_open", "fee_close", "enter_tag"):
+            return getattr(self._t, k)
+        raise AttributeError(k)
+
+    @property
+    def open_rate_requested(self):
+        return self._t.open_rate
+
+    def calc_profit_ratio(self, rate, amount=None, open_rate=None):
+        if open_rate is None:
+            return self._t.ratio(rate)
+        ov = self._t.amount * open_rate * (1 + self._t.fee_open)
+        return round((self._t.close_value(rate) / ov - 1) * self._t.leverage, 8)
+
+    def calc_profit(self, rate, amount=None, open_rate=None):
+        return self._t.profit_abs(rate)
+
+    def select_filled_orders(self, order_side=None):
+        return [_Order(self._t)] if order_side in (None, "buy") else []
+
+    def select_filled_or_open_orders(self):
+        return [_Order(self._t)]
+
+    @property
+    def orders(self):
+        return [_Order(self._t)]
+
+    def select_order(self, order_side=None, is_open=None):
+        return None if is_open else _Order(self._t)
+
+    def get_custom_data(self, key, default=None):
+        return self._t.custom.get(key, default)
+
+    def set_custom_data(self, key, value):
+        self._t.custom[key] = value
+
+
+def _safe(fn, default, **kw):
+    """和 freqtrade 的 strategy_safe_wrapper 一样：策略函数出错就当没返回（用默认值）"""
+    try:
+        return fn(**kw)
+    except Exception:  # noqa: BLE001
+        return default
+
+
 # ---------------------------------------------------------------- 出场判断（strategy = sb_loader.Strategy）
-def _stoploss_check(st, t: Trade, rate, low=None, high=None, bound_profit=None):
-    """ft_stoploss_adjust + ft_stoploss_reached。返回 'stop_loss' / 'trailing_stop_loss' / None"""
+def stoploss_adjust(st, t: Trade, rate, low=None, high=None, bound_profit=None, ctx=None, after_fill=False):
+    """freqtrade ft_stoploss_adjust（含自定义止损 custom_stoploss）"""
+    if after_fill and not getattr(st, "stop_uses_after_fill", False):
+        return
     t.adjust_stop_loss(t.open_rate, st.stoploss, initial=True)
     dir_correct = t.stop_loss < (low or rate)
     bound = high
     if bound_profit is None:
         bound_profit = t.ratio(rate) if not bound else t.ratio(bound)
+    val = st.stoploss
+    if getattr(st, "use_custom_stoploss", False) and dir_correct:
+        ctx = ctx or {}
+        v = _safe(st.s.custom_stoploss, None, pair=ctx.get("pair", t.pair), trade=FtTrade(t, ctx.get("pair", t.pair)),
+                  current_time=ctx.get("now") or _dt(t.open_time), current_rate=(bound or rate), current_profit=bound_profit,
+                  after_fill=after_fill)
+        if v and not (isinstance(v, float) and (math.isnan(v) or math.isinf(v))):
+            val = v
+            t.adjust_stop_loss(bound or rate, v, allow_refresh=after_fill)
     if st.trailing_stop and dir_correct:
         off = st.trailing_stop_positive_offset
         if not (st.trailing_only_offset_is_reached and bound_profit < off):
-            val = st.stoploss
             if st.trailing_stop_positive is not None and bound_profit > off:
                 val = st.trailing_stop_positive
             t.adjust_stop_loss(bound or rate, val)
+
+
+def _stoploss_check(st, t: Trade, rate, low=None, high=None, bound_profit=None, ctx=None):
+    """ft_stoploss_adjust + ft_stoploss_reached。返回 'stop_loss' / 'trailing_stop_loss' / None"""
+    stoploss_adjust(st, t, rate, low, high, bound_profit, ctx)
     if t.stop_loss >= (low or rate):
         return "trailing_stop_loss" if t.is_stop_loss_trailing else "stop_loss"
     return None
@@ -133,29 +242,59 @@ def roi_entry(st, dur_min):
     return k, st.minimal_roi[k]
 
 
-def should_exit(st, t: Trade, rate, dur_min, enter, exit_, low=None, high=None):
-    """freqtrade IStrategy.should_exit：返回按顺序排好的出场原因列表"""
+def should_exit(st, t: Trade, rate, dur_min, enter, exit_, low=None, high=None, ctx=None):
+    """freqtrade IStrategy.should_exit：返回按顺序排好的出场 [(类型, 原因文字)]。
+    类型：exit_signal / custom_exit / stop_loss / roi / trailing_stop_loss。
+    ctx：{"pair": 给策略看的币名, "now": 当前时间 datetime, "exit_tag": 卖出信号的标签}"""
+    ctx = ctx or {}
     cp = t.ratio(rate)
     best = cp
     if low is not None or high is not None:
         best = t.ratio(high or rate)
     t.adjust_min_max(high or rate, low or rate)
-    sl = _stoploss_check(st, t, rate, low, high, bound_profit=best)
+    sl = _stoploss_check(st, t, rate, low, high, bound_profit=best, ctx=ctx)
     roi_hit = False
     if not (enter and st.ignore_roi_if_entry_signal):
         _, roi = roi_entry(st, dur_min)
         roi_hit = roi is not None and best > roi
     out = []
-    if st.use_exit_signal and exit_ and not enter:
-        if not st.exit_profit_only or cp > st.exit_profit_offset:
-            out.append("exit_signal")
+    if st.use_exit_signal:
+        etype, reason = None, ""
+        if exit_ and not enter:
+            etype, reason = "exit_signal", ctx.get("exit_tag") or "exit_signal"
+        elif getattr(st, "has_custom_exit", False):
+            r = _safe(st.s.custom_exit, False, pair=ctx.get("pair", t.pair), trade=FtTrade(t, ctx.get("pair", t.pair)),
+                      current_time=ctx.get("now") or _dt(t.open_time), current_rate=rate, current_profit=cp)
+            if r:
+                etype, reason = "custom_exit", (r[:64] if isinstance(r, str) else "") or "custom_exit"
+        if etype == "custom_exit" or (etype == "exit_signal" and (not st.exit_profit_only or cp > st.exit_profit_offset)):
+            out.append((etype, reason))
     if sl == "stop_loss":
-        out.append("stop_loss")
+        out.append(("stop_loss", "stop_loss"))
     if roi_hit:
-        out.append("roi")
+        out.append(("roi", "roi"))
     if sl == "trailing_stop_loss":
-        out.append("trailing_stop_loss")
+        out.append(("trailing_stop_loss", "trailing_stop_loss"))
     return out
+
+
+def confirm_exit(st, t: Trade, reason, rate, ctx=None):
+    """freqtrade confirm_trade_exit（策略可以拒绝这次平仓）"""
+    if not getattr(st, "has_confirm_exit", False):
+        return True
+    ctx = ctx or {}
+    return bool(_safe(st.s.confirm_trade_exit, True, pair=ctx.get("pair", t.pair), trade=FtTrade(t, ctx.get("pair", t.pair)),
+                      order_type=st.order_types.get("exit", "limit"), amount=t.amount, rate=rate,
+                      time_in_force=st.tif_exit, sell_reason=reason, exit_reason=reason,
+                      current_time=ctx.get("now") or _dt(t.open_time)))
+
+
+def confirm_entry(st, pair, amount, rate, now, tag=""):
+    """freqtrade confirm_trade_entry"""
+    if not getattr(st, "has_confirm_entry", False):
+        return True
+    return bool(_safe(st.s.confirm_trade_entry, True, pair=pair, order_type=st.order_types.get("entry", "limit"), amount=amount,
+                      rate=rate, time_in_force=st.tif_entry, current_time=now, entry_tag=tag or None, side="long"))
 
 
 class OpeningCandleRoi(ValueError):
@@ -240,10 +379,16 @@ class Backtest:
             return amount * price, amount
         return stake, stake / price
 
-    def run(self, data, pairs=None):
+    def run(self, data, pairs=None, full=None, startup=0):
+        """full: {pair: 算好指标的完整K线（含预热的 startup 根）}——策略回调里用 dp.get_analyzed_dataframe 时要用；
+        data 是去掉预热之后的（= full.iloc[startup:]）"""
         import numpy as np
         st = self.st
         pairs = [p for p in (pairs or list(data)) if p in data]
+        dp = getattr(getattr(st, "s", None), "dp", None)
+        if full and dp is not None:
+            dp.analyzed = dict(full)
+            dp.limit = {}
         arr, idx = {}, {}
         for p in pairs:
             d = data[p]
@@ -251,8 +396,10 @@ class Backtest:
             # 信号往后挪一根，然后去掉第一行（和 freqtrade 一样）
             el = np.r_[0, d["enter_long"].to_numpy()[:-1]]
             xl = np.r_[0, d["exit_long"].to_numpy()[:-1]]
+            et = np.r_[[""], d["enter_tag"].to_numpy()[:-1]] if "enter_tag" in d else None
+            xt = np.r_[[""], d["exit_tag"].to_numpy()[:-1]] if "exit_tag" in d else None
             arr[p] = (ts[1:], d["open"].to_numpy()[1:], d["high"].to_numpy()[1:], d["low"].to_numpy()[1:],
-                      d["close"].to_numpy()[1:], el[1:], xl[1:])
+                      d["close"].to_numpy()[1:], el[1:], xl[1:], et[1:] if et is not None else None, xt[1:] if xt is not None else None)
             idx[p] = 0
         if not arr:
             return []
@@ -268,6 +415,7 @@ class Backtest:
         while cur <= end:
             at_start = [t.pair for t in open_trades]
             order = list(dict.fromkeys(at_start + pairs))
+            now = None
             for p in order:
                 a = arr[p]; i = idx[p]
                 if i >= len(a[0]) or a[0][i] > cur:
@@ -275,25 +423,36 @@ class Backtest:
                 row_i = i
                 idx[p] = i + 1
                 o, h, lo, c, en, ex = a[1][row_i], a[2][row_i], a[3][row_i], a[4][row_i], a[5][row_i], a[6][row_i]
+                etag = (a[7][row_i] if a[7] is not None else "") or ""
+                xtag = (a[8][row_i] if a[8] is not None else "") or ""
                 last_row[p] = (a[0][row_i], o)
+                if full and dp is not None:
+                    dp.limit[p] = startup + row_i + 1          # 策略回调看到的最后一根 = 上一根收盘K线（和 freqtrade 一样）
                 has = p in by_pair
                 if p in at_start and not has:
                     continue
+                if now is None:
+                    now = _dt(cur)
+                ctx = {"pair": p, "now": now, "exit_tag": xtag if isinstance(xtag, str) else ""}
                 trade_dir = en == 1 and not ex == 1
                 if trade_dir and not has and cur != end and len(open_trades) < self.max_open:   # 最后一根K线不开新单
                     stake, amount = self.stake_for(p, o, sum(x.stake for x in open_trades), closed_profit)
-                    if stake > 0:
+                    if stake > 0 and confirm_entry(st, p, amount, o, now, etag if isinstance(etag, str) else ""):
                         t = Trade(p, st.name, int(a[0][row_i]), o, amount, self.fee, self.fee,
                                   tick=self._tick(p, int(a[0][row_i])), stake=stake)
+                        t.enter_tag = etag if isinstance(etag, str) else ""
                         t.adjust_stop_loss(t.open_rate, st.stoploss, initial=True)
+                        stoploss_adjust(st, t, o, bound_profit=t.ratio(o), ctx=ctx, after_fill=True)   # 成交后回调（策略要的话）
                         open_trades.append(t); by_pair[p] = t; has = True
                 if has:
                     t = by_pair[p]
                     dur = int((cur - t.open_time) // 60_000)
-                    for reason in should_exit(st, t, o, dur, en == 1, ex == 1, low=lo, high=h):
+                    for etype, reason in should_exit(st, t, o, dur, en == 1, ex == 1, low=lo, high=h, ctx=ctx):
                         try:
-                            rate = close_rate_backtest(st, t, reason, (o, h, lo, c), dur)
+                            rate = close_rate_backtest(st, t, etype, (o, h, lo, c), dur)
                         except OpeningCandleRoi:
+                            continue
+                        if not confirm_exit(st, t, reason, rate, ctx):      # 策略拒绝这次平仓：看下一个原因
                             continue
                         t.pending = (to_tick(rate, t.tick), reason)   # 新的平仓单（替换掉没成交的旧单）
                         break
@@ -330,8 +489,12 @@ class Backtest:
                 "profit_abs": t.profit_abs(rate)}
 
 
-def check_exit_live(st, t: Trade, price, now_ms, enter, exit_):
-    """实盘/模拟盘：拿最新价判断要不要平（freqtrade 实盘的规则：没有K线高低价，只看当前价）。返回原因或 None"""
+def check_exit_live(st, t: Trade, price, now_ms, enter, exit_, pair=None, exit_tag=""):
+    """实盘/模拟盘：拿最新价判断要不要平（freqtrade 实盘的规则：没有K线高低价，只看当前价）。
+    返回 (类型, 原因) 或 None；策略的 confirm_trade_exit 拒绝的原因会跳过"""
     dur = int((now_ms - t.open_time) // 60_000)
-    ex = should_exit(st, t, price, dur, bool(enter), bool(exit_))
-    return ex[0] if ex else None
+    ctx = {"pair": pair or t.pair, "now": _dt(now_ms), "exit_tag": exit_tag}
+    for etype, reason in should_exit(st, t, price, dur, bool(enter), bool(exit_), ctx=ctx):
+        if confirm_exit(st, t, reason, price, ctx):
+            return etype, reason
+    return None

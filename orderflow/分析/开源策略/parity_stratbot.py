@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.join(HERE, '..', '..', '..', 'stratbot'))
 import sb_loader, sb_engine  # noqa: E402
 
 cls, fdir, year, q = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
+SPATH = os.environ.get('STRAT_FILE')                 # 策略文件（不在 stratbot/strategies 里时给路径）
 mode = sys.argv[5] if len(sys.argv) > 5 else 'spot'
 RUN = '/home/user/ext/ftrun/full'
 c = json.load(open(f'{RUN}/{fdir}/c.json'))
@@ -47,9 +48,9 @@ def tick_over_time(candles):
     return 1 / 10 ** c.set_index('date', drop=True)['max_count'].resample('MS').max()
 
 
-st = sb_loader.Strategy(cls)
+st = sb_loader.Strategy(cls, SPATH)
 w0 = t0 - pd.Timedelta(minutes=st.tf_min * st.startup)
-data = {}
+data, full = {}, {}
 tt = time.time()
 for p in pairs:
     if not os.path.exists(path(p)):
@@ -60,16 +61,17 @@ for p in pairs:
         continue
     d = sb_loader.fill_missing(d.reset_index(drop=True), st.tf_min)
     ticks[p] = (tick_over_time(d), inst[key(p)]['tick'])                       # freqtrade 回测用K线数据推算的每月价格精度，不是交易所的
-    a = st.analyze(d, p)
+    a, fa = st.analyze(d, p, keep_full=True)
     a = a.iloc[st.startup:].reset_index(drop=True)    # 去掉预热的K线：freqtrade 是每个币去掉前 N 根（新上的币前 N 根也不做）
     if len(a) > 1:
         data[p] = a
+        full[p] = fa.reset_index(drop=True)              # 策略回调用的完整指标表（含预热）
 print('算信号', round(time.time() - tt), '秒，币数', len(data), flush=True)
 mk = json.load(open('/home/user/ext/okx_ccxt_markets.json'))     # ccxt 读的欧易下单限制（freqtrade 回测用的就是这个）
 markets = {p: mk[p] for p in pairs if p in mk}
 bt = sb_engine.Backtest(st, max_open=c['max_open_trades'], fee=c['fee'], ticks=ticks, wallet=c['dry_run_wallet'],
                         markets=markets, tradable_ratio=c.get('tradable_balance_ratio', 0.99))
-mine = pd.DataFrame(bt.run(data, pairs))
+mine = pd.DataFrame(bt.run(data, pairs, full=full, startup=st.startup))
 ft = pd.read_csv(f'{RUN}/{fdir}/trades{year}q{q}.csv')
 ft['open_ts'] = sb_engine.to_ms(pd.to_datetime(ft.open_date, utc=True))
 ft['close_ts'] = sb_engine.to_ms(pd.to_datetime(ft.close_date, utc=True))

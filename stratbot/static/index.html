@@ -152,7 +152,7 @@ function renderStrats(){
       <span class="mut">持仓 ${s.open}/${s.max_open} · 资金 ${s.equity}U（在用 ${s.used}U）</span></div>
       ${s.error?`<div class="dn">加载失败：${s.error}</div>`:''}
       <div class="mut">${s.note||''}</div>
-      <ul class="rules">${['roi','stoploss','trailing','exit'].filter(k=>r[k]).map(k=>'<li>'+r[k]+'</li>').join('')}</ul>
+      <ul class="rules">${['roi','stoploss','trailing','exit','custom'].filter(k=>r[k]).map(k=>'<li>'+r[k]+'</li>').join('')}</ul>
       <div class="row">本金 <input type="number" data-cap="${s.name}" value="${s.capital}" min="1" step="1"> U
         最多同时 <input type="number" data-mo="${s.name}" value="${s.max_open}" min="1" max="50" step="1"> 单
         <button data-save="${s.name}">保存</button>
