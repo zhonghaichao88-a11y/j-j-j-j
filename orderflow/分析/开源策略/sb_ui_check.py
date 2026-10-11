@@ -29,7 +29,9 @@ def wait(f, check, t=6):
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/opt/pw-browsers/chromium')
     pg = b.new_page(viewport={'width': 1280, 'height': 900})
-    pg.on('console', lambda m: errs.append(m.text) if m.type == 'error' and 'favicon' not in m.text else None)
+    bad_resp = []
+    pg.on('response', lambda r: bad_resp.append((r.status, r.url)) if r.status >= 400 else None)
+    pg.on('console', lambda m: errs.append(m.text) if m.type == 'error' and 'Failed to load resource' not in m.text else None)
     pg.on('pageerror', lambda e: errs.append(str(e)))
     dialogs = []
     pg.on('dialog', lambda d: (dialogs.append(d.message), d.accept() if d.type == 'confirm' else d.dismiss()))
@@ -120,4 +122,10 @@ with sync_playwright() as p:
     time.sleep(0.5)
     pg.screenshot(path=shot, full_page=True)
     b.close()
+# 只允许一次 400：上面故意把单数填 0（应该被拒）
+expected = [x for x in bad_resp if x[0] == 400 and x[1].endswith('/api/strategy')]
+other = [x for x in bad_resp if x not in expected[:1]]
+if len(expected) != 1:
+    bad.append(f'单数填 0 应该被拒一次（400），实际：{expected}')
+errs += [f'{s} {u}' for s, u in other]
 print(json.dumps({'bad': bad, 'errs': errs, 'notes': notes}, ensure_ascii=False))
