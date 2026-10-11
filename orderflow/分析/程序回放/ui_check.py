@@ -46,7 +46,7 @@ with sync_playwright() as p:
         if k in (c.get('enabled') or []): bad.append(f'取消「{k}」后设置里还在')
     opts = pg.eval_on_selector_all('#trap_mode option', 'os=>os.map(o=>o.value)')
     for m in opts:
-        pg.select_option('#trap_mode', m); pg.click('#saveTrap')
+        pg.select_option('#trap_mode', m); pg.wait_for_timeout(1200); pg.click('#saveTrap')
         c = wait_cfg(lambda c: (c.get('trap') or {}).get('mode') == m)
         if (c.get('trap') or {}).get('mode') != m: bad.append(f'多头摊平做空选「{m}」保存后设置里是 {(c.get("trap") or {}).get("mode")}')
     notes.append(f'多头摊平做空进场方式 {opts} 逐个保存')
@@ -64,6 +64,7 @@ with sync_playwright() as p:
             else:
                 old = el.input_value(); ov = float(old) if old not in ('', None) else 0.0
                 newv = round(ov * 1.5 if ov else 1.0, 4); new = str(newv); el.fill(new)
+            pg.wait_for_timeout(1200)                     # 故意等过两次网页刷新（每 0.5 秒）再点保存：改了没保存的值不能被刷回去
             pg.click('#' + btn)
             c = wait_cfg(lambda c: (c.get(key) or {}).get(name) is not None and abs(float((c.get(key) or {}).get(name)) - float(new)) < 1e-6
                          or abs(float((c.get(key) or {}).get(name, -1e9)) * 100 - float(new)) < 1e-6)

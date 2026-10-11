@@ -334,6 +334,10 @@ function buildSide(){
   $('#ffBox').innerHTML=Object.entries(fd).map(([k,v])=>`<label class="sig"><input type="checkbox" data-ff="${k}" ${ff[k]?'checked':''}><span><b>${v.name}</b><small style="color:var(--mute)">回测：${v.bt}<span id="ffv_${k}"></span></small></span></label>`).join('');
   $('#ffBox').querySelectorAll('input').forEach(i=>i.onchange=saveCfg);
 }
+// 改过还没保存的参数框打个标记：每半秒用服务器设置刷新时跳过它（不然选完下拉框、去点保存的那一下会被刷回旧值）
+const editing=el=>el===document.activeElement||el.dataset.dirty==='1';
+for(const ev of ['input','change']) document.addEventListener(ev,e=>{ const t=e.target; if(t&&t.id&&/^(fl|sq|mo|nd|vd)_|^trap_mode$/.test(t.id)) t.dataset.dirty='1'; },true);
+const clean=re=>document.querySelectorAll('[data-dirty]').forEach(x=>{ if(re.test(x.id)) delete x.dataset.dirty; });
 async function post(u,b){ const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}); return r.json(); }
 function saveCfg(){ const en=[...$('#sigs').querySelectorAll('input:checked')].map(i=>i.dataset.k);
   const b={enabled:en,auto:$('#auto').checked}; for(const k of ['risk_pct','max_leverage','max_positions','daily_loss_pct']) b[k]=+$('#'+k).value; b.margin_mode=$('#margin_mode').value; b.btc_ma_days=+$('#btc_ma_days').value;
@@ -345,25 +349,25 @@ function saveCfg(){ const en=[...$('#sigs').querySelectorAll('input:checked')].m
   post('/api/cfg',b); }
 const FL_PCT=['drop','oi_drop','spot_flow'];
 function fillFlush(){ const f=(S.cfg||{}).flush||{}; for(const k of ['drop','oi_drop','spot_flow','hold_h','size_pct','stop_x','fill_min','min_age_d']){
-  const el=$('#fl_'+k); if(!el||el===document.activeElement||f[k]==null) continue; el.value= FL_PCT.includes(k)? +(f[k]*100).toFixed(2) : f[k]; } }
+  const el=$('#fl_'+k); if(!el||editing(el)||f[k]==null) continue; el.value= FL_PCT.includes(k)? +(f[k]*100).toFixed(2) : f[k]; } }
 const SQ_PCT=['rise','oi_drop'], SQ_KEYS=['rise','oi_drop','hold_h','size_pct','stop_x'];
 function fillSq(){ const f=(S.cfg||{}).squeeze||{}; for(const k of SQ_KEYS){ const el=$('#sq_'+k);
-  if(!el||el===document.activeElement||f[k]==null) continue; el.value= SQ_PCT.includes(k)? +(f[k]*100).toFixed(2) : f[k]; } }
+  if(!el||editing(el)||f[k]==null) continue; el.value= SQ_PCT.includes(k)? +(f[k]*100).toFixed(2) : f[k]; } }
 const MO_PCT=['rise','stop'], MO_KEYS=['rise','vol_x','hold_h','size_pct','stop'];
 function fillMo(){ const f=(S.cfg||{}).momo||{}; for(const k of MO_KEYS){ const el=$('#mo_'+k);
-  if(!el||el===document.activeElement||f[k]==null) continue; el.value= MO_PCT.includes(k)? +(f[k]*100).toFixed(2) : f[k]; } }
-$('#saveMo').onclick=()=>{ const f={}; for(const k of MO_KEYS){ const v=parseFloat($('#mo_'+k).value); if(!isNaN(v)) f[k]= MO_PCT.includes(k)? v/100 : v; } post('/api/cfg',{momo:f}); };
-$('#saveSq').onclick=()=>{ const f={}; for(const k of SQ_KEYS){ const v=parseFloat($('#sq_'+k).value); if(!isNaN(v)) f[k]= SQ_PCT.includes(k)? v/100 : v; } post('/api/cfg',{squeeze:f}); };
+  if(!el||editing(el)||f[k]==null) continue; el.value= MO_PCT.includes(k)? +(f[k]*100).toFixed(2) : f[k]; } }
+$('#saveMo').onclick=()=>{ const f={}; for(const k of MO_KEYS){ const v=parseFloat($('#mo_'+k).value); if(!isNaN(v)) f[k]= MO_PCT.includes(k)? v/100 : v; } post('/api/cfg',{momo:f}); clean(/^mo_/); };
+$('#saveSq').onclick=()=>{ const f={}; for(const k of SQ_KEYS){ const v=parseFloat($('#sq_'+k).value); if(!isNaN(v)) f[k]= SQ_PCT.includes(k)? v/100 : v; } post('/api/cfg',{squeeze:f}); clean(/^sq_/); };
 $('#saveFlush').onclick=()=>{ const f={}; for(const k of ['drop','oi_drop','spot_flow','hold_h','size_pct','stop_x','fill_min','min_age_d']){
-  const v=parseFloat($('#fl_'+k).value); if(!isNaN(v)) f[k]= FL_PCT.includes(k)? v/100 : v; } post('/api/cfg',{flush:f}); };
+  const v=parseFloat($('#fl_'+k).value); if(!isNaN(v)) f[k]= FL_PCT.includes(k)? v/100 : v; } post('/api/cfg',{flush:f}); clean(/^fl_/); };
 const ND_KEYS=['tp_pct','stop_pct','hold_h','size_pct'], VD_KEYS=['th1','th4','tp_atr','sl_atr','hold_h','size_pct','bull_only','all_coins'];
 function fillDip(){ const a=(S.cfg||{}).nfi_dip||{}, b=(S.cfg||{}).vn_dip||{};
-  for(const k of ND_KEYS){ const el=$('#nd_'+k); if(el&&el!==document.activeElement&&a[k]!=null) el.value=a[k]; }
-  for(const k of VD_KEYS){ const el=$('#vd_'+k); if(el&&el!==document.activeElement&&b[k]!=null) el.value= (k==='bull_only'||k==='all_coins')? String(+b[k]?1:0) : b[k]; } }
-$('#saveNd').onclick=()=>{ const f={}; for(const k of ND_KEYS){ const v=parseFloat($('#nd_'+k).value); if(!isNaN(v)) f[k]=v; } post('/api/cfg',{nfi_dip:f}); };
-$('#saveVd').onclick=()=>{ const f={}; for(const k of VD_KEYS){ const v=parseFloat($('#vd_'+k).value); if(!isNaN(v)) f[k]=v; } post('/api/cfg',{vn_dip:f}); };
-function fillTrap(){ const el=$('#trap_mode'); if(el&&el!==document.activeElement) el.value=((S.cfg||{}).trap||{}).mode||'C'; }
-$('#saveTrap').onclick=()=>post('/api/cfg',{trap:{mode:$('#trap_mode').value}});
+  for(const k of ND_KEYS){ const el=$('#nd_'+k); if(el&&!editing(el)&&a[k]!=null) el.value=a[k]; }
+  for(const k of VD_KEYS){ const el=$('#vd_'+k); if(el&&!editing(el)&&b[k]!=null) el.value= (k==='bull_only'||k==='all_coins')? String(+b[k]?1:0) : b[k]; } }
+$('#saveNd').onclick=()=>{ const f={}; for(const k of ND_KEYS){ const v=parseFloat($('#nd_'+k).value); if(!isNaN(v)) f[k]=v; } post('/api/cfg',{nfi_dip:f}); clean(/^nd_/); };
+$('#saveVd').onclick=()=>{ const f={}; for(const k of VD_KEYS){ const v=parseFloat($('#vd_'+k).value); if(!isNaN(v)) f[k]=v; } post('/api/cfg',{vn_dip:f}); clean(/^vd_/); };
+function fillTrap(){ const el=$('#trap_mode'); if(el&&!editing(el)) el.value=((S.cfg||{}).trap||{}).mode||'C'; }
+$('#saveTrap').onclick=()=>{ post('/api/cfg',{trap:{mode:$('#trap_mode').value}}); clean(/^trap_mode$/); };
 $('#saveRisk').onclick=saveCfg;
 $('#closeAll').onclick=()=>{ if(confirm('确定全部平仓？')) post('/api/close_all',{}); };
 
