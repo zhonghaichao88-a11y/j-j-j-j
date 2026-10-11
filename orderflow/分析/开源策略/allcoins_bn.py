@@ -43,7 +43,9 @@ def month_file(sym, ym):
             first = raw.split('\n', 1)[0]
             d = pd.read_csv(io.StringIO(raw), header=0 if first.startswith('open_time') else None, usecols=range(6))
             d.columns = COLS
-            np.savez_compressed(p, **{c: d[c].to_numpy(np.float64 if c != 'open_time' else np.int64) for c in COLS})
+            tmp = p[:-4] + '.tmp.npz'                     # 先写临时文件再改名：中途被杀不会留下坏文件
+            np.savez_compressed(tmp, **{c: d[c].to_numpy(np.float64 if c != 'open_time' else np.int64) for c in COLS})
+            os.replace(tmp, p)
             return p
         except Exception as e:  # noqa: BLE001
             err = e; time.sleep(2 + 3 * k)
@@ -56,8 +58,14 @@ def load(sym, months, a0, a1):
     for ym in months:
         p = f'{CACHE}/{sym}_{ym}.npz'
         if os.path.exists(p):
-            z = np.load(p)
-            parts.append(pd.DataFrame({c: z[c] for c in COLS}))
+            try:
+                z = np.load(p)
+                parts.append(pd.DataFrame({c: z[c] for c in COLS}))
+            except Exception:  # noqa: BLE001  坏文件（以前中途被杀留下的）：删掉重新下
+                os.remove(p)
+                month_file(sym, ym)
+                z = np.load(p)
+                parts.append(pd.DataFrame({c: z[c] for c in COLS}))
     if not parts:
         return None
     d = pd.concat(parts, ignore_index=True)
