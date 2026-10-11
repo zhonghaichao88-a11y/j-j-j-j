@@ -28,10 +28,11 @@ COLS = ['open_time', 'open', 'high', 'low', 'close', 'volume']
 
 def month_file(sym, ym):
     """一个币一个月的 5 分钟K线 → npz 缓存（没有这个月就记一个空标记）"""
-    p = f'{CACHE}/{sym}_{ym}.npz'
+    p = f'{CACHE}/{sym}_{ym}{"" if st.timeframe == "5m" else "_" + st.timeframe}.npz'
     if os.path.exists(p) or os.path.exists(p + '.none'):
         return p
-    url = f'https://data.binance.vision/data/futures/um/monthly/klines/{sym}/5m/{sym}-5m-{ym}.zip'
+    tf = st.timeframe
+    url = f'https://data.binance.vision/data/futures/um/monthly/klines/{sym}/{tf}/{sym}-{tf}-{ym}.zip'
     for k in range(4):
         try:
             r = cli.get(url)
@@ -56,7 +57,7 @@ def month_file(sym, ym):
 def load(sym, months, a0, a1):
     parts = []
     for ym in months:
-        p = f'{CACHE}/{sym}_{ym}.npz'
+        p = f'{CACHE}/{sym}_{ym}{"" if st.timeframe == "5m" else "_" + st.timeframe}.npz'
         if os.path.exists(p):
             try:
                 z = np.load(p)
@@ -124,7 +125,7 @@ for y, q in quarters:
     print(y, f'q{q}', '币', len(pairs), '单', len(T), f'下载 {t_dl:.0f}s 共 {time.time() - tt:.0f}s', flush=True)
     keep = {(t0 + pd.DateOffset(months=k)).strftime('%Y-%m') for k in (2,)}          # 下个季度还要用本季度最后一个月预热
     for f in glob.glob(f'{CACHE}/*'):
-        if not any(f'_{k}.npz' in f for k in keep):
+        if not any(f'_{k}.npz' in f or f'_{k}_' in f for k in keep):
             os.remove(f)
 
 rows = []
