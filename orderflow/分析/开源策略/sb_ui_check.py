@@ -104,12 +104,16 @@ with sync_playwright() as p:
             bad.append(f'回测成绩表里没有 {y}')
     if '17236' not in txt:
         bad.append('回测成绩下面没写对账结果')
+    if '1.56' not in txt:
+        bad.append('回测成绩下面没写 1 分钟细化（更接近实盘）的结果')
     # 9. 页面上的状态
     head = pg.inner_text('header')
     if '模拟盘' not in head:
         bad.append('顶上没显示模拟盘')
     feed = pg.inner_text('#feed')
     notes.append('顶上状态：' + feed)
+    if '实时推送' not in feed:
+        bad.append('顶上没显示实时推送状态')
     if '个币' not in feed:
         bad.append('顶上没显示币数/K线时间')
     # 10. 手机宽度：不能横向滚动
