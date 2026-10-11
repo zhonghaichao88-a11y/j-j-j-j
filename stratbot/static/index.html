@@ -182,7 +182,7 @@ document.addEventListener('click',async e=>{
     else if(t.id==='paused'){await api('/api/pause',{paused:t.checked});clean('paused');toast(t.checked?'已暂停开新单':'已恢复开新单');}
     else return;
     refresh();
-  }catch(err){toast(err.message);if(t.type==='checkbox')t.checked=!t.checked}
+  }catch(err){toast(err.message);if(t.type==='checkbox'){t.checked=!t.checked;delete t.dataset.dirty}}
 });
 (async()=>{try{BT=await api('/api/backtest')}catch(e){}refresh();loadHist();setInterval(refresh,2000);setInterval(loadHist,15000)})();
 </script>
