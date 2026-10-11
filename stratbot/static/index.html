@@ -119,7 +119,7 @@ function render(){
   $('mode').textContent=S.mode==='live'?'实盘':'模拟盘';$('mode').className='badge '+(S.mode==='live'?'live':'paper');
   $('modeName').textContent=S.mode==='live'?'实盘':'模拟盘';
   $('btnMode').textContent=S.mode==='live'?'切换回模拟盘':'切换到实盘';
-  if(!editing.has('paused'))$('paused').checked=S.paused;
+  if(!busy($('paused')))$('paused').checked=S.paused;
   const lc=S.last_candle?tm(S.last_candle+300000):'-';
   $('feed').textContent=`${S.coins} 个币 · 最新K线 ${lc} 收盘 · 价格 ${S.price_age_s==null?'-':S.price_age_s+'秒前'} · 实时推送${S.ws_ok?'已连':'未连'} · 本根K线信号 ${S.signals_now} 个`;
   $('loading').style.display=S.ready?'none':'block';
@@ -133,8 +133,8 @@ function render(){
     <td><button data-close="${o.coin}">平仓</button></td></tr>`).join('')||'<tr><td colspan="12" class="mut">没有持仓</td></tr>';
   renderStrats();
   $('events').innerHTML=S.events.slice(0,40).map(e=>`<div class="ev"><span class="mut">${tm(e.t)}</span> <span class="k ${e.kind==='open'?'up':e.kind==='error'?'dn':e.kind==='close'?'':'mut'}">${KIND[e.kind]||e.kind}</span> ${e.coin?'<b>'+e.coin+'</b> ':''}${e.text}</div>`).join('')||'<div class="mut">还没有</div>';
-  if(!editing.has('brake'))$('brake').value=S.brake;
-  if(!editing.has('coins'))$('coins').value=S.coins_mode;
+  if(!busy($('brake')))$('brake').value=S.brake;
+  if(!busy($('coins')))$('coins').value=S.coins_mode;
   $('logs').textContent=S.logs.join('\n');
 }
 function btTable(name){
@@ -161,6 +161,10 @@ function renderStrats(){
 }
 async function refresh(){try{S=await api('/api/status');render()}catch(e){$('feed').textContent='程序没连上（黑窗口关了？）'}}
 async function loadHist(){try{const j=await api('/api/trades?limit=200');$('hist').innerHTML=j.rows.map(r=>`<tr><td><b>${r.coin}</b></td><td>${r.strat.split('_')[0]}</td><td>${tm(r.open_ts)}</td><td>${tm(r.close_ts)}</td><td>${fmt(r.open)}</td><td>${fmt(r.close)}</td><td class="${cls(r.ret)}">${pct(r.ret)}</td><td class="${cls(r.pnl)}">${r.pnl>=0?'+':''}${(+r.pnl).toFixed(3)}</td><td>${REASON[r.reason]||r.reason}</td></tr>`).join('')||'<tr><td colspan="9" class="mut">还没有成交</td></tr>'}catch(e){}}
+// 改了还没保存的框：刷新时不覆盖（选完下拉框正好赶上 2 秒刷新也不会被冲掉）
+const busy=el=>el===document.activeElement||el.dataset.dirty==='1'||editing.has(el.id);
+for(const ev of ['input','change'])document.addEventListener(ev,e=>{if(e.target.id)e.target.dataset.dirty='1'},true);
+const clean=(...ids)=>ids.forEach(i=>{const x=$(i);if(x)delete x.dataset.dirty});
 document.addEventListener('focusin',e=>{if(e.target.id)editing.add(e.target.id)});
 document.addEventListener('focusout',e=>{if(e.target.id)setTimeout(()=>editing.delete(e.target.id),1500)});
 document.addEventListener('click',async e=>{
@@ -169,13 +173,13 @@ document.addEventListener('click',async e=>{
     if(t.dataset.close){if(!confirm(`按市价平掉 ${t.dataset.close}？`))return;await api('/api/close',{coin:t.dataset.close});toast('已平仓');}
     else if(t.dataset.en){await api('/api/strategy',{name:t.dataset.en,enabled:t.checked});toast(t.checked?'已勾选，下一根K线收盘开始看信号':'已取消（已有持仓照常按规则平）');}
     else if(t.dataset.save){const n=t.dataset.save;await api('/api/strategy',{name:n,capital:document.querySelector(`[data-cap="${n}"]`).value,max_open:document.querySelector(`[data-mo="${n}"]`).value});toast('已保存');t.blur();}
-    else if(t.id==='saveBrake'){await api('/api/settings',{daily_loss_limit_pct:$('brake').value});toast('已保存');}
-    else if(t.id==='saveCoins'){const j=await api('/api/settings',{coins:$('coins').value});toast(j.note||'已保存');}
+    else if(t.id==='saveBrake'){await api('/api/settings',{daily_loss_limit_pct:$('brake').value});clean('brake');toast('已保存');}
+    else if(t.id==='saveCoins'){const j=await api('/api/settings',{coins:$('coins').value});clean('coins');toast(j.note||'已保存');}
     else if(t.id==='btnMode'){
       if(S.mode==='live'){if(!confirm('切换回模拟盘？（实盘要先没有持仓）'))return;await api('/api/mode',{mode:'paper'});toast('已切到模拟盘');}
       else{const c=prompt(`切换到实盘会用你的欧易账户真实下单。\n确认的话请输入：${S.live_confirm}`);if(c==null)return;await api('/api/mode',{mode:'live',confirm:c});toast('已切到实盘');}
     }
-    else if(t.id==='paused'){await api('/api/pause',{paused:t.checked});toast(t.checked?'已暂停开新单':'已恢复开新单');}
+    else if(t.id==='paused'){await api('/api/pause',{paused:t.checked});clean('paused');toast(t.checked?'已暂停开新单':'已恢复开新单');}
     else return;
     refresh();
   }catch(err){toast(err.message);if(t.type==='checkbox')t.checked=!t.checked}
