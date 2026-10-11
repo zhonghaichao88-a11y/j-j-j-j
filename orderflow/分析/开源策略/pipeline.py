@@ -53,23 +53,72 @@ df = pd.read_csv(f'{RUN}/结果_全部.csv')
 bad = lambda r: str(r.get('偷看')) == 'True' or 'lookahead' in str(r.cls).lower() or 'lookahead' in str(r.file).lower()
 cand = df[(df.pf2024 >= 1.2) & (df.pf2025 >= 1.2) & (df.n >= 40)]
 cand = cand[~cand.apply(bad, axis=1)].drop_duplicates('cls').sort_values('pf', ascending=False)
+# 1) 换了名字的同一个策略（单数、两年盈亏比都一样）只留一个
+cand = cand.assign(_k=cand.n.astype(str) + '_' + cand.pf2024.round(2).astype(str) + '_' + cand.pf2025.round(2).astype(str)).drop_duplicates('_k')
+# 2) 明显不可能的（两年收益上万倍、盈亏比上百、几百单胜率 97% 以上）= 偷看未来或算错，直接剔除
+absurd = (cand.profit > 10000) | (cand.pf > 50) | ((cand.win >= 0.97) & (cand.n >= 200))
+log('候选', len(cand), '个；结果离谱直接剔除', int(absurd.sum()), '个:', ' '.join(cand[absurd].cls))
+cand = cand[~absurd]
+# 3) 剩下的先查偷看未来（freqtrade lookahead-analysis，10 个币、2024 一年），查出有问题的剔除
+for r in cand.itertuples():
+    laf = f'{RUN}/{r.stage}/{r.id}/lookahead.json'
+    if not os.path.exists(laf):
+        sh(['lookahead.py', r.stage, r.id], {'LA_PAIRS': '10', 'LA_TR': '20240101-20250101'})
+def la(r):
+    try:
+        return json.load(open(f'{RUN}/{r.stage}/{r.id}/lookahead.json'))['has_bias']
+    except Exception:  # noqa: BLE001
+        return '?'
+cand = cand.assign(_la=[la(r) for r in cand.itertuples()])
+log('偷看未来检测：有问题', int((cand._la == True).sum()), '个:', ' '.join(cand[cand._la == True].cls))  # noqa: E712
+cand = cand[cand._la != True]  # noqa: E712
 ids = [f'{r.stage}/{r.id}' for r in cand.itertuples()]
-log('全币复测候选', len(ids), '个:', ' '.join(cand.cls))
-for sid in ids: sh(['fulltest.py', sid])
+log('复测候选', len(ids), '个:', ' '.join(cand.cls))
+ENG = '/home/user/ext/ftrun/eng'
+
+
+def sfile(sid):
+    """策略文件（初筛时复制进来的那份；文件名是原文件名，不一定等于类名）"""
+    d = json.load(open(f'{RUN}/{sid}/done.json'))
+    return f'{RUN}/{sid}/s/' + os.path.basename(d['file'])
+
+
+def eng(sid, years):
+    """策略机引擎（和 freqtrade 逐单对过账）在欧易 98 个币上按年跑。返回 {年: 结果} 或 'unsupported'"""
+    c = sid.split('/')[1].split('_', 1)[1]
+    sh(['engine_years.py', sfile(sid), c, ','.join(map(str, years))])
+    if os.path.exists(f'{ENG}/{c}/unsupported.json'):
+        return 'unsupported'
+    return {y: json.load(open(f'{ENG}/{c}/{y}.json')) for y in years if os.path.exists(f'{ENG}/{c}/{y}.json')}
+
 
 out = []
 for sid in ids:
-    wd = f'{RUN}/full/{sid.split("/")[-1]}'; row = {'id': sid, 'cls': sid.split('_', 1)[1]}
-    for y in range(2021, 2027):
-        try: r = json.load(open(f'{wd}/{y}.json'))
-        except Exception: continue
-        for k in ('n', 'win', 'pf', 'profit', 'dd'): row[f'{k}{y}'] = r.get(k)
-    pfs = [row.get(f'pf{y}') for y in range(2021, 2027) if row.get(f'pf{y}') is not None]
-    row['赚钱年数'] = sum(p > 1 for p in pfs); row['年数'] = len(pfs); out.append(row)
-res = pd.DataFrame(out); res.to_csv(f'{RUN}/结果_全币.csv', index=False)
-good = res[(res['赚钱年数'] >= res['年数'] - 1) & (res['年数'] >= 5)] if len(res) else res
-log('全币 6 年里最多亏 1 年的', len(good), '个:', ' '.join(good.cls) if len(good) else '')
-for sid in good.id:                              # 最后查偷看未来（10 个币、两年，单够多才判得出）
-    if os.path.exists(f'{RUN}/{sid}/lookahead.json') and json.load(open(f'{RUN}/{sid}/lookahead.json'))['has_bias'] in (True, False): continue
-    st, i = sid.split('/'); sh(['lookahead.py', st, i], {'LA_PAIRS': '10', 'LA_TR': '20240101-20260101'})
+    c = sid.split('/')[1].split('_', 1)[1]; row = {'id': sid, 'cls': c}
+    r = eng(sid, [2022])                          # 先看 2022 熊市（2 分钟一个），亏的不往下测
+    if r == 'unsupported':
+        row['结论'] = '策略机暂时跑不了：' + ', '.join(json.load(open(f'{ENG}/{c}/unsupported.json'))['unsupported'])
+        out.append(row); continue
+    row['pf2022'] = r.get(2022, {}).get('pf')
+    if (row['pf2022'] or 0) < 1.1:
+        row['结论'] = '2022 熊市不行'; out.append(row); continue
+    r = eng(sid, [2021, 2022, 2023, 2024, 2025, 2026])
+    for y, v in r.items():
+        row[f'pf{y}'], row[f'n{y}'] = v['pf'], v['n']
+    pfs = [v['pf'] for v in r.values()]
+    if len(pfs) < 6 or min(pfs) < 1.1:
+        row['结论'] = '98 个币有年份不到 1.1'; out.append(row); continue
+    sh(['allcoins_bn.py', c], {'STRAT_FILE': sfile(sid)})
+    try:
+        sm = pd.read_csv(f'/home/user/ext/ftrun/allbn_{c}/summary.csv')
+        sm = sm[sm['移动止盈少'] == '0.0%']
+        for _, x in sm.iterrows():
+            row[f'全币pf{x["年"]}'] = x['盈亏比']
+        row['结论'] = '全部币每年都 ≥1.1，可以加进策略机' if sm['盈亏比'].min() >= 1.1 else '全部币有年份不到 1.1'
+    except Exception as e:  # noqa: BLE001
+        row['结论'] = f'全部币测试没跑完：{e}'
+    out.append(row)
+    pd.DataFrame(out).to_csv(f'{RUN}/结果_候选.csv', index=False)
+res = pd.DataFrame(out); res.to_csv(f'{RUN}/结果_候选.csv', index=False)
+log('候选结论：', '; '.join(f"{r['cls']}={r['结论']}" for r in out))
 sh(['rank.py']); log('PIPELINE DONE')
