@@ -646,3 +646,24 @@ def test_e0v1e_dca3_loads_with_all_features():
     assert sb_bot.protect_stop(st2, 100.0) == pytest.approx(79.0)         # ElliotV8 -20%：再远 1%
     cfg = json.load(open(os.path.join(os.path.dirname(__file__), "..", "stratbot", "sb_config.default.json"), encoding="utf-8"))
     assert "E0V1E_DCA3" in cfg["strategies"] and cfg["strategies"]["E0V1E_DCA3"]["enabled"] is False
+
+
+def test_elliotv8_loads_and_signals():
+    """Elliotv8（老写法 buy/sell 列）：参数、移动止盈、卖出信号亏也走；保护止损 -32% 再远 1%；默认不勾选"""
+    st = L.Strategy("Elliotv8")
+    assert st.unsupported == [] and st.timeframe == "5m" and st.stoploss == -0.32
+    assert st.minimal_roi == {0: 0.215, 40: 0.032, 87: 0.016, 201: 0}
+    assert st.use_exit_signal and not st.exit_profit_only
+    assert st.trailing_stop_positive == 0.001 and st.trailing_stop_positive_offset == 0.02
+    import numpy as np
+    import sb_bot
+    assert sb_bot.protect_stop(st, 100.0) == pytest.approx(67.0)
+    n = 1200
+    c = 100 * np.cumprod(np.r_[np.full(1100, 1.001), np.full(6, 0.985), np.full(94, 1.0005)])
+    df = pd.DataFrame({"date": pd.date_range("2025-01-01", periods=n, freq="5min", tz="UTC"), "open": c, "high": c * 1.002,
+                       "low": c * 0.998, "close": c, "volume": 1.0})
+    a = st.analyze(df)
+    assert len(a) == n and a.enter_long.sum() > 0 and a.index[a.enter_long == 1][0] > 1100
+    assert set(a.exit_long.unique()) <= {0, 1}
+    cfg = json.load(open(os.path.join(os.path.dirname(__file__), "..", "stratbot", "sb_config.default.json"), encoding="utf-8"))
+    assert "Elliotv8" in cfg["strategies"] and cfg["strategies"]["Elliotv8"]["enabled"] is False
