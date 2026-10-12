@@ -114,6 +114,11 @@ for y, q in quarters:
     of = f'{OUT}/trades{y}q{q}.csv'
     if os.path.exists(of) or (QONLY and f'{y}q{q}' not in QONLY):
         continue
+    while True:                                       # 一个季度要 5~7G 内存：可用不到 8G 就等（别的全部币测试在跑时排队，免得一起被系统杀掉）
+        avail = next(int(l.split()[1]) for l in open('/proc/meminfo') if l.startswith('MemAvailable'))
+        if avail > 8 * 1024 * 1024:
+            break
+        time.sleep(60)
     m0 = (q - 1) * 3 + 1
     t0 = pd.Timestamp(year=y, month=m0, day=1, tz='UTC')
     t1 = (t0 + pd.DateOffset(months=3)) if not (y == 2026 and q == 3) else pd.Timestamp('2026-09-30', tz='UTC')
