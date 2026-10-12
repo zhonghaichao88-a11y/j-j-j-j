@@ -16,8 +16,15 @@ while true; do
   fi
   if ! ps -eo args | grep -q "^/bin/bash /home/user/ext/run_full9.sh" && ! tail -3 /home/user/ext/ftrun/full9.log 2>/dev/null | grep -q "FULL9 DONE"; then
     echo "$(date -u +%m-%d\ %H:%M) 启动/重启 9 个候选的 freqtrade 按年复测" >> $LOG
-    setsid nohup /home/user/ext/run_full9.sh >> /home/user/ext/ftrun/full9.log 2>&1 < /dev/null &
+    (setsid nohup /home/user/ext/run_full9.sh >> /home/user/ext/ftrun/full9.log 2>&1 < /dev/null &)   # 套一层子 shell：不挂在看门程序下面，换看门程序时不会被带走
   fi
+  for j in /home/user/ext/jobs/*.sh; do                   # 一次性任务：没跑完（日志最后没有 JOB DONE）又不在跑就拉起来
+    [ -e "$j" ] || continue
+    if ! ps -eo args | grep -q "^/bin/bash $j" && ! tail -2 "$j.log" 2>/dev/null | grep -q "JOB DONE"; then
+      echo "$(date -u +%m-%d\ %H:%M) 启动/重启任务 $(basename $j)" >> $LOG
+      (setsid nohup "$j" >> "$j.log" 2>&1 < /dev/null &)
+    fi
+  done
   for spec in "8020:/home/user/sbpaper/策略机" "8021:/home/user/sbpaper150"; do
     port=${spec%%:*}; dir=${spec#*:}
     if ! port_ok $port; then

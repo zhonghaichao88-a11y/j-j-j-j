@@ -17,7 +17,7 @@ cls = sys.argv[1]
 SPATH = os.environ.get('STRAT_FILE')                 # 策略文件（不在 stratbot/strategies 里时给路径）
 TOPN = int(os.environ.get('TOPN', 0))               # >0：每个季度只做前 N 个成交额最大的币（按季度开始前 30 天的成交额排，不偷看）
 OUT = f'/home/user/ext/ftrun/allbn_{cls}' + (f'_top{TOPN}' if TOPN else '')
-CACHE = '/home/user/ext/bnm'
+CACHE = os.environ.get('BN_CACHE', '/home/user/ext/bnm')     # 两个全部币测试同时跑时各用各的缓存目录（季度末会清缓存）
 os.makedirs(OUT, exist_ok=True); os.makedirs(CACHE, exist_ok=True)
 SYMS = json.load(open('/home/user/ext/bn_um_usdt.json'))
 SYMS_SET = set(SYMS)
