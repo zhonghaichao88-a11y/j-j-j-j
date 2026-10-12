@@ -12,10 +12,10 @@ log = lambda *a: print(time.strftime('%m-%d %H:%M'), *a, flush=True)
 
 
 def busy():
-    """只认真正在跑的 python batch_bt/fulltest/lookahead 进程（不认命令行里碰巧带这几个字的 shell）"""
+    """只认真正在跑的 python batch_bt/lookahead 进程（不认命令行里碰巧带这几个字的 shell）"""
     p = subprocess.run(['ps', '-eo', 'pid=,args='], capture_output=True, text=True)
     return [l.split()[0] for l in p.stdout.splitlines() if len(l.split()) > 2 and l.split()[1] == PY
-            and l.split()[2] in ('batch_bt.py', 'fulltest.py', 'lookahead.py')]
+            and l.split()[2] in ('batch_bt.py', 'lookahead.py')]       # 只等会和本流程抢同一批结果的；fulltest 是另外的复测，不用等
 
 
 def sh(args, env=None):
