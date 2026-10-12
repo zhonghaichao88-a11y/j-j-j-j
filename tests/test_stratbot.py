@@ -632,3 +632,17 @@ def test_live_dca_replaces_protective_stop(app_client):
     ps = [c for c in bot.live.calls if c[0] == "place_stop"][0]
     assert ps[3] == 10 and ps[4] == pytest.approx(98.5 * (1 - 0.5 - 0.01), abs=1e-3)     # 新均价 98.5 下方 51%
     assert t.algo_id == "a2" and t.contracts == 10 and len(t.entries) == 2
+
+
+def test_e0v1e_dca3_loads_with_all_features():
+    """E0V1E_DCA3：加仓、策略自定每单资金、自定义止损/平仓都在；交易所保护止损不会算成 0 元"""
+    st = L.Strategy("E0V1E_DCA3")
+    assert st.unsupported == [] and st.position_adjustment_enable and st.has_custom_stake
+    assert st.use_custom_stoploss and st.has_custom_exit and st.timeframe == "5m"
+    assert "加仓" in st.settings_text()["custom"]
+    import sb_bot
+    assert sb_bot.protect_stop(st, 100.0) == pytest.approx(20.0)          # 策略止损 -99%：按最多亏 80% 挂
+    st2 = L.Strategy(STRAT)
+    assert sb_bot.protect_stop(st2, 100.0) == pytest.approx(79.0)         # ElliotV8 -20%：再远 1%
+    cfg = json.load(open(os.path.join(os.path.dirname(__file__), "..", "stratbot", "sb_config.default.json"), encoding="utf-8"))
+    assert "E0V1E_DCA3" in cfg["strategies"] and cfg["strategies"]["E0V1E_DCA3"]["enabled"] is False

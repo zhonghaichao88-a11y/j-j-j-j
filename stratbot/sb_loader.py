@@ -634,7 +634,9 @@ class Strategy:
         cu = "、".join(x for x, on in (("自定义止损（策略自己按情况收紧止损）", self.use_custom_stoploss),
                                         ("自定义平仓条件", self.has_custom_exit),
                                         ("平仓前再确认一次（不满足就先不平）", self.has_confirm_exit),
-                                        ("开仓前再确认一次", self.has_confirm_entry)) if on)
+                                        ("开仓前再确认一次", self.has_confirm_entry),
+                                        ("会加仓/分批平仓（策略自己决定什么时候补、补多少）", getattr(self, "position_adjustment_enable", False)),
+                                        ("每单资金由策略自己定", getattr(self, "has_custom_stake", False))) if on)
         return {"roi": roi, "stoploss": f"止损 {self.stoploss * 100:g}%", "trailing": tr, "exit": ex,
                 "custom": ("另外还有：" + cu) if cu else "", "timeframe": self.timeframe}
 

@@ -43,6 +43,12 @@ def pair_of(inst):
     return f"{coin_of(inst)}/USDT:USDT"
 
 
+def protect_stop(st, price):
+    """交易所保护止损价：比策略止损再远 1%；策略止损很宽（比如 -99%，靠自己的平仓规则出场）时最多按亏 80% 挂，
+    不然算出来是 0 元，欧易会拒单"""
+    return price * max(1 - abs(st.stoploss) - 0.01, 0.2)
+
+
 class Bot:
     def __init__(self, cfg: dict, env: dict, cfg_path: str):
         self.cfg, self.env, self.cfg_path = cfg, env, cfg_path
@@ -477,7 +483,7 @@ class Bot:
                 self.event("error", name, i, "实盘没连上，不开")
                 return False
             fee = float(self.cfg.get("live_fee", 0.0005))
-            stop = price * (1 - abs(st.stoploss) - 0.01)            # 交易所保护止损：比策略止损再远 1%
+            stop = protect_stop(st, price)                          # 交易所保护止损：比策略止损再远 1%（最多亏 80%）
             try:
                 total, avail = await asyncio.to_thread(self.live.account)
                 if avail < n * ct * price * 1.02:
@@ -673,7 +679,7 @@ class Bot:
         if self.mode == "live":                          # 交易所保护止损按新的总张数重挂
             try:
                 await asyncio.to_thread(self.live.cancel_algo, i, t.algo_id)
-                stop = t.open_rate * (1 - abs(st.stoploss) - 0.01)
+                stop = protect_stop(st, t.open_rate)
                 t.algo_id = await asyncio.to_thread(self.live.place_stop, i, 1, t.contracts, stop, self.cfg.get("margin_mode", "isolated"))
             except Exception as e:  # noqa: BLE001
                 self.event("error", name, i, f"重挂保护止损失败：{e}（程序还在按策略止损盯着）")
