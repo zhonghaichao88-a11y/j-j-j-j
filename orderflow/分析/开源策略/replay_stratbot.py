@@ -38,7 +38,7 @@ if os.environ.get('STRAT_FILE'):                     # 策略文件不在 stratb
 st = sb_loader.Strategy(cls, runmode='backtest')
 src = inf_data.okx_source(t0, t1, st.startup, 'spot')
 w0 = t0 - pd.Timedelta(minutes=st.tf_min * st.startup)
-data = {}
+data, full, fpos = {}, {}, {}
 for p in pairs:
     f = f"/home/user/ext/ft/data_spot/okx/{p.replace('/', '_')}-5m.feather"
     if not os.path.exists(f):
@@ -48,10 +48,13 @@ for p in pairs:
     if d.empty:
         continue
     d = sb_loader.fill_missing(d.reset_index(drop=True), st.tf_min)
-    a = st.analyze(d, p, inf=src).iloc[st.startup:].reset_index(drop=True)
+    a, fa = st.analyze(d, p, keep_full=True, inf=src)
+    a = a.iloc[st.startup:].reset_index(drop=True)
     if len(a) > 1:
         a['ts'] = sb_engine.to_ms(a['date'])
         data[p] = a.set_index('ts')
+        full[p] = fa.reset_index(drop=True)                 # 算好指标的完整K线（程序里策略回调用 dp.get_analyzed_dataframe 看）
+        fpos[p] = {int(x): k for k, x in enumerate(sb_engine.to_ms(fa['date']))}
 print('币数', len(data), flush=True)
 one = {}
 if TICKS == '1m':                                   # 1 分钟K线：{币: (时间数组, 开高低收数组)}，按时间查 5 分钟K线里的 5 根
@@ -74,6 +77,9 @@ cfg = {'strategies': {cls: {'enabled': True, 'max_open': c['max_open_trades'], '
 bot = sb_bot.Bot(cfg, {}, os.path.join(tmp, 'cfg.json'))
 assert cls in bot.strats, f'程序加载策略失败：{bot.load_errors}'
 bot.strats[cls].s.dp.source = src                      # 程序里的策略要别的周期K线：用同一份历史数据
+dp = bot.strats[cls].s.dp
+for p in full:                                          # 程序里的策略回调看到的指标表：只到已收盘的K线（和实盘一样）
+    dp.analyzed[p.split('/')[0] + '/USDT:USDT'] = full[p]
 inst_of = {p: p.split('/')[0] + '-USDT-SWAP' for p in data}
 pair_of = {v: k for k, v in inst_of.items()}
 bot.inst = {i: {'tick': None, 'ctVal': 1.0, 'lotSz': 1e-12, 'minSz': 0.0, 'listTime': 0, 'state': 'live'} for i in inst_of.values()}
@@ -105,12 +111,16 @@ async def run():
                 a_, b_ = (r.low, r.high) if r.close >= r.open else (r.high, r.low)
                 for dt, px in ((5_000, r.open), (60_000, a_), (120_000, b_), (240_000, r.close)):
                     ticks.setdefault(dt, {})[i] = px
+        for p in rows:                                   # 这根K线进行中：最新收盘的是上一根
+            dp.limit[p.split('/')[0] + '/USDT:USDT'] = fpos[p][T]
         for dt in sorted(ticks):
             clock['t'] = T + dt
             bot.prices.update(ticks[dt])
             await bot._exits()
         # K线收盘：给信号、开仓
         clock['t'] = T + step + 3_000
+        for p in rows:                                   # 这根K线收盘了
+            dp.limit[p.split('/')[0] + '/USDT:USDT'] = fpos[p][T] + 1
         for p, r in rows.items():
             bot.sig[(cls, inst_of[p])] = {'ts': T, 'enter': int(r.enter_long), 'exit': int(r.exit_long)}
         bot.last_candle = T
@@ -120,6 +130,12 @@ async def run():
 
 
 asyncio.run(run())
+import collections  # noqa: E402
+ev = collections.Counter(e['kind'] for e in bot.events)
+print('程序事件：', dict(ev), '；最近的跳过原因：', collections.Counter(e['text'][:40] for e in bot.events if e['kind'] in ('skip', 'error')).most_common(5))
+if bot.load_errors or not os.path.exists(sb_bot.TRADES):
+    print('程序没有平仓记录；加载错误：', bot.load_errors, '；日志：', list(bot.logs)[:5])
+    sys.exit(1)
 mine = pd.DataFrame([json.loads(x) for x in open(sb_bot.TRADES)]) if os.path.exists(sb_bot.TRADES) else pd.DataFrame()
 mine['pair'] = mine.coin + '/USDT'
 mine['open_c'] = (mine.open_ts // step) * step            # 开仓时间所在的K线（= freqtrade 的开仓K线）
