@@ -126,7 +126,24 @@ def others_running():
 while others_running():                              # 排队：等前一个全部币测试跑完
     time.sleep(60)
 QONLY = [x for x in os.environ.get('QONLY', '').split(',') if x]   # 只跑这些季度（例 2026q1,2026q2）：分几路同时跑时用
+
+
+def year_pf(y):
+    """这一年 4 个季度都算完了：全年盈亏比；没算完返回 None"""
+    fs = sorted(glob.glob(f'{OUT}/trades{y}q*.csv'))
+    if len(fs) < (3 if y == 2026 else 4):
+        return None
+    T = pd.concat([pd.read_csv(f) for f in fs if os.path.getsize(f) > 10] or [pd.DataFrame(columns=['profit_ratio', 'stake'])])
+    pa = T.profit_ratio * T.stake
+    gl = -pa[pa < 0].sum()
+    return (pa[pa > 0].sum() / gl) if gl > 0 else 99
+
+
 for y, q in quarters:
+    bad = [yy for yy in range(2021, y) if (year_pf(yy) or 99) < 1.1]
+    if bad and not QONLY and os.environ.get('ALL_YEARS') != '1':     # 已经有一年不到 1.1：结论已定（不过关），后面不用再算
+        print(f'{bad[0]} 年全部币盈亏比 {year_pf(bad[0]):.2f} 不到 1.1，不再往下算', flush=True)
+        break
     of = f'{OUT}/trades{y}q{q}.csv'
     if os.path.exists(of) or (QONLY and f'{y}q{q}' not in QONLY):
         continue
