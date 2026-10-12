@@ -191,6 +191,21 @@ class OkxLive:
             raise LiveError(f"挂止盈止损失败：{r.get('sMsg')}")
         return r.get("algoId", "")
 
+    def place_stop(self, inst, side_open, contracts, stop, mgn="isolated"):
+        """给现有仓位重新挂一张保护止损（只减仓、只有止损）。加仓/分批平仓后按新的总张数重挂。返回单号"""
+        s = self.sym(inst)
+        req = {"instId": inst, "tdMode": mgn, "side": "sell" if side_open == 1 else "buy",
+               "ordType": "conditional", "sz": self.ex.amount_to_precision(s, contracts),
+               "slTriggerPx": self.ex.price_to_precision(s, stop), "slOrdPx": "-1",
+               **self._pos_side(side_open)}
+        if not self.hedged:
+            req["reduceOnly"] = "true"
+        with self.lock:
+            r = self.ex.privatePostTradeOrderAlgo(req)["data"][0]
+        if str(r.get("sCode", "0")) != "0":
+            raise LiveError(f"挂保护止损失败：{r.get('sMsg')}")
+        return r.get("algoId", "")
+
     def close(self, inst, side_open, contracts, algo_id="", mgn="isolated"):
         """只减仓市价平掉 contracts 张，撤掉这笔的止盈止损。返回成交均价"""
         s = self.sym(inst)

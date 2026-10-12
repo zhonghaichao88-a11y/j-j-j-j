@@ -280,6 +280,18 @@ class FakeLive:
     def closed_pnl(self, inst, since):
         return {"pnl": 2.3, "exit": 82001.0, "fee": -0.16, "funding": 0.0}
 
+    def add(self, inst, side, contracts, mgn="isolated"):
+        self.calls.append(("add", inst, side, contracts, mgn))
+        self.pos[inst] = self.pos.get(inst, 0) + contracts
+        return {"fill": 97.0, "contracts": contracts}
+
+    def cancel_algo(self, inst, algo_id):
+        self.calls.append(("cancel_algo", inst, algo_id))
+
+    def place_stop(self, inst, side_open, contracts, stop, mgn="isolated"):
+        self.calls.append(("place_stop", inst, side_open, contracts, round(stop, 4), mgn))
+        return "a2"
+
     def positions(self):
         return {i: [{"pos": n}] for i, n in self.pos.items()}
 
@@ -501,3 +513,122 @@ def test_old_freqtrade_imports_load(tmp_path):
     d = pd.DataFrame({"date": ts, "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0})
     E.Backtest(st, max_open=1, fee=0.0).run({"X/USDT": st.analyze(d, "X/USDT")}, ["X/USDT"])
     assert len(st.s.calls) == 4                      # 每根K线一次（第一根的信号挪掉后从第二根开始）
+
+
+DCA_STRAT = '''
+from freqtrade.strategy import IStrategy
+class DcaT(IStrategy):
+    minimal_roi = {"0": 10}
+    stoploss = -0.5
+    position_adjustment_enable = True
+    def adjust_trade_position(self, trade, current_time, current_rate, current_profit, min_stake, max_stake, **kwargs):
+        if current_profit < -0.02 and trade.nr_of_successful_entries < 2:
+            return trade.stake_amount                     # 跌 2% 加一倍
+        if current_profit > 0.03 and trade.nr_of_successful_exits == 0:
+            return -trade.stake_amount / 2                # 赚 3% 先平一半
+        return None
+    def populate_indicators(self, df, m): return df
+    def populate_buy_trend(self, df, m): return df
+    def populate_sell_trend(self, df, m): return df
+'''
+
+
+def test_paper_dca_and_partial_exit(app_client):
+    """模拟盘加仓、分批平仓：均价、张数、已实现盈亏、最后记账都对"""
+    sb_app, cli = app_client
+    bot = sb_app.bot
+    open(os.path.join("strategies", "DcaT.py"), "w").write(DCA_STRAT)
+    L2 = sys.modules["sb_loader"]
+    st = L2.Strategy("DcaT")
+    assert st.unsupported == [] and st.position_adjustment_enable
+    bot.cfg["strategies"] = {"DcaT": {"enabled": True, "capital": 1000, "max_open": 2}}
+    bot.strats = {"DcaT": st}
+    bot._wire("DcaT", st)
+    i = "X-USDT-SWAP"
+    bot.inst = {i: {"tick": 0.01, "ctVal": 1, "lotSz": 1, "minSz": 1, "listTime": 0, "state": "live"}}
+    bot.coins = [i]
+    bot.prices = {i: 100.0}
+    bot.last_candle = 3_000_000
+    bot.sig[("DcaT", i)] = {"ts": 3_000_000, "enter": 1, "exit": 0}
+    asyncio.run(bot._entries())
+    t = bot.trades[0]
+    assert t.contracts == 5 and t.open_rate == pytest.approx(100.02)
+    assert len(st.trade_cls.get_trades_proxy(is_open=True)) == 1                     # 策略里查得到持仓
+    assert st.s.wallets.get_free() == pytest.approx(1000 - 5 * 100.02)
+    # 跌到 97：加仓（可用资金只剩 499.9U → 5 张）
+    bot.prices[i] = 97.0
+    asyncio.run(bot._exits())
+    assert len(t.entries) == 2 and t.contracts == 10
+    assert t.open_rate == pytest.approx((5 * 100.02 + 5 * 97 * 1.0002) / 10, abs=0.01)
+    # 涨到 102：平一半
+    bot.prices[i] = 102.0
+    t.adj_ts = 0
+    asyncio.run(bot._exits())
+    assert t.contracts == 5 and len(t.exits) == 1
+    fill = 102 * (1 - 0.0002)
+    avg = (5 * 100.02 + 5 * 97 * 1.0002) / 10           # 盈亏按不取整的均价算（freqtrade recalc_trade_from_orders）
+    part = 5 * fill * (1 - 0.0005) - 5 * avg * (1 + 0.0005)
+    assert t.realized_profit == pytest.approx(part, rel=1e-6)
+    assert bot.ledger["paper:DcaT"] == pytest.approx(part, rel=1e-6)
+    # 手动平掉剩下的：记录里的盈亏 = 分批平的 + 最后平的
+    asyncio.run(bot.close(t, 103.0, "manual"))
+    rows = cli.get("/api/trades").json()["rows"]
+    last = 5 * 103 * (1 - 0.0002) * (1 - 0.0005) - 5 * avg * (1 + 0.0005)
+    assert rows[0]["entries"] == 2 and rows[0]["pnl"] == pytest.approx(part + last, rel=1e-5)
+    assert bot.ledger["paper:DcaT"] == pytest.approx(part + last, rel=1e-5)
+
+
+def test_backtest_dca_matches_freqtrade_rules(tmp_path):
+    """回测加仓：第二笔按开盘价成交、均价重算、平仓收益按全部成交算（freqtrade close_profit）"""
+    p = tmp_path / "DcaT.py"
+    p.write_text(DCA_STRAT)
+    st = L.Strategy("DcaT", str(p), runmode="backtest")
+    ts = pd.date_range("2025-01-01", periods=8, freq="5min", tz="UTC")
+    px = [100.0, 100.0, 97.0, 97.0, 103.0, 104.0, 104.0, 104.0]
+    d = pd.DataFrame({"date": ts, "open": px, "high": px, "low": px, "close": px, "volume": 1.0})
+    sig = lambda: st.analyze(d, "X/USDT").assign(enter_long=[1] + [0] * 7)
+    # 一单占满资金（最多 1 单、可交易 99%）：跌了想加仓也没钱，只有一笔
+    o = E.Backtest(st, max_open=1, fee=0.001, wallet=1000).run({"X/USDT": sig()}, ["X/USDT"])[0]
+    assert o["entries"] == 1
+    # 最多 2 单：第一笔 500U @100，跌到 97 加 500U，103 平一半，最后一根 104 开盘强平剩下的
+    o = E.Backtest(st, max_open=2, fee=0.001, wallet=1000, tradable_ratio=1.0).run({"X/USDT": sig()}, ["X/USDT"])[0]
+    assert o["entries"] == 2 and o["exit_reason"] == "force_exit"
+    a1, a2 = 500 / 100, 500 / 97
+    avg = (a1 * 100 + a2 * 97) / (a1 + a2)
+    half = (a1 + a2) / 2
+    p1 = half * 103 * (1 - 0.001) - half * avg * (1 + 0.001)
+    p2 = half * 104 * (1 - 0.001) - half * avg * (1 + 0.001)
+    total_stake = (a1 * 100 + a2 * 97) * (1 + 0.001)
+    assert o["profit_abs"] == pytest.approx(p1 + p2, rel=1e-9)
+    assert o["profit_ratio"] == pytest.approx((p1 + p2) / total_stake, abs=1e-8)
+
+
+def test_live_dca_replaces_protective_stop(app_client):
+    """实盘加仓：市价补仓，撤掉旧的保护止损，按新的总张数和新均价重挂"""
+    sb_app, cli = app_client
+    bot = sb_app.bot
+    open(os.path.join("strategies", "DcaT.py"), "w").write(DCA_STRAT)
+    st = sys.modules["sb_loader"].Strategy("DcaT")
+    bot.cfg["strategies"] = {"DcaT": {"enabled": True, "capital": 1000, "max_open": 2}}
+    bot.strats = {"DcaT": st}
+    bot._wire("DcaT", st)
+    bot.mode = "live"
+    bot.live = FakeLive()
+    bot.live.open = lambda inst, side, n, stop, target=None, mgn="isolated": (
+        bot.live.calls.append(("open", inst, n)) or {"fill": 100.0, "contracts": n, "order_id": "o1", "algo_id": "a1"})
+    i = "X-USDT-SWAP"
+    bot.inst = {i: {"tick": 0.01, "ctVal": 1, "lotSz": 1, "minSz": 1, "listTime": 0, "state": "live"}}
+    bot.coins = [i]
+    bot.prices = {i: 100.0}
+    bot.last_candle = 4_000_000
+    bot.sig[("DcaT", i)] = {"ts": 4_000_000, "enter": 1, "exit": 0}
+    asyncio.run(bot._entries())
+    t = bot.trades[0]
+    assert t.contracts == 5 and t.algo_id == "a1"
+    bot.prices[i] = 97.0
+    asyncio.run(bot._exits())
+    assert ("add", i, 1, 5, "isolated") in bot.live.calls
+    assert ("cancel_algo", i, "a1") in bot.live.calls
+    ps = [c for c in bot.live.calls if c[0] == "place_stop"][0]
+    assert ps[3] == 10 and ps[4] == pytest.approx(98.5 * (1 - 0.5 - 0.01), abs=1e-3)     # 新均价 98.5 下方 51%
+    assert t.algo_id == "a2" and t.contracts == 10 and len(t.entries) == 2

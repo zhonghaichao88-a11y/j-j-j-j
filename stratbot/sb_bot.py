@@ -71,6 +71,8 @@ class Bot:
         self.foreign: set = set()               # 欧易账户上不是本程序开的仓（不碰、也不再开这些币）
         self.ws_ok = False                      # 持仓币的实时价格推送（WebSocket）连着没有
         self.ws_ts = 0
+        self.inf_frames: dict = {}              # (instId, 周期) -> K线（策略要的别的周期/别的币）
+        self.loop = None
         self.strats: dict[str, sb_loader.Strategy] = {}
         self.load_errors: dict = {}
         self._load_strategies()
@@ -91,10 +93,24 @@ class Bot:
                 st = sb_loader.Strategy(name)
                 if st.unsupported:
                     raise RuntimeError("用到了本程序不支持的功能：" + "、".join(st.unsupported))
+                if st.timeframe != "5m":
+                    raise RuntimeError(f"实盘/模拟盘现在只跑 5 分钟K线的策略（这个是 {st.timeframe}）")
+                self._wire(name, st)
                 self.strats[name] = st
             except Exception as e:  # noqa: BLE001
                 self.load_errors[name] = str(e)
                 self.say(f"策略 {name} 加载失败：{e}", "error")
+
+    def _wire(self, name, st):
+        """策略里查持仓（Trade.get_trades_proxy）、钱包（self.wallets）、别的周期/别的币K线（dp.get_pair_dataframe）都接到本程序"""
+        st.trade_cls.provider = lambda: [sb_engine.FtTrade(t, self.pair_name(t.pair)) for t in self.trades if t.strat == name]
+
+        def wallet():
+            c = self.scfg(name)
+            return (float(c["capital"]), self.ledger.get(self.ledger_key(name), 0.0),
+                    sum(t.stake for t in self.trades if t.strat == name), 1.0)
+        st.s.wallets.state = wallet
+        st.s.dp.source = self._inf_source
 
     def scfg(self, name):
         d = {"enabled": False, "max_open": 10, "capital": 1000.0}
@@ -133,6 +149,7 @@ class Bot:
     # ------------------------------------------------------------ 启动
     async def start(self):
         self.okx = Okx(self.proxy)
+        self.loop = asyncio.get_running_loop()
         if self.mode == "live":
             try:
                 await self._connect_live()
@@ -199,6 +216,8 @@ class Bot:
         bad = [i for i in self.coins if i not in self.frames]
         if bad:
             self.say(f"{len(bad)} 个币K线下载失败，稍后自动补：{', '.join(coin_of(i) for i in bad[:10])}", "warning")
+        self.progress["stage"] = "下载策略要的别的周期K线"
+        await self._update_inf()
         self.progress["stage"] = "计算信号"
         await asyncio.to_thread(self._analyze_all)
         self.last_candle = (now_ms() // 300_000) * 300_000 - 300_000     # 启动时那根K线的信号不追（等下一根收盘）
@@ -213,6 +232,7 @@ class Bot:
             try:
                 await self._refresh_coins()
                 await self._update_candles()
+                await self._update_inf()
                 await asyncio.to_thread(self._analyze_all)
                 async with self.lock:
                     await self._entries()
@@ -275,6 +295,68 @@ class Bot:
             await asyncio.sleep(3)
         self.last_candle = want
 
+    @staticmethod
+    def _inst_of_pair(pair):
+        return inst_of(pair.split("/")[0].upper())
+
+    def _inf_want(self, tf):
+        m = sb_loader.TF_MIN[tf] * 60_000
+        return (now_ms() // m) * m - m                 # 这个周期最新一根已收盘K线的开盘时间
+
+    async def _fetch_inf(self, inst, tf):
+        import pandas as pd
+        key = (inst, tf)
+        old = self.inf_frames.get(key)
+        want = self._inf_want(tf)
+        if old is not None and len(old) and int(old["date"].iloc[-1].timestamp() * 1000) >= want:
+            return old
+        rows = await self.okx.candles(inst, tf, self._need_bars())
+        d = pd.DataFrame(rows, columns=["date", "open", "high", "low", "close", "volume"])
+        d["date"] = pd.to_datetime(d["date"], unit="ms", utc=True)
+        d = sb_loader.fill_missing(d, sb_loader.TF_MIN[tf]) if len(d) else d
+        self.inf_frames[key] = d
+        return d
+
+    async def _update_inf(self):
+        """勾选的策略要的别的周期/别的币K线：每个周期的K线收盘后更新一次"""
+        need = set()
+        wl = [self.pair_name(i) for i in self.coins]
+        for name, st in self.strats.items():
+            if not self.scfg(name)["enabled"] and not any(t.strat == name for t in self.trades):
+                continue
+            for i in self.coins:
+                for asset, tf in st.inf_needs(self.pair_name(i), wl):
+                    inst = self._inst_of_pair(asset)
+                    if tf == "5m" and inst in self.frames:
+                        continue
+                    if inst in self.inst and tf in sb_loader.TF_MIN:
+                        need.add((inst, tf))
+        gate = asyncio.Semaphore(4)
+
+        async def one(k):
+            async with gate:
+                await self._fetch_inf(*k)
+        res = await asyncio.gather(*(one(k) for k in sorted(need)), return_exceptions=True)
+        bad = [k for k, r in zip(sorted(need), res) if isinstance(r, Exception)]
+        if bad:
+            self.say(f"别的周期K线有 {len(bad)} 个没拉到（{', '.join(f'{coin_of(a)} {b}' for a, b in bad[:5])}），下根K线再试", "warning")
+
+    def _inf_source(self, pair, tf):
+        """策略要 (币, 周期) 的K线：5 分钟用本程序已有的；别的周期用已拉好的；没拉过的现拉（在算信号的后台线程里等主循环拉）"""
+        inst = self._inst_of_pair(pair)
+        if tf == "5m" and inst in self.frames:
+            return self.frames[inst]
+        d = self.inf_frames.get((inst, tf))
+        if d is not None:
+            return d
+        if inst not in self.inst or tf not in sb_loader.TF_MIN or self.loop is None:
+            return None
+        try:
+            return asyncio.run_coroutine_threadsafe(self._fetch_inf(inst, tf), self.loop).result(timeout=60)
+        except Exception as e:  # noqa: BLE001
+            self.say(f"拉 {coin_of(inst)} {tf} K线失败：{e}", "warning")
+            return None
+
     def _analyze_all(self):
         """每个币每个勾选的策略：算到最新一根收盘K线的信号"""
         for name, st in self.strats.items():
@@ -286,7 +368,7 @@ class Bot:
                     continue
                 try:
                     pn = self.pair_name(i)
-                    a, full = st.analyze(df, pn, keep_full=True)
+                    a, full = st.analyze(df, pn, keep_full=True, inf=self._inf_source)
                     if getattr(st.s, "dp", None) is not None:
                         st.s.dp.analyzed[pn] = full              # 策略回调里 dp.get_analyzed_dataframe 拿到的（实盘给全部）
                     last = a.iloc[-1]
@@ -346,10 +428,29 @@ class Bot:
                 if not price:
                     self.event("skip", name, i, "还没拿到最新价")
                     continue
+                if st.has_custom_stake:                  # 策略自己定每单资金（freqtrade custom_stake_amount）
+                    mn = self.min_stake(i, price, -0.05)
+                    stake = sb_engine._safe(st.s.custom_stake_amount, stake, pair=self.pair_name(i),
+                                            current_time=sb_engine._dt(now_ms()), current_rate=price, proposed_stake=stake,
+                                            min_stake=mn, max_stake=total - used, leverage=1.0,
+                                            entry_tag=s.get("etag") or None, side="long")
+                    try:
+                        stake = min(float(stake or 0), total - used)
+                    except (TypeError, ValueError):
+                        stake = 0.0
+                    if stake <= 0:
+                        self.event("skip", name, i, "策略的每单资金（custom_stake_amount）给了 0，不开")
+                        continue
                 ok = await self._open(name, st, i, price, stake, s.get("etag", ""))
                 if ok:
                     held.add(i)
         self.save_state()
+
+    def min_stake(self, i, price, stoploss=-0.05):
+        """欧易最小下单（张数 × 面值 × 价格），和 freqtrade 一样留 5% 余量"""
+        x = self.inst.get(i) or {}
+        mn = (x.get("minSz") or 0) * (x.get("ctVal") or 1) * price
+        return mn * 1.05 if mn else None
 
     def contracts_for(self, i, stake, price):
         x = self.inst.get(i) or {}
@@ -393,6 +494,7 @@ class Bot:
             t = sb_engine.Trade(i, name, now_ms(), fill, r["contracts"] * ct, fee, fee, tick=tick, stake=r["contracts"] * ct * fill)
             t.contracts, t.order_id, t.algo_id = r["contracts"], r.get("order_id", ""), r.get("algo_id", "")
         t.enter_tag = tag or ""
+        t.add_order("buy", t.open_rate, t.amount, t.open_time, t.enter_tag)
         t.adjust_stop_loss(t.open_rate, st.stoploss, initial=True)
         sb_engine.stoploss_adjust(st, t, t.open_rate, bound_profit=t.ratio(t.open_rate), after_fill=True,
                                   ctx={"pair": self.pair_name(i), "now": sb_engine._dt(now_ms())})
@@ -477,12 +579,112 @@ class Bot:
             if st is None or not px:
                 continue
             s = self.sig.get((t.strat, t.pair)) or {}
+            if st.position_adjustment_enable and now_ms() - getattr(t, "adj_ts", 0) >= 5000:   # freqtrade 实盘约每 5 秒问一次
+                t.adj_ts = now_ms()
+                await self._adjust(t, st, px)
+                if t not in self.trades:
+                    continue
             r = sb_engine.check_exit_live(st, t, px, now_ms(), s.get("enter", 0), s.get("exit", 0),
                                           pair=self.pair_name(t.pair), exit_tag=s.get("xtag", ""))
             if r:
                 await self.close(t, px, r[1])
 
+    async def _adjust(self, t, st, px):
+        """加仓 / 分批平仓（策略的 adjust_trade_position，规则和 freqtrade 实盘一样）"""
+        name, i = t.strat, t.pair
+        if not getattr(t, "orders", None):              # 老版本存的持仓：补上第一笔成交记录
+            t.orders = []
+            t.add_order("buy", t.open_rate, t.amount, t.open_time, t.enter_tag)
+        cp = t.ratio(px)
+        total, used, _ = self.strat_money(name)
+        avail = max(total - used, 0.0)
+        now = sb_engine._dt(now_ms())
+        resp = sb_engine._safe(st.s.adjust_trade_position, None, trade=sb_engine.FtTrade(t, self.pair_name(i)), current_time=now,
+                               current_rate=px, current_profit=cp, min_stake=self.min_stake(i, px, -0.1), max_stake=avail,
+                               current_entry_rate=px, current_exit_rate=px, current_entry_profit=cp, current_exit_profit=cp)
+        tag = ""
+        if isinstance(resp, tuple):
+            resp, tag = (resp[0] if resp else None), ((resp[1] if len(resp) > 1 else "") or "")
+        try:
+            stake = None if resp is None else float(resp)
+        except (TypeError, ValueError):
+            stake = None
+        if not stake:
+            return
+        x = self.inst.get(i) or {}
+        ct, lot, mn = x.get("ctVal") or 1, x.get("lotSz") or 1, x.get("minSz") or 0
+        fee = float(self.cfg.get("paper_fee" if self.mode == "paper" else "live_fee", 0.0005))
+        slip = float(self.cfg.get("paper_slippage", 0.0002)) if self.mode == "paper" else 0.0
+        if stake > 0:
+            if st.max_entry_position_adjustment > -1 and len(t.entries) > st.max_entry_position_adjustment:
+                return
+            stake = min(stake, avail)
+            n = round(int(stake / (px * ct) / lot + 1e-9) * lot, 8)
+            if n <= 0 or n < mn:
+                self.event("skip", name, i, f"加仓 {stake:.2f}U 不够欧易最小下单，不加")
+                return
+            if self.mode == "paper":
+                fill = px * (1 + slip)
+            else:
+                try:
+                    r = await asyncio.to_thread(self.live.add, i, 1, n, self.cfg.get("margin_mode", "isolated"))
+                except Exception as e:  # noqa: BLE001
+                    self.event("error", name, i, f"加仓失败：{e}")
+                    sb_notify.push(f"策略机 加仓失败 {coin_of(i)}", str(e))
+                    return
+                fill, n = r["fill"] or px, r["contracts"]
+            t.add_order("buy", fill, n * ct, now_ms(), tag or t.enter_tag, fee)
+            t.contracts = round((t.contracts or 0) + n, 8)
+            t.open_rate = fill
+            t.recalc()
+            t.adjust_stop_loss(t.open_rate, t.stop_loss_pct)
+            sb_engine.stoploss_adjust(st, t, fill, bound_profit=t.ratio(fill), after_fill=True, ctx={"pair": self.pair_name(i), "now": now})
+            t.recalc()
+            msg = f"加仓 {coin_of(i)} {n:g} 张 @ {fill:.6g}（第 {len(t.entries)} 笔），均价 {t.open_rate:.6g}，共 {t.contracts:g} 张 {t.stake:.2f}U"
+        else:
+            amount = abs(stake * t.amount / t.stake) if t.stake else 0
+            n = round(int(amount / ct / lot + 1e-9) * lot, 8)
+            if n <= 0:
+                return
+            if n >= (t.contracts or 0) - 1e-9:
+                await self.close(t, px, tag or "partial_exit")
+                return
+            left = ((t.contracts or 0) - n) * ct * px
+            if mn and left < mn * ct * px:
+                return
+            if self.mode == "paper":
+                fill = px * (1 - slip)
+            else:
+                try:
+                    fill = await asyncio.to_thread(self.live.close, i, 1, n, "", self.cfg.get("margin_mode", "isolated")) or px
+                except Exception as e:  # noqa: BLE001
+                    self.event("error", name, i, f"分批平仓失败：{e}")
+                    return
+            avg = t.open_rate
+            t.add_order("sell", fill, n * ct, now_ms(), tag or "partial_exit", fee)
+            sb_engine.stoploss_adjust(st, t, fill, bound_profit=t.ratio(fill), after_fill=True, ctx={"pair": self.pair_name(i), "now": now})
+            before = t.realized_profit or 0.0
+            t.recalc()
+            t.contracts = round((t.contracts or 0) - n, 8)
+            part = (t.realized_profit or 0.0) - before
+            k = self.ledger_key(name)
+            self.ledger[k] = self.ledger.get(k, 0.0) + part            # 分批平掉的部分先记进已实现盈亏
+            msg = f"分批平 {coin_of(i)} {n:g} 张 @ {fill:.6g}（均价 {avg:.6g}），这部分盈亏 {part:+.3f}U，还剩 {t.contracts:g} 张"
+        if self.mode == "live":                          # 交易所保护止损按新的总张数重挂
+            try:
+                await asyncio.to_thread(self.live.cancel_algo, i, t.algo_id)
+                stop = t.open_rate * (1 - abs(st.stoploss) - 0.01)
+                t.algo_id = await asyncio.to_thread(self.live.place_stop, i, 1, t.contracts, stop, self.cfg.get("margin_mode", "isolated"))
+            except Exception as e:  # noqa: BLE001
+                self.event("error", name, i, f"重挂保护止损失败：{e}（程序还在按策略止损盯着）")
+                sb_notify.push(f"策略机 重挂止损失败 {coin_of(i)}", str(e))
+        self.save_state()
+        self.event("adjust", name, i, msg)
+        self.say(f"[{'模拟' if self.mode == 'paper' else '实盘'}] {name} {msg}")
+        sb_notify.push(f"策略机 {msg.split(' ')[0]} {coin_of(i)}", f"{name}\n{msg}")
+
     REASON = {"stop_loss": "止损", "trailing_stop_loss": "移动止盈", "roi": "到时间/到目标平仓", "exit_signal": "卖出信号",
+              "partial_exit": "分批平仓（最后一批）",
               "manual": "手动平仓", "exchange": "交易所已平（保护止损触发或在 App 里平的）"}
 
     async def close(self, t, price, reason, real=None):
@@ -515,10 +717,22 @@ class Bot:
                 pass
         self.trades.remove(t)
         k = self.ledger_key(t.strat)
+        realized = getattr(t, "realized_profit", 0.0) or 0.0       # 之前分批平掉的部分（已记进账）
+        if real and realized:                                        # 欧易记的是整笔持仓的盈亏：减掉已记的部分
+            pnl -= realized
+        elif not real and t.dca:                                     # 加过仓：和 freqtrade 一样按全部成交（不取整的均价）算
+            fee = float(self.cfg.get("paper_fee" if self.mode == "paper" else "live_fee", 0.0005))
+            t.add_order("sell", exit_px, t.amount, now_ms(), reason, fee)
+            t.recalc(is_closing=True)
+            pnl = (t.close_profit_abs or 0.0) - realized
         self.ledger[k] = self.ledger.get(k, 0.0) + pnl
+        total_pnl = pnl + realized
+        base = ((getattr(t, "max_stake_amount", 0.0) or t.stake) * (1 + t.fee_open)) if t.dca else t.stake   # 加过仓：按投入过的总资金算
         rec = {"mode": self.mode, "strat": t.strat, "coin": coin_of(t.pair), "open_ts": t.open_time, "close_ts": now_ms(),
-               "open": t.open_rate, "close": exit_px, "stake": t.stake, "pnl": round(pnl, 6),
-               "ret": round(pnl / t.stake, 6) if t.stake else 0, "reason": reason, "contracts": t.contracts}
+               "open": t.open_rate, "close": exit_px, "stake": round(getattr(t, "max_stake_amount", 0.0) or t.stake, 6),
+               "pnl": round(total_pnl, 6), "ret": round(total_pnl / base, 6) if base else 0, "reason": reason, "contracts": t.contracts,
+               "entries": len(t.entries) or 1}
+        pnl = total_pnl
         with open(TRADES, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
         self.save_state()
@@ -604,7 +818,8 @@ class Bot:
                 if keys:
                     roi_left = max(0, keys[0] - (now - t.open_time) / 60000)
             opens.append({"coin": coin_of(t.pair), "strat": t.strat, "open_ts": t.open_time, "open": t.open_rate,
-                          "price": px, "ret": round(t.ratio(px), 5), "pnl": round(t.profit_abs(px), 4), "stake": round(t.stake, 2),
+                          "price": px, "ret": round(t.ratio(px), 5), "pnl": round(t.profit_abs(px) + (getattr(t, "realized_profit", 0.0) or 0.0), 4),
+                          "stake": round(t.stake, 2), "entries": len(t.entries) or 1,
                           "stop": t.stop_loss, "trailing": t.is_stop_loss_trailing, "contracts": t.contracts,
                           "mins": round((now - t.open_time) / 60000), "time_exit_in": None if roi_left is None else round(roi_left)})
         day0 = (now // 86_400_000) * 86_400_000
