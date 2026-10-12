@@ -1,6 +1,6 @@
 """帮总流程提前做"策略机引擎按年测"（从候选名单末尾往前，和总流程两头一起跑）。
 规则和 pipeline.py 一样：先测 2022，不到 1.1 停；过了再按 2026、2025、2024、2023、2021 测，哪年不到 1.1 就停。
-结果写进 /home/user/ext/ftrun/eng/<类名>/<年>.json，总流程走到时直接用。每测一个之前等内存够（可用 > 5G）。"""
+结果写进 /home/user/ext/ftrun/eng/<类名>/<年>.json，总流程走到时直接用。每测一个之前等内存够（可用 > 8G）。"""
 import os, sys, json, time, subprocess
 import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__)); PY = '/home/user/ext/ftvenv/bin/python'
@@ -17,7 +17,7 @@ sid = {r.cls: f'{r.stage}/{r.id}' for r in df.itertuples()}
 def mem_ok():
     for l in open('/proc/meminfo'):
         if l.startswith('MemAvailable'):
-            return int(l.split()[1]) > 5 * 1024 * 1024
+            return int(l.split()[1]) > 8 * 1024 * 1024
     return True
 
 
