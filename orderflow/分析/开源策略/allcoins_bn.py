@@ -109,6 +109,22 @@ def tick_over_time(c):
 
 
 quarters = [(y, q) for y in range(2021, 2027) for q in (1, 2, 3, 4) if not (y == 2026 and q == 4)]
+def others_running():
+    """别的全部币测试（一个要 5~7G 内存，同一时间只能跑一个）"""
+    me = os.getpid()
+    for d in os.listdir('/proc'):
+        if d.isdigit() and int(d) != me:
+            try:
+                a = open(f'/proc/{d}/cmdline', 'rb').read().split(b'\0')
+            except OSError:
+                continue
+            if len(a) > 1 and a[0].endswith(b'python') and a[1] == b'allcoins_bn.py':
+                return True
+    return False
+
+
+while others_running():                              # 排队：等前一个全部币测试跑完
+    time.sleep(60)
 QONLY = [x for x in os.environ.get('QONLY', '').split(',') if x]   # 只跑这些季度（例 2026q1,2026q2）：分几路同时跑时用
 for y, q in quarters:
     of = f'{OUT}/trades{y}q{q}.csv'
