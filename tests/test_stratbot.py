@@ -407,3 +407,30 @@ def test_custom_exit_reason_is_recorded(tmp_path):
     a = st.analyze(d, "X/USDT")
     out = E.Backtest(st, max_open=1, fee=0.0).run({"X/USDT": a}, ["X/USDT"])
     assert out[0]["exit_reason"] == "my_time_exit" and out[0]["trade_duration"] == 15
+
+
+def test_top_n_coin_selection_and_daily_refresh(app_client, monkeypatch):
+    sb_app, cli = app_client
+    bot = sb_app.bot
+    old = 0
+    swaps = {f"C{i}-USDT-SWAP": {"tick": 0.01, "ctVal": 1, "lotSz": 1, "minSz": 1, "listTime": old, "state": "live"} for i in range(5)}
+    swaps["NEW-USDT-SWAP"] = {"tick": 0.01, "ctVal": 1, "lotSz": 1, "minSz": 1, "listTime": sb_app.sb_bot.now_ms(), "state": "live"}
+    to = {f"C{i}-USDT-SWAP": float(i) for i in range(5)}
+    to["NEW-USDT-SWAP"] = 1e12                                   # 成交额最大但刚上线：不算
+    bot.cfg.update(coins="top", top_n=3, min_age_days=30)
+    assert bot._coin_list(swaps, to) == ["C2-USDT-SWAP", "C3-USDT-SWAP", "C4-USDT-SWAP"]
+    # 每日更新：C4 掉出但有持仓 → 保留；C1 新进
+    bot.coins = ["C2-USDT-SWAP", "C3-USDT-SWAP", "C4-USDT-SWAP"]
+    bot.coins_at = 0
+    bot.trades = [E.Trade("C4-USDT-SWAP", STRAT, 1, 1.0, 1, 0, 0, stake=1)]
+    to2 = dict(to, **{"C4-USDT-SWAP": 0.0, "C1-USDT-SWAP": 9.0})
+
+    class O:
+        async def swaps(self): return swaps
+        async def turnover(self): return to2
+    bot.okx = O()
+    asyncio.run(bot._refresh_coins())
+    assert bot.coins == ["C1-USDT-SWAP", "C2-USDT-SWAP", "C3-USDT-SWAP", "C4-USDT-SWAP"]
+    r = cli.post("/api/settings", json={"coins": "top", "top_n": 150})
+    assert r.status_code == 200 and "重启" in r.json()["note"]
+    assert cli.post("/api/settings", json={"top_n": 5}).status_code == 400

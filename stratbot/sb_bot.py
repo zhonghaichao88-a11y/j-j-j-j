@@ -152,12 +152,16 @@ class Bot:
         self.progress = {"stage": "运行中", "done": len(self.coins), "total": len(self.coins)}
         await asyncio.gather(self._price_loop(), self._candle_loop(), self._ws_loop())
 
-    def _coin_list(self, swaps):
+    def _coin_list(self, swaps, turnover=None):
         mode = self.cfg.get("coins", "backtest")
+        day = 86_400_000
+        min_age = float(self.cfg.get("min_age_days", 30))
         if mode == "all":
-            day = 86_400_000
-            min_age = float(self.cfg.get("min_age_days", 30))
             out = [i for i, x in swaps.items() if x["state"] == "live" and now_ms() - x["listTime"] > min_age * day]
+        elif mode == "top":                         # 24 小时成交额前 N 个（上线不满 min_age_days 天的不算）
+            ok = [i for i, x in swaps.items() if x["state"] == "live" and now_ms() - x["listTime"] > min_age * day]
+            ok.sort(key=lambda i: -(turnover or {}).get(i, 0))
+            out = ok[:int(self.cfg.get("top_n", 150))]
         else:
             out = [inst_of(c) for c in self.cfg.get("coin_list", []) if inst_of(c) in swaps and swaps[inst_of(c)]["state"] == "live"]
         return sorted(out)
@@ -170,7 +174,9 @@ class Bot:
         import pandas as pd
         self.progress = {"stage": "读取欧易合约列表", "done": 0, "total": 0}
         self.inst = await self.okx.swaps()
-        self.coins = self._coin_list(self.inst)
+        to = await self.okx.turnover() if self.cfg.get("coins") == "top" else None
+        self.coins = self._coin_list(self.inst, to)
+        self.coins_at = now_ms()
         for t in self.trades:                       # 有持仓的币一定要看着
             if t.pair not in self.coins and t.pair in self.inst:
                 self.coins.append(t.pair)
@@ -203,6 +209,7 @@ class Bot:
             nxt = (int(now) // 300 + 1) * 300 + 3            # 每根 5 分钟K线收盘后 3 秒
             await asyncio.sleep(max(1.0, nxt - now))
             try:
+                await self._refresh_coins()
                 await self._update_candles()
                 await asyncio.to_thread(self._analyze_all)
                 async with self.lock:
@@ -210,6 +217,29 @@ class Bot:
             except Exception as e:  # noqa: BLE001
                 self.say(f"K线更新出错：{e}", "error")
                 log.debug(traceback.format_exc())
+
+    async def _refresh_coins(self):
+        """按成交额选币时，每 24 小时重排一次；有持仓的币保留，掉出前 N 的不再开新单"""
+        if self.cfg.get("coins") != "top" or now_ms() - getattr(self, "coins_at", 0) < 86_400_000:
+            return
+        try:
+            self.inst = await self.okx.swaps()
+            new = self._coin_list(self.inst, await self.okx.turnover())
+        except Exception as e:  # noqa: BLE001
+            self.say(f"更新选币失败（{e}），先用原来的", "warning")
+            return
+        held = {t.pair for t in self.trades}
+        keep = [i for i in self.coins if i in held and i not in new]
+        added = [i for i in new if i not in self.coins]
+        removed = [i for i in self.coins if i not in new and i not in held]
+        for i in removed:
+            self.frames.pop(i, None)
+            for n in self.strats:
+                self.sig.pop((n, i), None)
+        self.coins = sorted(new + keep)
+        self.coins_at = now_ms()
+        self.say(f"每日选币更新：前 {self.cfg.get('top_n', 150)} 个，新进 {len(added)} 个（{', '.join(coin_of(i) for i in added[:10])}），"
+                 f"掉出 {len(removed)} 个（{', '.join(coin_of(i) for i in removed[:10])}）")
 
     async def _update_candles(self):
         import pandas as pd
@@ -592,6 +622,6 @@ class Bot:
                 "open": opens, "strategies": strategies, "events": list(self.events)[:80], "logs": list(self.logs)[:60],
                 "today": self.stats(self.closed_since(day0)), "week": self.stats(self.closed_since(now - 7 * 86_400_000)),
                 "all": self.stats(self.closed_since(0)), "signals_now": signals_now,
-                "brake": self.cfg.get("daily_loss_limit_pct", 0), "coins_mode": self.cfg.get("coins", "backtest"),
+                "brake": self.cfg.get("daily_loss_limit_pct", 0), "coins_mode": self.cfg.get("coins", "backtest"), "top_n": self.cfg.get("top_n", 150),
                 "ws_ok": self.ws_ok, "ws_age_s": round((now - self.ws_ts) / 1000) if self.ws_ts else None,
                 "live_confirm": LIVE_CONFIRM}

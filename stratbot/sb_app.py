@@ -139,11 +139,13 @@ def set_settings(body: dict):
     if "daily_loss_limit_pct" in body:
         bot.cfg["daily_loss_limit_pct"] = _num(body["daily_loss_limit_pct"], 0, 100, "当天亏损上限")
     if "coins" in body:
-        if body["coins"] not in ("backtest", "all"):
+        if body["coins"] not in ("backtest", "all", "top"):
             raise HTTPException(400, "选币方式不对")
         bot.cfg["coins"] = body["coins"]
+    if "top_n" in body:
+        bot.cfg["top_n"] = int(_num(body["top_n"], 10, 500, "成交额前几个"))
     bot.save_cfg()
-    return {"ok": True, "note": "选币方式改了要重启程序才生效" if "coins" in body else ""}
+    return {"ok": True, "note": "选币方式改了要重启程序才生效" if ("coins" in body or "top_n" in body) else ""}
 
 
 @app.post("/api/pause")

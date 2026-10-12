@@ -116,5 +116,6 @@
  "live_fee": 0.0005,
  "margin_mode": "isolated",
  "daily_loss_limit_pct": 0,
- "price_interval_s": 2
+ "price_interval_s": 2,
+ "top_n": 150
 }

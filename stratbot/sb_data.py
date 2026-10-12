@@ -55,6 +55,16 @@ class Okx:
         return {x["instId"]: float(x["last"]) for x in await self.get("/api/v5/market/tickers", instType="SWAP")
                 if x.get("last")}
 
+    async def turnover(self):
+        """所有永续 24 小时成交额（USDT）：{instId: 成交额}"""
+        out = {}
+        for x in await self.get("/api/v5/market/tickers", instType="SWAP"):
+            try:
+                out[x["instId"]] = float(x.get("volCcy24h") or 0) * float(x.get("last") or 0)
+            except ValueError:
+                pass
+        return out
+
     async def candles(self, inst, tf="5m", n=1000):
         """最近 n 根【已收盘】K线，按时间从早到晚：[(ts毫秒, o, h, l, c, vol), ...]"""
         rows = {}
