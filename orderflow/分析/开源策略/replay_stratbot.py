@@ -14,6 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SB = os.path.join(HERE, '..', '..', '..', 'stratbot')
 sys.path.insert(0, SB)
 import sb_loader, sb_engine, sb_bot  # noqa: E402
+import inf_data  # noqa: E402
 
 cls, fdir, year, q = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
 RUN = '/home/user/ext/ftrun/full'
@@ -29,7 +30,13 @@ TICKS = os.environ.get('REPLAY_TICKS', '5m')
 mq = {1: ('01', '04'), 2: ('04', '07'), 3: ('07', '10'), 4: ('10', '01')}[q]
 t0 = pd.Timestamp(f'{year}-{mq[0]}-01', tz='UTC')
 t1 = pd.Timestamp(f'{year + (q == 4)}-{mq[1]}-01', tz='UTC')
-st = sb_loader.Strategy(cls)
+if os.environ.get('STRAT_FILE'):                     # 策略文件不在 stratbot/strategies 里：复制到临时目录，程序从那里加载
+    import shutil
+    sdir = tempfile.mkdtemp()
+    shutil.copy(os.environ['STRAT_FILE'], os.path.join(sdir, cls + '.py'))
+    sb_loader.STRAT_DIR = sdir
+st = sb_loader.Strategy(cls, runmode='backtest')
+src = inf_data.okx_source(t0, t1, st.startup, 'spot')
 w0 = t0 - pd.Timedelta(minutes=st.tf_min * st.startup)
 data = {}
 for p in pairs:
@@ -41,7 +48,7 @@ for p in pairs:
     if d.empty:
         continue
     d = sb_loader.fill_missing(d.reset_index(drop=True), st.tf_min)
-    a = st.analyze(d, p).iloc[st.startup:].reset_index(drop=True)
+    a = st.analyze(d, p, inf=src).iloc[st.startup:].reset_index(drop=True)
     if len(a) > 1:
         a['ts'] = sb_engine.to_ms(a['date'])
         data[p] = a.set_index('ts')
@@ -65,6 +72,8 @@ sb_bot.now_ms = lambda: clock['t']
 cfg = {'strategies': {cls: {'enabled': True, 'max_open': c['max_open_trades'], 'capital': c['dry_run_wallet'] * c.get('tradable_balance_ratio', 0.99)}},
        'paper_fee': c['fee'], 'paper_slippage': 0.0}
 bot = sb_bot.Bot(cfg, {}, os.path.join(tmp, 'cfg.json'))
+assert cls in bot.strats, f'程序加载策略失败：{bot.load_errors}'
+bot.strats[cls].s.dp.source = src                      # 程序里的策略要别的周期K线：用同一份历史数据
 inst_of = {p: p.split('/')[0] + '-USDT-SWAP' for p in data}
 pair_of = {v: k for k, v in inst_of.items()}
 bot.inst = {i: {'tick': None, 'ctVal': 1.0, 'lotSz': 1e-12, 'minSz': 0.0, 'listTime': 0, 'state': 'live'} for i in inst_of.values()}

@@ -9,7 +9,18 @@ PY=/home/user/ext/ftvenv/bin/python
 LOG=/home/user/ext/keepalive.log
 running() { ps -eo args | grep -q "^$PY $1"; }
 port_ok() { curl -s -m 5 "127.0.0.1:$1/api/ready" | grep -q ready || lsof -nP -iTCP:$1 -sTCP:LISTEN -t >/dev/null 2>&1; }   # 端口有人在听就算活着（可能只是忙）
+# 容器重启后网络代理端口会变：还在用旧代理的程序（连不上网）杀掉，下面会用新代理重新拉起
+stale_kill() {
+  for pid in $(ps -eo pid,args | grep -E "^ *[0-9]+ ($PY (pipeline.py|sb_app.py|allcoins_bn.py|fulltest.py|engine_years.py|parity_stratbot.py)|/bin/bash /home/user/ext/(run_full9.sh|jobs/))" | awk '{print $1}'); do
+    px=$(tr '\0' '\n' < /proc/$pid/environ 2>/dev/null | grep '^HTTPS_PROXY=' | cut -d= -f2-)
+    if [ -n "$px" ] && [ -n "$HTTPS_PROXY" ] && [ "$px" != "$HTTPS_PROXY" ]; then
+      echo "$(date -u +%m-%d\ %H:%M) 进程 $pid 用的是旧代理 $px（现在是 $HTTPS_PROXY），重启它" >> $LOG
+      kill $pid
+    fi
+  done
+}
 while true; do
+  stale_kill
   if ! running "pipeline.py" && ! tail -5 /home/user/ext/ftrun/pipeline.log | grep -q "PIPELINE DONE"; then
     echo "$(date -u +%m-%d\ %H:%M) 重启 pipeline" >> $LOG
     (cd /home/user/j-j-j-j/orderflow/分析/开源策略 && setsid nohup $PY pipeline.py >> /home/user/ext/ftrun/pipeline.log 2>&1 < /dev/null &)
