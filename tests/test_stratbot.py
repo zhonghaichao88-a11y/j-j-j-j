@@ -157,7 +157,9 @@ class Bad(IStrategy):
     p = tmp_path / "Bad.py"
     p.write_text(src)
     st = L.Strategy("Bad", str(p))
-    assert any("position_adjustment" in x for x in st.unsupported) and "custom_entry_price" in st.unsupported
+    # 加仓现在支持了（position_adjustment_enable）；自定义进场价还不支持
+    assert not any("position_adjustment" in x for x in st.unsupported) and st.position_adjustment_enable
+    assert "custom_entry_price" in st.unsupported
 
 
 def test_fill_missing_like_freqtrade():

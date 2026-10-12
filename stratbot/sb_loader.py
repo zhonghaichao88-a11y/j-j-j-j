@@ -170,6 +170,7 @@ class IStrategy:
     startup_candle_count = 0
     can_short = False
     position_adjustment_enable = False
+    max_entry_position_adjustment = -1
     process_only_new_candles = True
     order_types = {"entry": "limit", "exit": "limit", "stoploss": "limit", "stoploss_on_exchange": False,
                    "stoploss_on_exchange_interval": 60}           # freqtrade 默认值
@@ -182,6 +183,13 @@ class IStrategy:
         return []
 
     def bot_loop_start(self, current_time=None, **kwargs):
+        return None
+
+    def custom_stake_amount(self, pair, current_time, current_rate, proposed_stake, min_stake, max_stake, leverage=1.0,
+                            entry_tag=None, side="long", **kwargs):
+        return proposed_stake
+
+    def adjust_trade_position(self, trade, current_time, current_rate, current_profit, min_stake, max_stake, **kwargs):
         return None
 
     # freqtrade 的默认回调（策略没写就用这些）
@@ -202,19 +210,65 @@ class IStrategy:
 
 
 class _Trade:
-    """策略里偶尔会查 Trade（比如 custom_exit 里看持仓）。本程序把这些查询都当成没有持仓"""
+    """策略里查持仓用的 Trade（Trade.get_trades_proxy(is_open=True) 等）。每个策略一份（加载时生成子类），
+    回测引擎 / 实盘程序把 provider 设成"返回当前持仓列表"的函数；没设就当没有持仓"""
+    provider = None
 
-    @staticmethod
-    def get_trades_proxy(**kw):
-        return []
+    @classmethod
+    def get_trades_proxy(cls, pair=None, is_open=None, **kw):
+        if cls.provider is None:
+            return []
+        out = cls.provider()
+        if pair is not None:
+            out = [t for t in out if t.pair == pair]
+        if is_open is False:
+            return []
+        return out
 
-    @staticmethod
-    def get_open_trade_count():
-        return 0
+    @classmethod
+    def get_open_trade_count(cls):
+        return len(cls.get_trades_proxy(is_open=True))
 
-    @staticmethod
-    def get_trades(*a, **k):
-        return []
+    @classmethod
+    def get_trades(cls, *a, **k):
+        return cls.get_trades_proxy(is_open=True)
+
+    @classmethod
+    def get_open_trades(cls):
+        return cls.get_trades_proxy(is_open=True)
+
+
+class _Wallets:
+    """策略里用的 self.wallets（freqtrade Wallets 的回测/模拟算法）。state() 返回 (起始资金, 已实现盈亏, 持仓占用资金, 可交易比例)"""
+
+    def __init__(self, state=None):
+        self.state = state
+
+    def _s(self):
+        return self.state() if self.state else (0.0, 0.0, 0.0, 0.99)
+
+    def get_free(self, currency="USDT"):
+        start, profit, tied, _ = self._s()
+        return start + profit - tied
+
+    def get_used(self, currency="USDT"):
+        return 0.0
+
+    def get_total(self, currency="USDT"):
+        start, profit, tied, _ = self._s()
+        return start + profit
+
+    def get_starting_balance(self):
+        start, profit, tied, ratio = self._s()
+        return (self.get_free() - profit + tied) * ratio
+
+    def get_total_stake_amount(self):
+        start, profit, tied, ratio = self._s()
+        return (tied + self.get_free()) * ratio
+
+    def get_available_stake_amount(self):
+        start, profit, tied, ratio = self._s()
+        return min(self.get_total_stake_amount() - tied, self.get_free())
 
 
 class _RunMode:
@@ -313,7 +367,7 @@ class _DP:
         return {"base": base, "quote": quote, "symbol": pair}
 
 
-def _fake_modules():
+def _fake_modules(trade_cls=_Trade):
     import technical.qtpylib as qtpylib
     m = {}
 
@@ -331,12 +385,12 @@ def _fake_modules():
                    timeframe_to_seconds=timeframe_to_seconds, timeframe_to_prev_date=timeframe_to_prev_date,
                    timeframe_to_next_date=timeframe_to_next_date, informative=informative)
     mod("freqtrade")
-    mod("freqtrade.strategy", IStrategy=IStrategy, **params, **helpers, Trade=_Trade)
+    mod("freqtrade.strategy", IStrategy=IStrategy, **params, **helpers, Trade=trade_cls)
     mod("freqtrade.strategy.interface", IStrategy=IStrategy)
     mod("freqtrade.strategy.hyper", **params)
     mod("freqtrade.strategy.parameters", **params)
     mod("freqtrade.strategy.strategy_helper", **helpers)
-    mod("freqtrade.persistence", Trade=_Trade, Order=type("Order", (), {}), LocalTrade=_Trade, PairLocks=_PairLocks)
+    mod("freqtrade.persistence", Trade=trade_cls, Order=type("Order", (), {}), LocalTrade=trade_cls, PairLocks=_PairLocks)
     mod("freqtrade.misc", json_load=json.load, file_load_json=lambda f: json.load(open(f)),
         deep_merge_dicts=_deep_merge, round_dict=lambda d, n: {k: round(v, n) for k, v in d.items()})
     mod("freqtrade.exchange", timeframe_to_minutes=timeframe_to_minutes, timeframe_to_seconds=timeframe_to_seconds,
@@ -386,7 +440,8 @@ class Strategy:
     def __init__(self, cls_name: str, path: str | None = None, runmode: str = "dry_run"):
         path = path or os.path.join(STRAT_DIR, cls_name + ".py")
         _np_compat()
-        fake = _fake_modules()
+        self.trade_cls = type("Trade", (_Trade,), {"provider": None})     # 这个策略自己的 Trade（查持仓用）
+        fake = _fake_modules(self.trade_cls)
         saved = {k: sys.modules.get(k) for k in fake}
         try:
             sys.modules.update(fake)
@@ -410,6 +465,7 @@ class Strategy:
                       "candle_type_def": "spot", "trading_mode": "spot", "stake_amount": "unlimited"})
         self.s.dp = _DP()
         self.s.dp.runmode = self.runmode
+        self.s.wallets = _Wallets()
         self.s.dp.main_tf = self.s.config["timeframe"]
         # @informative 装饰的函数（和 freqtrade 一样按名字排序收集）
         self.inf_methods = []
@@ -452,13 +508,14 @@ class Strategy:
         self.tif_exit = tif.get("exit", tif.get("sell", "GTC"))
         # 本程序不支持的功能：用到就拒绝加载（宁可不跑，也不能跑出和回测不一样的结果）
         bad = []
-        if g("position_adjustment_enable", False):
-            bad.append("加仓 position_adjustment")
+        self.position_adjustment_enable = bool(g("position_adjustment_enable", False))
+        self.max_entry_position_adjustment = int(g("max_entry_position_adjustment", -1) if g("max_entry_position_adjustment", -1) is not None else -1)
+        self.has_custom_stake = over("custom_stake_amount")
         if g("can_short", False):
             bad.append("做空")
         self.has_bot_loop_start = over("bot_loop_start")
-        for meth in ("custom_entry_price", "custom_exit_price", "custom_stake_amount", "custom_roi",
-                     "order_filled", "adjust_trade_position", "adjust_entry_price", "adjust_exit_price", "adjust_order_price",
+        for meth in ("custom_entry_price", "custom_exit_price", "custom_roi",
+                     "order_filled", "adjust_entry_price", "adjust_exit_price", "adjust_order_price",
                      "check_entry_timeout", "check_exit_timeout"):
             if over(meth):
                 bad.append(meth)

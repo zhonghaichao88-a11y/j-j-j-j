@@ -49,6 +49,13 @@ class Trade:
         self.min_rate = None
         self.enter_tag = ""
         self.custom = {}                        # 策略用 set_custom_data 存的东西
+        # 加仓 / 分批平仓用（freqtrade 的 orders）：[{side, price, amount, cost, ts, tag}]，第一笔是开仓
+        self.orders = []
+        self.realized_profit = 0.0              # 已经分批平掉部分的盈亏
+        self.max_stake_amount = 0.0
+        self.close_profit = None
+        self.close_profit_abs = None
+        self.amount_prec = None                 # 数量精度（加仓/减仓时截断用）
         # 实盘用
         self.order_id = ""
         self.algo_id = ""
@@ -98,6 +105,65 @@ class Trade:
         self.stop_loss = stop
         self.stop_loss_pct = -abs(pct)
 
+    # ---------------- 加仓 / 分批平仓（freqtrade LocalTrade.recalc_trade_from_orders）
+    @property
+    def entries(self):
+        return [o for o in getattr(self, "orders", []) if o["side"] == "buy"]
+
+    @property
+    def exits(self):
+        return [o for o in getattr(self, "orders", []) if o["side"] == "sell"]
+
+    @property
+    def dca(self):
+        """有过加仓或分批平仓（这种单的收益按 freqtrade 的多笔成交算法算）"""
+        return len(self.entries) > 1 or len(self.exits) > 0
+
+    def add_order(self, side, price, amount, ts, tag="", fee=None):
+        fee = self.fee_open if fee is None else fee
+        self.orders.append({"side": side, "price": float(price), "amount": float(amount),
+                            "cost": float(amount) * float(price) * (1 + fee), "ts": int(ts), "tag": tag or ""})
+
+    def recalc(self, is_closing=False):
+        cur_amt = cur_stake = avg = total_stake = max_stake = 0.0
+        close_abs = close_profit = 0.0
+        last = None
+        for o in self.orders:
+            amt, px = o["amount"], o["price"]
+            is_exit = o["side"] == "sell"
+            sign = -1 if is_exit else 1
+            if amt > 0 and px is not None:
+                cur_amt += amt * sign
+                price = avg if is_exit else px
+                cur_stake += price * amt * sign
+                if cur_amt > 0 and not is_exit:
+                    avg = cur_stake / cur_amt
+            if is_exit:
+                ov = amt * avg * (1 + self.fee_open)
+                last = amt * px * (1 - self.fee_close) - ov
+                close_abs += last
+                if total_stake > 0:
+                    close_profit = (close_abs / total_stake) * self.leverage
+            else:
+                total_stake += amt * price * (1 + self.fee_open)
+                max_stake += amt * price
+        self.max_stake_amount = max_stake / (self.leverage or 1.0)
+        if close_profit:
+            self.close_profit = close_profit
+            self.realized_profit = close_abs
+            self.close_profit_abs = last
+        amt_tr = _amount_prec(cur_amt, self.amount_prec)
+        if amt_tr > 0.0:
+            self.open_rate = to_tick(cur_stake / cur_amt, self.tick)
+            self.amount = amt_tr
+            self.stake = cur_stake / (self.leverage or 1.0)
+            if self.stop_loss_pct is not None and self.open_rate is not None:
+                self.adjust_stop_loss(self.open_rate, self.stop_loss_pct)
+        elif is_closing and total_stake > 0:
+            self.close_profit = (close_abs / total_stake) * self.leverage
+            self.close_profit_abs = close_abs
+        return amt_tr
+
     def to_dict(self):
         return {k: v for k, v in self.__dict__.items()}
 
@@ -108,17 +174,32 @@ class Trade:
         return t
 
 
+def _amount_prec(amount, prec):
+    """freqtrade amount_to_contract_precision（截断到数量精度）"""
+    if not prec:
+        return amount
+    return math.floor(amount / prec + 1e-9) * prec
+
+
 class _Order:
-    def __init__(self, t: "Trade"):
-        self.side = self.ft_order_side = "buy"
+    """给策略看的成交单（freqtrade Order 的常用字段）"""
+
+    def __init__(self, t: "Trade", o=None):
+        if o is None:                                   # 老的单笔持仓：用持仓本身当开仓单
+            o = {"side": "buy", "price": t.open_rate, "amount": t.amount, "cost": t.amount * t.open_rate,
+                 "ts": t.open_time, "tag": t.enter_tag}
+        self.side = self.ft_order_side = o["side"]
         self.order_type = "market"
         self.status = "closed"
-        self.safe_price = self.price = self.average = t.open_rate
-        self.safe_filled = self.filled = self.amount = self.safe_amount = self.safe_amount_after_fee = t.amount
-        self.safe_cost = self.cost = t.amount * t.open_rate
-        self.order_date_utc = self.order_filled_utc = _dt(t.open_time)
+        self.safe_price = self.price = self.average = self.ft_price = o["price"]
+        self.safe_filled = self.filled = self.amount = self.safe_amount = self.safe_amount_after_fee = o["amount"]
+        self.remaining = 0.0
+        self.safe_cost = self.cost = o["cost"]
+        self.stake_amount = self.stake_amount_filled = o["amount"] * o["price"] / (t.leverage or 1.0)
+        self.order_date = self.order_date_utc = self.order_filled_date = self.order_filled_utc = _dt(o["ts"])
         self.ft_is_open = False
-        self.ft_order_tag = t.enter_tag
+        self.ft_order_tag = o.get("tag") or ""
+        self.safe_fee_base = 0.0
 
 
 def _dt(ms):
@@ -127,26 +208,51 @@ def _dt(ms):
 
 
 class FtTrade:
-    """给策略回调（custom_stoploss / custom_exit / confirm_trade_exit）看的持仓，字段名和 freqtrade 的 Trade 一样"""
+    """给策略回调（custom_stoploss / custom_exit / confirm_trade_exit / adjust_trade_position）看的持仓，字段名和 freqtrade 的 Trade 一样"""
 
     is_short = False
     is_open = True
     trade_direction = "long"
     entry_side = "buy"
     exit_side = "sell"
-    nr_of_successful_entries = 1
-    nr_of_successful_exits = 0
     has_open_orders = False
     liquidation_price = None
-    realized_profit = 0.0
     exit_reason = None
     close_rate = None
     close_date = None
+    funding_fees = 0.0
 
     def __init__(self, t: "Trade", pair):
         self._t = t
         self.pair = pair
         self.open_date = self.open_date_utc = _dt(t.open_time)
+
+    def _orders(self):
+        os_ = getattr(self._t, "orders", None)
+        return [_Order(self._t, o) for o in os_] if os_ else [_Order(self._t)]
+
+    @property
+    def nr_of_successful_entries(self):
+        return len([o for o in self._orders() if o.side == "buy"])
+
+    @property
+    def nr_of_successful_exits(self):
+        return len([o for o in self._orders() if o.side == "sell"])
+
+    nr_of_successful_buys = nr_of_successful_entries
+    nr_of_successful_sells = nr_of_successful_exits
+
+    @property
+    def realized_profit(self):
+        return getattr(self._t, "realized_profit", 0.0) or 0.0
+
+    @property
+    def max_stake_amount(self):
+        return getattr(self._t, "max_stake_amount", 0.0) or self._t.stake
+
+    @property
+    def has_open_position(self):
+        return self._t.amount > 0
 
     def __getattr__(self, k):
         if k == "stake_amount":
@@ -172,17 +278,24 @@ class FtTrade:
         return self._t.profit_abs(rate)
 
     def select_filled_orders(self, order_side=None):
-        return [_Order(self._t)] if order_side in (None, "buy") else []
+        return [o for o in self._orders() if order_side is None or o.side == order_side]
 
     def select_filled_or_open_orders(self):
-        return [_Order(self._t)]
+        return self._orders()
 
     @property
     def orders(self):
-        return [_Order(self._t)]
+        return self._orders()
+
+    @property
+    def open_orders(self):
+        return []
 
     def select_order(self, order_side=None, is_open=None):
-        return None if is_open else _Order(self._t)
+        if is_open:
+            return None
+        os_ = [o for o in self._orders() if order_side is None or o.side == order_side]
+        return os_[-1] if os_ else None
 
     def get_custom_data(self, key, default=None):
         return self._t.custom.get(key, default)
@@ -331,7 +444,7 @@ def close_rate_backtest(st, t: Trade, reason, row, dur_min):
 
 
 class Backtest:
-    """按 freqtrade 回测的循环走K线（不开保护、不加仓、不做空、单币同时一单）。
+    """按 freqtrade 回测的循环走K线（不开保护、不做空、单币同时一单；支持加仓/分批平仓 position_adjustment）。
 
     data: {pair: DataFrame(date, open, high, low, close, volume, enter_long, exit_long)}，信号是那根K线收盘时的；
     这里会自动往后挪一根（第 t 根K线开盘时用第 t-1 根的信号），和 freqtrade 一样。
@@ -343,41 +456,133 @@ class Backtest:
         self.wallet = wallet
         self.markets = markets              # {pair: {amin, amax, cmin, cmax, aprec}}：交易所最小/最大下单量（没有就不检查）
         self.ratio = tradable_ratio
+        self._open = []                     # 当前持仓（回测进行中）
+        self._closed_profit = 0.0           # 已平仓的总盈亏
 
-    def stake_for(self, pair, price, tied, closed_profit):
-        """freqtrade 回测的每单资金（stake_amount = unlimited）：可用资金 ÷ 剩余空位，再按交易所最小/最大下单量检查。
-        返回 (资金, 数量)；资金为 0 表示这单开不了"""
+    # ---------------- 资金（freqtrade Wallets 回测算法）
+    def _tied(self):
+        return sum(x.stake for x in self._open)
+
+    def _profit(self):
+        return self._closed_profit + sum(getattr(x, "realized_profit", 0.0) or 0.0 for x in self._open)
+
+    def _available(self, tied=None, profit=None):
+        tied = self._tied() if tied is None else tied
+        profit = self._profit() if profit is None else profit
+        free = self.wallet + profit - tied
+        return min((tied + free) * self.ratio - tied, free)
+
+    def stake_limits(self, pair, price, stoploss):
+        """freqtrade get_min_pair_stake_amount / get_max_pair_stake_amount（没有交易所限制就 None / 无穷）"""
+        m = (self.markets or {}).get(pair)
+        if not m:
+            return None, float("inf")
+        reserve = max(min(1.05 / (1 - abs(stoploss)) if abs(stoploss) != 1 else 1.5, 1.5), 1)
+        lims = []
+        if m.get("cmin") is not None:
+            lims.append(m["cmin"] * reserve)
+        if m.get("amin") is not None:
+            lims.append(m["amin"] * price * 1.05)
+        mx_l = [x for x in ((m.get("cmax")), (m["amax"] * price if m.get("amax") is not None else None)) if x is not None]
+        return (max(lims) if lims else None), (min(mx_l) if mx_l else float("inf"))
+
+    def validate_stake(self, stake, mn, mx, available, trade_amount=None):
+        """freqtrade Wallets.validate_stake_amount"""
+        if not stake or isinstance(stake, str) or stake <= 0:
+            return 0.0
+        max_allowed = min(mx, available)
+        if trade_amount:
+            max_allowed = min(max_allowed, mx - trade_amount)
+        if mn is not None and mn > max_allowed:
+            return 0.0
+        if mn is not None and stake < mn:
+            if stake * 1.3 < mn:
+                return 0.0
+            stake = mn
+        return min(stake, max_allowed)
+
+    def _amount(self, pair, stake, price):
+        m = (self.markets or {}).get(pair) or {}
+        return _amount_prec(stake / price, m.get("aprec"))
+
+    def stake_for(self, pair, price, tied, closed_profit, now=None, tag=""):
+        """freqtrade 回测的每单资金（stake_amount = unlimited）：可用资金 ÷ 剩余空位，策略的 custom_stake_amount，
+        再按交易所最小/最大下单量检查。返回 (资金, 数量)；资金为 0 表示这单开不了"""
         free = self.wallet + closed_profit - tied
         available = min((tied + free) * self.ratio - tied, free)
         stake = min((available + tied) / self.max_open, available)
         if stake <= 0:
             return 0.0, 0.0
-        m = (self.markets or {}).get(pair)
-        if m:
-            reserve = max(min(1.05 / (1 - 0.05), 1.5), 1)            # freqtrade: 留 5% + 按 -5% 止损算的余量
-            lims = []
-            if m.get("cmin") is not None:
-                lims.append(m["cmin"] * reserve)
-            if m.get("amin") is not None:
-                lims.append(m["amin"] * price * 1.05)
-            mn = max(lims) if lims else None
-            mx_l = [x for x in ((m.get("cmax")), (m["amax"] * price if m.get("amax") is not None else None)) if x is not None]
-            mx = min(mx_l) if mx_l else float("inf")
-            max_allowed = min(mx, available)
-            if mn is not None and mn > max_allowed:
-                return 0.0, 0.0
-            if mn is not None and stake < mn:
-                if stake * 1.3 < mn:
-                    return 0.0, 0.0
-                stake = mn
-            stake = min(stake, max_allowed)
-            amount = stake / price
-            if m.get("aprec"):
-                amount = math.floor(amount / m["aprec"] + 1e-9) * m["aprec"]
-            if amount <= 0:
-                return 0.0, 0.0
-            return amount * price, amount
-        return stake, stake / price
+        mn, mx = self.stake_limits(pair, price, -0.05)
+        st = self.st
+        if getattr(st, "has_custom_stake", False):
+            stake = _safe(st.s.custom_stake_amount, stake, pair=pair, current_time=now or _dt(0), current_rate=price,
+                          proposed_stake=stake, min_stake=mn, max_stake=min(available, mx), leverage=1.0,
+                          entry_tag=tag or None, side="long")
+        stake = self.validate_stake(stake, mn, mx, available)
+        if not stake or (mn is not None and stake < mn):
+            return 0.0, 0.0
+        amount = self._amount(pair, stake, price)
+        if amount <= 0:
+            return 0.0, 0.0
+        return amount * price, amount
+
+    # ---------------- 加仓 / 分批平仓（freqtrade _check_adjust_trade_for_candle）
+    def _adjust(self, t, p, row, now, ts):
+        o, h, lo, c = row
+        st = self.st
+        cp = t.ratio(o)
+        mn, mx = self.stake_limits(p, o, -0.1)
+        ft = FtTrade(t, p)
+        resp = _safe(st.s.adjust_trade_position, None, trade=ft, current_time=now, current_rate=o, current_profit=cp,
+                     min_stake=mn, max_stake=min(mx, self._available()), current_entry_rate=o, current_exit_rate=o,
+                     current_entry_profit=cp, current_exit_profit=cp)
+        tag = ""
+        if isinstance(resp, tuple):
+            stake, tag = (resp[0] if len(resp) else None), ((resp[1] if len(resp) > 1 else "") or "")
+        else:
+            stake = resp
+        try:
+            stake = None if stake is None else float(stake)
+        except (TypeError, ValueError):
+            stake = None
+        if stake is not None and stake > 0.0:
+            if st.max_entry_position_adjustment > -1 and len(t.entries) > st.max_entry_position_adjustment:
+                return "kept"
+            mn0, mx0 = self.stake_limits(p, o, 0.0)
+            stake = self.validate_stake(stake, mn0, mx0, self._available(), trade_amount=t.stake)
+            if not stake or (mn0 is not None and stake < mn0):
+                return "kept"
+            amount = self._amount(p, stake, o)
+            if not amount:
+                return "kept"
+            t.pending = None                                  # 加仓前撤掉没成交的平仓单（freqtrade handle_similar_order）
+            t.add_order("buy", o, amount, ts, tag or t.enter_tag, self.fee)
+            # 和 freqtrade 同样的顺序：成交（重算均价、按止损比例重设止损）→ 成交后止损回调 → 再重算一次
+            t.open_rate = o
+            t.recalc()
+            t.adjust_stop_loss(t.open_rate, t.stop_loss_pct)
+            stoploss_adjust(st, t, o, bound_profit=t.ratio(o), ctx={"pair": p, "now": now}, after_fill=True)
+            t.recalc()
+            return "added"
+        if stake is not None and stake < 0.0:
+            amount = _amount_prec(abs(stake * t.amount / t.stake), t.amount_prec)
+            if amount == 0.0:
+                return "kept"
+            remaining = (t.amount - amount) * o
+            if mn and remaining != 0 and remaining < mn:
+                return "kept"
+            rate = to_tick(max(o, lo), t.tick)
+            if not (lo <= rate <= h):
+                return "kept"
+            t.pending = None
+            t.add_order("sell", rate, amount, ts, tag or "partial_exit", self.fee)
+            if abs(amount - t.amount) > 1e-12:                 # 部分平：成交后止损回调，再重算，持仓继续（freqtrade 顺序）
+                stoploss_adjust(st, t, rate, bound_profit=t.ratio(rate), ctx={"pair": p, "now": now}, after_fill=True)
+                t.recalc()
+                return "partial"
+            return ("closed", rate, tag or "partial_exit")
+        return "kept"
 
     def run(self, data, pairs=None, full=None, startup=0, consume=False):
         """full: {pair: 算好指标的完整K线（含预热的 startup 根）}——策略回调里用 dp.get_analyzed_dataframe 时要用；
@@ -408,13 +613,31 @@ class Backtest:
         step = st.tf_min * 60_000
         start = min(a[0][0] for a in arr.values()) - step     # freqtrade: 从 start_date + 一根K线开始
         end = max(a[0][-1] for a in arr.values())
-        open_trades: list[Trade] = []
+        self._open = open_trades = []
         by_pair: dict[str, Trade] = {}
         closed = []
-        closed_profit = 0.0
+        self._closed_profit = 0.0
+        # 策略里查持仓 / 钱包（Trade.get_trades_proxy、self.wallets）：给回测当前的状态
+        tcls = getattr(st, "trade_cls", None)
+        if tcls is not None:
+            tcls.provider = lambda: [FtTrade(x, x.pair) for x in open_trades]
+        wl = getattr(getattr(st, "s", None), "wallets", None)
+        if wl is not None and hasattr(wl, "state"):
+            wl.state = lambda: (self.wallet, self._profit(), self._tied(), self.ratio)
+        dca = getattr(st, "position_adjustment_enable", False)
         cur = start + step
         last_row = {}
         loop_start = getattr(st, "has_bot_loop_start", False)
+
+        def finish(t, p, cur_ms, rate, reason):
+            if t.dca:
+                t.add_order("sell", rate, t.amount, cur_ms, reason, self.fee)
+                t.recalc(is_closing=True)
+            rec = self._close(t, cur_ms, rate, reason)
+            closed.append(rec)
+            self._closed_profit += rec["profit_abs"]
+            open_trades.remove(t); del by_pair[p]
+
         while cur <= end:
             if loop_start:                             # freqtrade 回测每根K线开始时调用一次
                 if dp is not None:
@@ -445,16 +668,26 @@ class Backtest:
                 ctx = {"pair": p, "now": now, "exit_tag": xtag if isinstance(xtag, str) else ""}
                 trade_dir = en == 1 and not ex == 1
                 if trade_dir and not has and cur != end and len(open_trades) < self.max_open:   # 最后一根K线不开新单
-                    stake, amount = self.stake_for(p, o, sum(x.stake for x in open_trades), closed_profit)
-                    if stake > 0 and confirm_entry(st, p, amount, o, now, etag if isinstance(etag, str) else ""):
+                    tag0 = etag if isinstance(etag, str) else ""
+                    stake, amount = self.stake_for(p, o, self._tied(), self._profit(), now=now, tag=tag0)
+                    if stake > 0 and confirm_entry(st, p, amount, o, now, tag0):
                         t = Trade(p, st.name, int(a[0][row_i]), o, amount, self.fee, self.fee,
                                   tick=self._tick(p, int(a[0][row_i])), stake=stake)
-                        t.enter_tag = etag if isinstance(etag, str) else ""
+                        t.enter_tag = tag0
+                        t.amount_prec = ((self.markets or {}).get(p) or {}).get("aprec")
+                        t.add_order("buy", o, amount, int(a[0][row_i]), tag0, self.fee)
                         t.adjust_stop_loss(t.open_rate, st.stoploss, initial=True)
                         stoploss_adjust(st, t, o, bound_profit=t.ratio(o), ctx=ctx, after_fill=True)   # 成交后回调（策略要的话）
                         open_trades.append(t); by_pair[p] = t; has = True
                 if has:
                     t = by_pair[p]
+                    if dca:
+                        r = self._adjust(t, p, (o, h, lo, c), now, int(cur))
+                        if isinstance(r, tuple):                # 分批平仓把整个仓位平完了
+                            closed.append(self._close(t, cur, r[1], r[2], add_exit=False))
+                            self._closed_profit += closed[-1]["profit_abs"]
+                            open_trades.remove(t); del by_pair[p]
+                            continue
                     dur = int((cur - t.open_time) // 60_000)
                     for etype, reason in should_exit(st, t, o, dur, en == 1, ex == 1, low=lo, high=h, ctx=ctx):
                         try:
@@ -469,13 +702,11 @@ class Backtest:
                     # 平仓单价格在这根K线范围内才算成交；不在（比如价格取整后比最低价还低一点点）就挂着，下根K线再看
                     if pend and lo <= pend[0] <= h:
                         rate, reason = pend
-                        closed.append(self._close(t, cur, rate, reason))
-                        closed_profit += t.profit_abs(rate)
-                        open_trades.remove(t); del by_pair[p]
+                        finish(t, p, cur, rate, reason)
             cur += step
         for t in list(open_trades):                    # 回测结束还没平的：按最后一根K线开盘价强平（freqtrade: force_exit）
             ts, o_last = last_row[t.pair]
-            closed.append(self._close(t, int(ts), to_tick(o_last, t.tick), "force_exit"))
+            finish(t, t.pair, int(ts), to_tick(o_last, t.tick), "force_exit")
         return closed
 
     def _tick(self, p, ts_ms):
@@ -490,12 +721,18 @@ class Backtest:
         x = v.asof(pd.Timestamp(ts_ms, unit="ms", tz="UTC"))
         return fallback if x != x else float(x)
 
-    @staticmethod
-    def _close(t: Trade, close_time, rate, reason):
+    def _close(self, t: Trade, close_time, rate, reason, add_exit=True):
+        if t.dca:                                      # 加过仓 / 分批平过：freqtrade 按全部成交算（close_profit）
+            if t.close_profit is None:
+                t.recalc(is_closing=True)
+            ratio, pabs = t.close_profit, t.close_profit_abs
+            ratio = round(ratio, 8) if ratio is not None else 0.0
+        else:
+            ratio, pabs = t.ratio(rate), t.profit_abs(rate)
         return {"pair": t.pair, "open_ts": int(t.open_time), "close_ts": int(close_time), "open_rate": t.open_rate,
-                "close_rate": rate, "profit_ratio": t.ratio(rate), "exit_reason": reason,
+                "close_rate": rate, "profit_ratio": ratio, "exit_reason": reason,
                 "trade_duration": int((close_time - t.open_time) // 60_000), "stake": t.stake,
-                "profit_abs": t.profit_abs(rate)}
+                "profit_abs": pabs, "entries": len(t.entries) if getattr(t, "orders", None) else 1}
 
 
 def check_exit_live(st, t: Trade, price, now_ms, enter, exit_, pair=None, exit_tag=""):
