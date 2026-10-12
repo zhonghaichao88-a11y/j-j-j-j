@@ -48,6 +48,23 @@ for st, idx in STAGES:                           # 报错重跑（每批只做�
                                                         'RETRY': '1'})
     open(mark, 'w').write('ok')
 
+for st, idx in STAGES:                           # 老写法（ticker_interval，没写 timeframe）报"Timeframe needs to be set"的：配置里补上周期再跑一次
+    mark = f'{RUN}/{st}/_tffix_done'
+    if os.path.exists(mark): continue
+    ids = []
+    for f in glob.glob(f'{RUN}/{st}/*/done.json'):
+        try:
+            d = json.load(open(f))
+        except ValueError:
+            continue
+        if 'Timeframe needs' in (d.get('err') or '') and not d.get('tf_fix'): ids.append(d['id'])
+    if ids:
+        ix = f'{SRC}/_retry_{st}.json' if os.path.exists(f'{SRC}/_retry_{st}.json') else f'{SRC}/{idx}'
+        open(f'{RUN}/{st}/_tffix_ids.txt', 'w').write('\n'.join(ids))
+        log('老写法补周期重跑', st, len(ids), '个')
+        sh(['batch_bt.py', st, '20240101-20260101', '20'], {'INDEX': ix, 'ONLY': f'{RUN}/{st}/_tffix_ids.txt', 'NPROC': '2', 'TFFIX': '1'})
+    open(mark, 'w').write('ok')
+
 sh(['rank.py'])
 df = pd.read_csv(f'{RUN}/结果_全部.csv')
 bad = lambda r: str(r.get('偷看')) == 'True' or 'lookahead' in str(r.cls).lower() or 'lookahead' in str(r.file).lower()

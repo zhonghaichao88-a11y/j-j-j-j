@@ -14,10 +14,11 @@ NP = int(sys.argv[3]) if len(sys.argv) > 3 else 20
 OUT = f'{RUN}/结果_{STAGE}.csv'
 OK_TF = {'5m', '15m', '1h', '4h', '1d'}
 RETRY = os.environ.get('RETRY') == '1'
+TFFIX = os.environ.get('TFFIX') == '1'          # 只重跑"没设 timeframe"报错的老策略（老写法 ticker_interval，新版 freqtrade 不认）
 
 
-def cfg(path, tr, futures=False):
-    """能做空的策略只能在合约模式跑：用合约数据、逐仓 1 倍"""
+def cfg(path, tr, futures=False, tf=None):
+    """能做空的策略只能在合约模式跑：用合约数据、逐仓 1 倍；tf：策略只写了老的 ticker_interval 时在配置里补上同样的周期"""
     c = {"max_open_trades": 5, "stake_currency": "USDT", "stake_amount": "unlimited", "tradable_balance_ratio": 0.99,
          "dry_run": True, "dry_run_wallet": 1000, "trading_mode": "futures" if futures else "spot", "fee": 0.001,
          "exchange": {"name": "okx", "key": "", "secret": "", "ccxt_config": {"httpsProxy": os.environ.get('HTTPS_PROXY')},
@@ -26,6 +27,7 @@ def cfg(path, tr, futures=False):
          "pairlists": [{"method": "StaticPairList"}], "entry_pricing": {"price_side": "other", "use_order_book": False},
          "exit_pricing": {"price_side": "other", "use_order_book": False}, "dataformat_ohlcv": "feather", "internals": {}}
     if futures: c["margin_mode"] = "isolated"
+    if tf: c["timeframe"] = tf
     json.dump(c, open(path, 'w'))
 
 
@@ -56,7 +58,8 @@ def job(r):
         except ValueError:
             old = None
         # 报错重跑：只重跑一次（重跑过的记 retried，被打断续上时不再从头来）
-        if old is not None and not (RETRY and old.get('err') and not old.get('retried')):
+        if old is not None and not (RETRY and old.get('err') and not old.get('retried')) and not (
+                TFFIX and 'Timeframe needs' in (old.get('err') or '') and not old.get('tf_fix')):
             return old
     os.makedirs(f'{wd}/s', exist_ok=True); os.makedirs(f'{wd}/bt', exist_ok=True); os.makedirs(f'{wd}/user_data/csvs', exist_ok=True)   # 有的策略要往这里写文件
     files = {r['path']} | local_imports(r['path'])
@@ -98,7 +101,10 @@ def job(r):
                 os.makedirs(os.path.dirname(dst), exist_ok=True); put(q, dst)
         else:
             put(os.path.join(SRC, f), f'{wd}/s/' + os.path.basename(f))
-    cfg(f'{wd}/c.json', TR, futures=r.get('short'))
+    main_src = open(os.path.join(SRC, r['path']), encoding='utf-8', errors='ignore').read()
+    old_tf = re.search(r'^\s*ticker_interval\s*=\s*[\'"](\w+)[\'"]', main_src, re.M)
+    use_tf = old_tf.group(1) if old_tf and not re.search(r'^\s*timeframe\s*=', main_src, re.M) else None
+    cfg(f'{wd}/c.json', TR, futures=r.get('short'), tf=use_tf)
     t = time.time()
     try:
         p = subprocess.run([FT, 'backtesting', '-c', f'{wd}/c.json', '--userdir', '/home/user/ext/ft', '--datadir', '/home/user/ext/ft/data_long/okx' if r.get('short') else '/home/user/ext/ft/data_spot/okx',
@@ -133,6 +139,8 @@ def job(r):
         res['note'] = f'策略往硬盘写了 {big / 2**20:.0f}MB 文件（已删）'
     if RETRY:
         res['retried'] = True
+    if TFFIX:
+        res['tf_fix'] = True
     tmp = f'{wd}/done.json.tmp'
     json.dump(res, open(tmp, 'w'), ensure_ascii=False)
     os.replace(tmp, f'{wd}/done.json')           # 先写临时文件再改名：中途被杀不会留下空的 done.json
