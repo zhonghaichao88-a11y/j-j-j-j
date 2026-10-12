@@ -156,10 +156,12 @@ class Bot:
         mode = self.cfg.get("coins", "backtest")
         day = 86_400_000
         min_age = float(self.cfg.get("min_age_days", 30))
+        # 只做加密币（欧易的股票、黄金等合约不做：策略没在这些上测过）
+        live = lambda x: x["state"] == "live" and x.get("crypto", True) and now_ms() - x["listTime"] > min_age * day
         if mode == "all":
-            out = [i for i, x in swaps.items() if x["state"] == "live" and now_ms() - x["listTime"] > min_age * day]
+            out = [i for i, x in swaps.items() if live(x)]
         elif mode == "top":                         # 24 小时成交额前 N 个（上线不满 min_age_days 天的不算）
-            ok = [i for i, x in swaps.items() if x["state"] == "live" and now_ms() - x["listTime"] > min_age * day]
+            ok = [i for i, x in swaps.items() if live(x)]
             ok.sort(key=lambda i: -(turnover or {}).get(i, 0))
             out = ok[:int(self.cfg.get("top_n", 150))]
         else:

@@ -47,7 +47,8 @@ class Okx:
                 continue
             f = lambda v: float(v) if v else 0.0
             out[x["instId"]] = {"tick": f(x["tickSz"]), "ctVal": f(x["ctVal"]), "lotSz": f(x["lotSz"]),
-                                "minSz": f(x["minSz"]), "listTime": int(x.get("listTime") or 0), "state": x["state"]}
+                                "minSz": f(x["minSz"]), "listTime": int(x.get("listTime") or 0), "state": x["state"],
+                                "crypto": str(x.get("instCategory") or "1") == "1"}     # 欧易还有股票(3)、黄金等商品(4)合约
         return out
 
     async def tickers(self):

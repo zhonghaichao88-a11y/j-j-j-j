@@ -417,6 +417,8 @@ def test_top_n_coin_selection_and_daily_refresh(app_client, monkeypatch):
     swaps["NEW-USDT-SWAP"] = {"tick": 0.01, "ctVal": 1, "lotSz": 1, "minSz": 1, "listTime": sb_app.sb_bot.now_ms(), "state": "live"}
     to = {f"C{i}-USDT-SWAP": float(i) for i in range(5)}
     to["NEW-USDT-SWAP"] = 1e12                                   # 成交额最大但刚上线：不算
+    swaps["XAU-USDT-SWAP"] = {"tick": 0.01, "ctVal": 1, "lotSz": 1, "minSz": 1, "listTime": old, "state": "live", "crypto": False}
+    to["XAU-USDT-SWAP"] = 1e11                                   # 黄金合约：不是加密币，不算
     bot.cfg.update(coins="top", top_n=3, min_age_days=30)
     assert bot._coin_list(swaps, to) == ["C2-USDT-SWAP", "C3-USDT-SWAP", "C4-USDT-SWAP"]
     # 每日更新：C4 掉出但有持仓 → 保留；C1 新进
