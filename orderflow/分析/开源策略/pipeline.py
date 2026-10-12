@@ -6,7 +6,7 @@ import os, sys, json, glob, subprocess, time
 import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__)); PY = '/home/user/ext/ftvenv/bin/python'
 RUN = '/home/user/ext/ftrun'; SRC = '/home/user/ext/srcs'
-STAGES = [('screen', '_index.json'), ('screen2', '_index_new.json'), ('screen3', '_index_3.json')]
+STAGES = [('screen', '_index.json'), ('screen2', '_index_new.json'), ('screen3', '_index_3.json'), ('screen4', '_index_4.json')]   # screen4：第二轮新找的 7 个仓库
 NO_FIX = ('tensorflow', 'xgboost', 'optuna', 'torch', 'keras', '写大量文件')       # 要装大型机器学习库的不重跑
 log = lambda *a: print(time.strftime('%m-%d %H:%M'), *a, flush=True)
 
