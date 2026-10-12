@@ -36,7 +36,7 @@ while true; do
       (setsid nohup "$j" >> "$j.log" 2>&1 < /dev/null &)
     fi
   done
-  for spec in "8020:/home/user/sbpaper/策略机" "8021:/home/user/sbpaper150" "8022:/home/user/sbpaper_e0v1e"; do
+  for spec in "8020:/home/user/sbpaper/策略机" "8021:/home/user/sbpaper150" "8022:/home/user/sbpaper_e0v1e" "8023:/home/user/sbpaper_elliotv8"; do
     port=${spec%%:*}; dir=${spec#*:}
     if ! port_ok $port; then
       sleep 20                                   # 刚启动的还在加载：再看一次
