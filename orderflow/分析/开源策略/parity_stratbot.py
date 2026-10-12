@@ -8,6 +8,7 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', '..', '..', 'stratbot'))
 import sb_loader, sb_engine  # noqa: E402
+import inf_data  # noqa: E402
 
 cls, fdir, year, q = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
 SPATH = os.environ.get('STRAT_FILE')                 # 策略文件（不在 stratbot/strategies 里时给路径）
@@ -48,8 +49,10 @@ def tick_over_time(candles):
     return 1 / 10 ** c.set_index('date', drop=True)['max_count'].resample('MS').max()
 
 
-st = sb_loader.Strategy(cls, SPATH)
+st = sb_loader.Strategy(cls, SPATH, runmode='backtest')
 w0 = t0 - pd.Timedelta(minutes=st.tf_min * st.startup)
+src = inf_data.okx_source(t0, t1, st.startup, mode)          # 策略要别的币/别的周期K线时从这里拿
+st.s.dp.whitelist = list(pairs)
 data, full = {}, {}
 tt = time.time()
 for p in pairs:
@@ -61,7 +64,7 @@ for p in pairs:
         continue
     d = sb_loader.fill_missing(d.reset_index(drop=True), st.tf_min)
     ticks[p] = (tick_over_time(d), inst[key(p)]['tick'])                       # freqtrade 回测用K线数据推算的每月价格精度，不是交易所的
-    a, fa = st.analyze(d, p, keep_full=True)
+    a, fa = st.analyze(d, p, keep_full=True, inf=src)
     a = a.iloc[st.startup:].reset_index(drop=True)    # 去掉预热的K线：freqtrade 是每个币去掉前 N 根（新上的币前 N 根也不做）
     if len(a) > 1:
         data[p] = a

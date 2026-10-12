@@ -342,8 +342,8 @@ def test_mode_switch_blocked_with_open_trades(app_client):
     assert r.status_code == 400 and "没平" in r.json()["detail"]
 
 
-def _mk_strat(tmp_path, body, name="Cb"):
-    src = "from freqtrade.strategy import IStrategy\nfrom datetime import timedelta\nclass %s(IStrategy):\n" % name + body
+def _mk_strat(tmp_path, body, name="Cb", imports=""):
+    src = "from freqtrade.strategy import IStrategy\nfrom datetime import timedelta\n" + imports + "class %s(IStrategy):\n" % name + body
     p = tmp_path / f"{name}.py"
     p.write_text(src)
     return L.Strategy(name, str(p))
@@ -436,3 +436,66 @@ def test_top_n_coin_selection_and_daily_refresh(app_client, monkeypatch):
     r = cli.post("/api/settings", json={"coins": "top", "top_n": 150})
     assert r.status_code == 200 and "重启" in r.json()["note"]
     assert cli.post("/api/settings", json={"top_n": 5}).status_code == 400
+
+
+def test_informative_decorator_and_pairs_match_freqtrade(tmp_path):
+    """@informative('1h') 和 dp.get_pair_dataframe：大周期只合并已收盘的K线，列名和 freqtrade 一样；
+    回调里拿别的周期K线只给当前时间以前收盘的"""
+    body = '''
+    minimal_roi = {"0": 10}
+    stoploss = -0.5
+    timeframe = "5m"
+    def informative_pairs(self):
+        return [("BTC/USDT", "1h")]
+    @informative("1h")
+    def populate_indicators_1h(self, df, metadata):
+        df["hc"] = df["close"]
+        return df
+    @informative("1h", "BTC/{stake}")
+    def populate_indicators_btc_1h(self, df, metadata):
+        df["x"] = df["close"] * 2
+        return df
+    def populate_indicators(self, df, m):
+        df["btc"] = self.dp.get_pair_dataframe("BTC/USDT", "1h")["close"].iloc[-1]
+        return df
+    def populate_buy_trend(self, df, m): return df
+    def populate_sell_trend(self, df, m): return df
+'''
+    st = _mk_strat(tmp_path, body, imports="from freqtrade.strategy import informative\n")
+    assert st.unsupported == [] and len(st.inf_methods) == 2
+    assert st.inf_needs("ETH/USDT") == {("BTC/USDT", "1h"), ("ETH/USDT", "1h")}
+    ts5 = pd.date_range("2025-01-01 00:00", periods=36, freq="5min", tz="UTC")
+    d = pd.DataFrame({"date": ts5, "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0})
+    ts1h = pd.date_range("2024-12-31 22:00", periods=5, freq="1h", tz="UTC")       # 22:00 ~ 02:00
+    h = pd.DataFrame({"date": ts1h, "open": 1.0, "high": 1.0, "low": 1.0, "close": [10.0, 11.0, 12.0, 13.0, 14.0], "volume": 1.0})
+    a, full = st.analyze(d, "ETH/USDT", keep_full=True, inf=lambda pair, tf: h if tf == "1h" else None)
+    # 5 分钟K线收盘时才算信号：00:00~00:50 开盘的只看到 23:00 那根 1 小时K线；00:55 开盘的那根 01:00 收盘，
+    # 那时 00:00 的 1 小时K线也收盘了，就看到它（和 freqtrade merge_informative_pair 一样）
+    assert list(full["hc_1h"].iloc[[0, 10, 11, 23, 24]]) == [11.0, 11.0, 12.0, 13.0, 13.0]
+    assert list(full["btc_usdt_x_1h"].iloc[[0, 12]]) == [22.0, 24.0]
+    assert "date_1h" in full and "btc_usdt_date_1h" in full
+    # 回调里（引擎设了当前时间 01:30）只给已经收盘的 1 小时K线：最后一根是 00:00 开盘、01:00 收盘的，01:00 那根还没收盘
+    st.s.dp.now = pd.Timestamp("2025-01-01 01:30", tz="UTC").to_pydatetime()
+    assert st.s.dp.get_pair_dataframe("BTC/USDT", "1h")["date"].iloc[-1] == pd.Timestamp("2025-01-01 00:00", tz="UTC")
+
+
+def test_old_freqtrade_imports_load(tmp_path):
+    """策略 import 的 PairLocks、freqtrade.misc、config['user_data_dir']、bot_loop_start 都能用"""
+    body = '''
+    minimal_roi = {"0": 10}
+    stoploss = -0.5
+    calls = []
+    def bot_loop_start(self, current_time=None, **kwargs):
+        self.calls.append(current_time)
+        assert not PairLocks.is_pair_locked("X/USDT")
+        assert json_load is not None and str(self.config["user_data_dir"])
+    def populate_indicators(self, df, m): return df
+    def populate_buy_trend(self, df, m): return df
+    def populate_sell_trend(self, df, m): return df
+'''
+    st = _mk_strat(tmp_path, body, imports="from freqtrade.persistence import Trade, PairLocks\nfrom freqtrade.misc import json_load\n")
+    assert st.unsupported == [] and st.has_bot_loop_start
+    ts = pd.date_range("2025-01-01", periods=5, freq="5min", tz="UTC")
+    d = pd.DataFrame({"date": ts, "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0})
+    E.Backtest(st, max_open=1, fee=0.0).run({"X/USDT": st.analyze(d, "X/USDT")}, ["X/USDT"])
+    assert len(st.s.calls) == 4                      # 每根K线一次（第一根的信号挪掉后从第二根开始）

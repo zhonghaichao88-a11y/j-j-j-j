@@ -19,11 +19,17 @@ for sid in sys.argv[1:]:
     c = json.load(open(f'{src}/c.json'))
     fut = c['trading_mode'] == 'futures'      # 老写法(V2)的策略合约模式不让跑，只做多的就用现货模式跑同一份合约K线（不算资金费）
     c.update(max_open_trades=10, fee=0.0007)
+    px = os.environ.get('HTTPS_PROXY')                       # 代理端口会变：用现在的（初筛时写进去的可能已经失效）
+    c['exchange']['ccxt_config'] = {'httpsProxy': px}; c['exchange']['ccxt_async_config'] = {'httpsProxy': px}
     c['exchange']['pair_whitelist'] = PAIRS if fut else [p.replace(':USDT', '') for p in PAIRS]
     json.dump(c, open(f'{wd}/c.json', 'w'))
     out = {}
-    for y in YEARS:
-        if os.path.exists(f'{wd}/{y}.json'): out[y] = json.load(open(f'{wd}/{y}.json')); continue
+    order = [2022, 2026, 2025, 2024, 2023, 2021] if os.environ.get('EARLY') else list(YEARS)   # EARLY=1：熊市先测、再测最近年份，有一年不到 1.1 就停
+    for y in order:
+        if os.path.exists(f'{wd}/{y}.json'):
+            out[y] = json.load(open(f'{wd}/{y}.json'))
+            if os.environ.get('EARLY') and (out[y].get('pf') or 0) < 1.1: break
+            continue
         Ts, errs, secs = [], [], 0
         for q, tr in QUARTERS[y]:
             qf = f'{wd}/trades{y}q{q}.csv'
@@ -62,4 +68,5 @@ for sid in sys.argv[1:]:
             r.update(n=0)
         json.dump(r, open(f'{wd}/{y}.json', 'w')); out[y] = r
         print(d['cls'], y, r, flush=True)
+        if os.environ.get('EARLY') and (r.get('pf') or 0) < 1.1: break
     json.dump(out, open(f'{wd}/summary.json', 'w'))

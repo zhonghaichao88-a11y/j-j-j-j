@@ -72,29 +72,53 @@ def timeframe_to_next_date(tf, date=None):
     return timeframe_to_prev_date(tf, date) + timedelta(minutes=TF_MIN[tf])
 
 
-def merge_informative_pair(dataframe, informative, timeframe, timeframe_inf, ffill=True,
-                           append_timeframe=True, date_column="date", suffix=None):
-    """和 freqtrade 2026 版一样：大周期K线时间往后挪（大周期 - 小周期），只合并已经收盘的大周期K线"""
+def _merge_informative(dataframe, informative, date_merge, ffill=True):
+    """freqtrade _merge_prepared_informative_pair"""
+    import pandas as pd
+    if ffill:
+        dataframe = pd.merge_ordered(dataframe, informative, fill_method="ffill", left_on="date",
+                                     right_on=date_merge, how="left")
+        if len(dataframe) > 1 and len(informative) > 0 and pd.isnull(dataframe.at[0, date_merge]):
+            first_valid_idx = dataframe[date_merge].first_valid_index()
+            if first_valid_idx:
+                first = dataframe.at[first_valid_idx, date_merge]
+                before = informative[informative[date_merge] < first]
+                if not before.empty:
+                    dataframe.loc[: first_valid_idx - 1] = dataframe.loc[: first_valid_idx - 1].fillna(before.iloc[-1])
+    else:
+        dataframe = pd.merge(dataframe, informative, left_on="date", right_on=date_merge, how="left")
+    return dataframe.drop(date_merge, axis=1)
+
+
+def _prepare_informative(informative, timeframe, timeframe_inf, append_timeframe=True, date_column="date", suffix=None,
+                         date_merge_column="date_merge"):
+    """freqtrade _prepare_informative_pair：大周期K线时间往后挪（大周期 - 小周期），只合并已经收盘的大周期K线"""
     import pandas as pd
     informative = informative.copy()
     m_inf, m = TF_MIN[timeframe_inf], TF_MIN[timeframe]
     if m == m_inf or informative.empty:
-        informative["date_merge"] = informative[date_column]
+        informative[date_merge_column] = informative[date_column]
+    elif m < m_inf:
+        informative[date_merge_column] = informative[date_column] + pd.to_timedelta(m_inf, "m") - pd.to_timedelta(m, "m")
     else:
-        informative["date_merge"] = informative[date_column] + pd.to_timedelta(m_inf, "m") - pd.to_timedelta(m, "m")
-    date_merge = "date_merge"
+        raise ValueError("Tried to merge a faster timeframe to a slower timeframe.")
+    date_merge = date_merge_column
+    if suffix and append_timeframe:
+        raise ValueError("You can not specify `append_timeframe` as True and a `suffix`.")
     if append_timeframe:
-        date_merge = f"date_merge_{timeframe_inf}"
+        date_merge = f"{date_merge_column}_{timeframe_inf}"
         informative.columns = [f"{c}_{timeframe_inf}" for c in informative.columns]
     elif suffix:
-        date_merge = f"date_merge_{suffix}"
+        date_merge = f"{date_merge_column}_{suffix}"
         informative.columns = [f"{c}_{suffix}" for c in informative.columns]
-    if ffill:
-        dataframe = pd.merge_ordered(dataframe, informative, fill_method="ffill", left_on="date",
-                                     right_on=date_merge, how="left")
-    else:
-        dataframe = pd.merge(dataframe, informative, left_on="date", right_on=date_merge, how="left")
-    return dataframe.drop(date_merge, axis=1)
+    return informative, date_merge
+
+
+def merge_informative_pair(dataframe, informative, timeframe, timeframe_inf, ffill=True,
+                           append_timeframe=True, date_column="date", suffix=None):
+    """和 freqtrade 2026 版一样（大周期只合并已经收盘的K线，不偷看未来）"""
+    inf, dm = _prepare_informative(informative, timeframe, timeframe_inf, append_timeframe, date_column, suffix)
+    return _merge_informative(dataframe, inf, dm, ffill)
 
 
 def stoploss_from_open(open_relative_stop, current_profit, is_short=False, leverage=1.0):
@@ -117,8 +141,20 @@ def stoploss_from_absolute(stop_rate, current_rate, is_short=False, leverage=1.0
     return max(min(stoploss, 1.0), 0.0) * leverage
 
 
-def informative(*a, **k):          # @informative 装饰器：本程序不支持（用到它的策略不收录），原样返回函数
-    return lambda f: f
+def informative(timeframe, asset="", fmt=None, *, candle_type=None, ffill=True, cache=True):
+    """@informative 装饰器（和 freqtrade 一样）：populate_indicators_1h 这类函数算大周期/别的币的指标，合并进主K线"""
+    def deco(fn):
+        lst = getattr(fn, "_ft_informative", [])
+        lst.append({"asset": asset, "timeframe": timeframe, "fmt": fmt, "ffill": ffill, "candle_type": candle_type})
+        fn._ft_informative = lst
+        return fn
+    return deco
+
+
+def _split_pair(pair):
+    base, _, rest = pair.partition("/")
+    quote = rest.split(":")[0] if rest else "USDT"
+    return base, quote
 
 
 class IStrategy:
@@ -144,6 +180,9 @@ class IStrategy:
 
     def informative_pairs(self):
         return []
+
+    def bot_loop_start(self, current_time=None, **kwargs):
+        return None
 
     # freqtrade 的默认回调（策略没写就用这些）
     def custom_stoploss(self, pair, trade, current_time, current_rate, current_profit, after_fill=False, **kwargs):
@@ -179,32 +218,85 @@ class _Trade:
 
 
 class _RunMode:
+    """freqtrade 的 RunMode：回测时 value = backtest，实盘/模拟盘 = live / dry_run（有的策略两种情况算法不一样）"""
     value = "dry_run"
+
+    def __init__(self, value="dry_run"):
+        self.value = value
+        self.name = value.upper()
+
+    def __eq__(self, other):
+        return getattr(other, "value", other) == self.value
+
+    def __hash__(self):
+        return hash(self.value)
+
+
+class _PairLocks:
+    """策略里偶尔查"这个币有没有被锁"。本程序不用保护锁：永远没锁"""
+
+    @staticmethod
+    def is_pair_locked(*a, **k):
+        return False
+
+    @staticmethod
+    def is_global_lock(*a, **k):
+        return False
+
+    @staticmethod
+    def get_pair_locks(*a, **k):
+        return []
+
+    @staticmethod
+    def get_pair_longest_lock(*a, **k):
+        return None
+
+    @staticmethod
+    def lock_pair(*a, **k):
+        return None
+
+    @staticmethod
+    def unlock_pair(*a, **k):
+        return None
 
 
 class _DP:
-    """假的 DataProvider：策略要别的币/别的周期的K线，从 frames 里给（本程序只喂主周期）"""
+    """假的 DataProvider。
+    get_pair_dataframe：别的币/别的周期的K线，从 source(币, 周期) 拿（回测时由调用方给历史K线，实盘时现拉）；
+    回测里策略回调（自定义止损等）调用时只给到当前时间之前已收盘的（和 freqtrade 一样，now 由引擎设）。"""
     runmode = _RunMode()
 
     def __init__(self):
         self.frames = {}
         self.analyzed = {}
         self.limit = {}
+        self.source = None              # 函数 (pair, timeframe) -> DataFrame
+        self.now = None                 # 回测时当前K线时间（datetime）；None = 不截
+        self.whitelist = []
+        self.main_tf = "5m"
 
     def get_pair_dataframe(self, pair, timeframe=None, candle_type=""):
         import pandas as pd
-        d = self.frames.get((pair, timeframe))
-        return d.copy() if d is not None else pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])
+        tf = timeframe or self.main_tf
+        d = None
+        if self.source is not None:
+            d = self.source(pair, tf)
+        if d is None:
+            d = self.frames.get((pair, tf))
+        if d is None:
+            return pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])
+        if self.now is not None:
+            d = d.loc[d["date"] < timeframe_to_prev_date(tf, self.now)]
+        return d.copy()
 
     historic_ohlcv = get_pair_dataframe
 
-    analyzed: dict = {}
-    limit: dict = {}
+    def ohlcv(self, pair, timeframe=None, copy=True, candle_type=""):
+        return self.get_pair_dataframe(pair, timeframe)
 
     def get_analyzed_dataframe(self, pair, timeframe):
         """算好指标的K线。回测时只给到"上一根收盘K线"为止、最多 1000 根（和 freqtrade 回测一样）；实盘给全部"""
         import pandas as pd
-        from datetime import datetime, timezone
         df = self.analyzed.get(pair)
         if df is None:
             return pd.DataFrame(), datetime.fromtimestamp(0, timezone.utc)
@@ -214,7 +306,11 @@ class _DP:
         return df, datetime.now(timezone.utc)
 
     def current_whitelist(self):
-        return sorted({p for p, _ in self.frames})
+        return list(self.whitelist) or sorted({p for p, _ in self.frames})
+
+    def market(self, pair):
+        base, quote = _split_pair(pair)
+        return {"base": base, "quote": quote, "symbol": pair}
 
 
 def _fake_modules():
@@ -240,7 +336,9 @@ def _fake_modules():
     mod("freqtrade.strategy.hyper", **params)
     mod("freqtrade.strategy.parameters", **params)
     mod("freqtrade.strategy.strategy_helper", **helpers)
-    mod("freqtrade.persistence", Trade=_Trade, Order=type("Order", (), {}), LocalTrade=_Trade)
+    mod("freqtrade.persistence", Trade=_Trade, Order=type("Order", (), {}), LocalTrade=_Trade, PairLocks=_PairLocks)
+    mod("freqtrade.misc", json_load=json.load, file_load_json=lambda f: json.load(open(f)),
+        deep_merge_dicts=_deep_merge, round_dict=lambda d, n: {k: round(v, n) for k, v in d.items()})
     mod("freqtrade.exchange", timeframe_to_minutes=timeframe_to_minutes, timeframe_to_seconds=timeframe_to_seconds,
         timeframe_to_prev_date=timeframe_to_prev_date, timeframe_to_next_date=timeframe_to_next_date)
     mod("freqtrade.vendor")
@@ -254,6 +352,15 @@ def _fake_modules():
         mod("rapidjson", load=json.load, loads=json.loads, dump=json.dump, dumps=json.dumps,
             JSONDecodeError=json.JSONDecodeError, NM_NATIVE=0, PM_COMMENTS=0, PM_TRAILING_COMMAS=0)
     return m
+
+
+def _deep_merge(source, destination, allow_null_overrides=True):
+    for k, v in source.items():
+        if isinstance(v, dict):
+            _deep_merge(v, destination.setdefault(k, {}), allow_null_overrides)
+        elif v is not None or allow_null_overrides:
+            destination[k] = v
+    return destination
 
 
 def _np_compat():
@@ -276,7 +383,7 @@ V2_ATTRS = {"use_sell_signal": "use_exit_signal", "sell_profit_only": "exit_prof
 class Strategy:
     """一个加载好的策略。analyze(df) 返回带 enter_long / exit_long 两列的K线表（这两列是那根K线收盘时的信号）"""
 
-    def __init__(self, cls_name: str, path: str | None = None):
+    def __init__(self, cls_name: str, path: str | None = None, runmode: str = "dry_run"):
         path = path or os.path.join(STRAT_DIR, cls_name + ".py")
         _np_compat()
         fake = _fake_modules()
@@ -294,9 +401,24 @@ class Strategy:
                     sys.modules[k] = v
         cls = getattr(mod, cls_name)
         self.name = cls_name
-        self.s = cls({"stake_currency": "USDT", "runmode": _RunMode(), "exchange": {"name": "okx"},
-                      "max_open_trades": 10, "dry_run": True})
+        import pathlib
+        udd = pathlib.Path(HERE) / "user_data"
+        self.runmode = _RunMode(runmode)
+        self.s = cls({"stake_currency": "USDT", "runmode": self.runmode, "exchange": {"name": "okx", "pair_whitelist": []},
+                      "max_open_trades": 10, "dry_run": True, "user_data_dir": udd, "datadir": udd / "data",
+                      "timeframe": getattr(cls, "timeframe", None) or getattr(cls, "ticker_interval", "5m"),
+                      "candle_type_def": "spot", "trading_mode": "spot", "stake_amount": "unlimited"})
         self.s.dp = _DP()
+        self.s.dp.runmode = self.runmode
+        self.s.dp.main_tf = self.s.config["timeframe"]
+        # @informative 装饰的函数（和 freqtrade 一样按名字排序收集）
+        self.inf_methods = []
+        for attr in dir(cls):
+            fn = getattr(cls, attr, None)
+            lst = getattr(fn, "_ft_informative", None) if callable(fn) else None
+            if isinstance(lst, list):
+                for d in lst:
+                    self.inf_methods.append((d, fn))
         self._apply_params(cls)
         s = self.s
         g = lambda a, d=None: getattr(s, a, d)
@@ -334,20 +456,66 @@ class Strategy:
             bad.append("加仓 position_adjustment")
         if g("can_short", False):
             bad.append("做空")
-        for meth in ("custom_entry_price", "custom_exit_price", "custom_stake_amount", "custom_roi", "bot_loop_start",
+        self.has_bot_loop_start = over("bot_loop_start")
+        for meth in ("custom_entry_price", "custom_exit_price", "custom_stake_amount", "custom_roi",
                      "order_filled", "adjust_trade_position", "adjust_entry_price", "adjust_exit_price", "adjust_order_price",
                      "check_entry_timeout", "check_exit_timeout"):
             if over(meth):
                 bad.append(meth)
         if g("use_custom_roi", False):
             bad.append("custom_roi")
-        if over("informative_pairs"):
-            try:
-                if s.informative_pairs():
-                    bad.append("别的周期/别的币的K线 informative_pairs")
-            except Exception:  # noqa: BLE001
-                bad.append("informative_pairs")
+        for d, _ in self.inf_methods:
+            if d["timeframe"] not in TF_MIN or TF_MIN[d["timeframe"]] < self.tf_min:
+                bad.append(f"@informative 周期 {d['timeframe']}")
+            if d.get("candle_type") not in (None, "", "spot", "futures"):
+                bad.append(f"@informative K线类型 {d['candle_type']}")
+        # informative_pairs() 只用来提前知道要哪些K线（freqtrade 回测根本不调用它，策略要时才去拿）；出错不影响
         self.unsupported = bad
+
+    def informative_pairs_static(self, whitelist=None):
+        """策略 informative_pairs() 返回的 (币, 周期)（要用 dp.current_whitelist 的，按给的币列表算）"""
+        if whitelist is not None:
+            self.s.dp.whitelist = list(whitelist)
+        try:
+            return [(x[0], x[1]) for x in (self.s.informative_pairs() or [])]
+        except Exception:  # noqa: BLE001
+            return []
+
+    def inf_needs(self, pair, whitelist=None):
+        """这个币算信号要的其他K线：{(币, 周期)}（币名照策略写的，比如 BTC/USDT）"""
+        need = set(self.informative_pairs_static(whitelist))
+        for d, _ in self.inf_methods:
+            need.add((self._inf_asset(d, pair), d["timeframe"]))
+        return need
+
+    def _inf_asset(self, d, pair):
+        if not d["asset"]:
+            return pair
+        base, quote = _split_pair(pair)
+        return d["asset"].format(stake_currency="USDT", stake="USDT", base=base.lower(), BASE=base.upper(),
+                                 quote=quote.lower(), QUOTE=quote.upper()).upper()
+
+    def _apply_informative(self, d, pair):
+        """freqtrade _create_and_merge_informative_pair"""
+        for inf, fn in self.inf_methods:
+            asset = self._inf_asset(inf, pair)
+            tf = inf["timeframe"]
+            fmt = inf["fmt"] or ("{column}_{timeframe}" if not inf["asset"] else "{base}_{quote}_{column}_{timeframe}")
+            src = self.s.dp.get_pair_dataframe(asset, tf)
+            if src.empty:
+                raise ValueError(f"Informative dataframe for ({asset}, {tf}) is empty. Can't populate informative indicators.")
+            src = fn(self.s, src, {"pair": asset, "timeframe": tf})
+            base, quote = _split_pair(asset)
+            args = {"base": base.lower(), "BASE": base.upper(), "quote": quote.lower(), "QUOTE": quote.upper(),
+                    "asset": asset, "timeframe": tf}
+            f = fmt if callable(fmt) else fmt.format
+            src = src.rename(columns=lambda c: f(column=c, **args))
+            date_col = f(column="date", **args)
+            if date_col in d.columns:
+                raise ValueError(f"Duplicate column name {date_col} exists in dataframe! Ensure column names are unique!")
+            inf_df, dm = _prepare_informative(src, self.timeframe, tf, append_timeframe=False, date_column=date_col)
+            d = _merge_informative(d, inf_df, dm, ffill=inf["ffill"])
+        return d
 
     def _apply_params(self, cls):
         """策略类里写的 buy_params / sell_params 覆盖参数默认值（freqtrade 也是这么做的）"""
@@ -360,11 +528,18 @@ class Strategy:
                 if isinstance(p, _Param):
                     p.value = v
 
-    def analyze(self, df, pair="BTC/USDT:USDT", keep_full=False):
-        """df: date(UTC)/open/high/low/close/volume，按时间排好、没有缺K线。返回加了 enter_long / exit_long 的表"""
+    def analyze(self, df, pair="BTC/USDT:USDT", keep_full=False, inf=None):
+        """df: date(UTC)/open/high/low/close/volume，按时间排好、没有缺K线。返回加了 enter_long / exit_long 的表。
+        inf: 函数 (币, 周期) -> K线表，策略要别的币/别的周期时用（informative_pairs / @informative）"""
         import pandas as pd
         meta = {"pair": pair}
         d = df.copy()
+        dp = self.s.dp
+        if inf is not None:
+            dp.source = inf
+        dp.now = None
+        if self.inf_methods:
+            d = self._apply_informative(d, pair)
         d = self.s.populate_indicators(d, meta)
         # 和 freqtrade advise_entry / advise_exit 一样：先放空标签列，再算信号，老写法的 buy/sell 列改名
         d.loc[:, "enter_tag"] = ""

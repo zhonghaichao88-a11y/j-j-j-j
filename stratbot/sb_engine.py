@@ -414,7 +414,12 @@ class Backtest:
         closed_profit = 0.0
         cur = start + step
         last_row = {}
+        loop_start = getattr(st, "has_bot_loop_start", False)
         while cur <= end:
+            if loop_start:                             # freqtrade 回测每根K线开始时调用一次
+                if dp is not None:
+                    dp.now = _dt(cur)
+                _safe(st.s.bot_loop_start, None, current_time=_dt(cur))
             at_start = [t.pair for t in open_trades]
             order = list(dict.fromkeys(at_start + pairs))
             now = None
@@ -430,6 +435,8 @@ class Backtest:
                 last_row[p] = (a[0][row_i], o)
                 if full and dp is not None:
                     dp.limit[p] = startup + row_i + 1          # 策略回调看到的最后一根 = 上一根收盘K线（和 freqtrade 一样）
+                if dp is not None:
+                    dp.now = _dt(cur)                          # 回调里拿别的周期K线：只给当前时间以前收盘的
                 has = p in by_pair
                 if p in at_start and not has:
                     continue

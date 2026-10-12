@@ -14,6 +14,10 @@ while true; do
     echo "$(date -u +%m-%d\ %H:%M) 重启 pipeline" >> $LOG
     (cd /home/user/j-j-j-j/orderflow/分析/开源策略 && setsid nohup $PY pipeline.py >> /home/user/ext/ftrun/pipeline.log 2>&1 < /dev/null &)
   fi
+  if ! ps -eo args | grep -q "^/bin/bash /home/user/ext/run_full9.sh" && ! tail -3 /home/user/ext/ftrun/full9.log 2>/dev/null | grep -q "FULL9 DONE"; then
+    echo "$(date -u +%m-%d\ %H:%M) 启动/重启 9 个候选的 freqtrade 按年复测" >> $LOG
+    setsid nohup /home/user/ext/run_full9.sh >> /home/user/ext/ftrun/full9.log 2>&1 < /dev/null &
+  fi
   for spec in "8020:/home/user/sbpaper/策略机" "8021:/home/user/sbpaper150"; do
     port=${spec%%:*}; dir=${spec#*:}
     if ! port_ok $port; then
