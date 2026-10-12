@@ -109,9 +109,10 @@ def tick_over_time(c):
 
 
 quarters = [(y, q) for y in range(2021, 2027) for q in (1, 2, 3, 4) if not (y == 2026 and q == 4)]
+QONLY = [x for x in os.environ.get('QONLY', '').split(',') if x]   # 只跑这些季度（例 2026q1,2026q2）：分几路同时跑时用
 for y, q in quarters:
     of = f'{OUT}/trades{y}q{q}.csv'
-    if os.path.exists(of):
+    if os.path.exists(of) or (QONLY and f'{y}q{q}' not in QONLY):
         continue
     m0 = (q - 1) * 3 + 1
     t0 = pd.Timestamp(year=y, month=m0, day=1, tz='UTC')
@@ -167,6 +168,8 @@ for y, q in quarters:
         if not any(f'_{k}.npz' in f or f'_{k}_' in f for k in keep):
             os.remove(f)
 
+if QONLY:                                             # 分路跑的只负责算季度，汇总由主路做
+    sys.exit(0)
 rows = []
 for y in range(2021, 2027):
     fs = [f for f in sorted(glob.glob(f'{OUT}/trades{y}q*.csv')) if os.path.getsize(f) > 10]
