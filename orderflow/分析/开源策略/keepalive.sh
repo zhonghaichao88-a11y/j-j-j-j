@@ -3,6 +3,8 @@
 #   1) 开源策略总流程 pipeline.py（日志最后是 PIPELINE DONE 就不再起）
 #   2) 策略机模拟盘 A：94 个币，端口 8020
 #   3) 策略机模拟盘 B：成交额前 150，端口 8021
+#   4) 硬盘快满（<700MB）：删掉最近一天产生的 >200MB 的回测大文件，免得写满后全部卡住
+#   5) 总流程日志 2 小时没动：记一条警告（每小时守护会看）
 PY=/home/user/ext/ftvenv/bin/python
 LOG=/home/user/ext/keepalive.log
 running() { ps -eo args | grep -q "^$PY $1"; }
@@ -23,5 +25,13 @@ while true; do
       fi
     fi
   done
+  avail=$(df --output=avail -k / | tail -1)
+  if [ "$avail" -lt 700000 ]; then
+    echo "$(date -u +%m-%d\ %H:%M) 硬盘只剩 $((avail/1024))MB，清理大文件：" >> $LOG
+    find /home/user/ext/ftrun /home/user/ext/ft /home/user/ext/bnm -xdev -type f -size +200M -mmin -1440 -print -delete >> $LOG 2>&1
+  fi
+  if [ -n "$(find /home/user/ext/ftrun/pipeline.log -mmin +120)" ] && ! tail -5 /home/user/ext/ftrun/pipeline.log | grep -q "PIPELINE DONE"; then
+    echo "$(date -u +%m-%d\ %H:%M) 警告：总流程日志 2 小时没更新" >> $LOG
+  fi
   sleep 60
 done
