@@ -12,8 +12,10 @@ log = lambda *a: print(time.strftime('%m-%d %H:%M'), *a, flush=True)
 
 
 def busy():
-    p = subprocess.run(['pgrep', '-f', 'batch_bt.py|fulltest.py|lookahead.py'], capture_output=True, text=True)
-    return [x for x in p.stdout.split() if int(x) != os.getpid()]
+    """只认真正在跑的 python batch_bt/fulltest/lookahead 进程（不认命令行里碰巧带这几个字的 shell）"""
+    p = subprocess.run(['ps', '-eo', 'pid=,args='], capture_output=True, text=True)
+    return [l.split()[0] for l in p.stdout.splitlines() if len(l.split()) > 2 and l.split()[1] == PY
+            and l.split()[2] in ('batch_bt.py', 'fulltest.py', 'lookahead.py')]
 
 
 def sh(args, env=None):
@@ -63,6 +65,23 @@ for st, idx in STAGES:                           # 老写法（ticker_interval�
         open(f'{RUN}/{st}/_tffix_ids.txt', 'w').write('\n'.join(ids))
         log('老写法补周期重跑', st, len(ids), '个')
         sh(['batch_bt.py', st, '20240101-20260101', '20'], {'INDEX': ix, 'ONLY': f'{RUN}/{st}/_tffix_ids.txt', 'NPROC': '2', 'TFFIX': '1'})
+    open(mark, 'w').write('ok')
+
+for st, idx in STAGES:                           # "Impossible to load"（类名后多空格、没 import logging/IStrategy）：复制时已修正，再跑一次
+    mark = f'{RUN}/{st}/_loadfix_done'
+    if os.path.exists(mark): continue
+    ids = []
+    for f in glob.glob(f'{RUN}/{st}/*/done.json'):
+        try:
+            d = json.load(open(f))
+        except ValueError:
+            continue
+        if 'Impossible to load' in (d.get('err') or '') and not d.get('load_fix'): ids.append(d['id'])
+    if ids:
+        ix = f'{SRC}/_retry_{st}.json' if os.path.exists(f'{SRC}/_retry_{st}.json') else f'{SRC}/{idx}'
+        open(f'{RUN}/{st}/_loadfix_ids.txt', 'w').write('\n'.join(ids))
+        log('加载失败修正后重跑', st, len(ids), '个')
+        sh(['batch_bt.py', st, '20240101-20260101', '20'], {'INDEX': ix, 'ONLY': f'{RUN}/{st}/_loadfix_ids.txt', 'NPROC': '2', 'LOADFIX': '1'})
     open(mark, 'w').write('ok')
 
 sh(['rank.py'])

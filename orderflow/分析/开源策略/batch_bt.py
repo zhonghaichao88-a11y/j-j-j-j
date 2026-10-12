@@ -15,6 +15,7 @@ OUT = f'{RUN}/结果_{STAGE}.csv'
 OK_TF = {'5m', '15m', '1h', '4h', '1d'}
 RETRY = os.environ.get('RETRY') == '1'
 TFFIX = os.environ.get('TFFIX') == '1'          # 只重跑"没设 timeframe"报错的老策略（老写法 ticker_interval，新版 freqtrade 不认）
+LOADFIX = os.environ.get('LOADFIX') == '1'      # 只重跑"Impossible to load"的（类名后多空格 / 没 import logging、IStrategy 这类小毛病，已在复制时修正）
 
 
 def cfg(path, tr, futures=False, tf=None):
@@ -59,7 +60,8 @@ def job(r):
             old = None
         # 报错重跑：只重跑一次（重跑过的记 retried，被打断续上时不再从头来）
         if old is not None and not (RETRY and old.get('err') and not old.get('retried')) and not (
-                TFFIX and 'Timeframe needs' in (old.get('err') or '') and not old.get('tf_fix')):
+                TFFIX and 'Timeframe needs' in (old.get('err') or '') and not old.get('tf_fix')) and not (
+                LOADFIX and 'Impossible to load' in (old.get('err') or '') and not old.get('load_fix')):
             return old
     os.makedirs(f'{wd}/s', exist_ok=True); os.makedirs(f'{wd}/bt', exist_ok=True); os.makedirs(f'{wd}/user_data/csvs', exist_ok=True)   # 有的策略要往这里写文件
     files = {r['path']} | local_imports(r['path'])
@@ -69,9 +71,12 @@ def job(r):
             'import builtins as _b_shim, typing as _t_shim\n'                                   # 老策略没 import 就用 Tuple / Optional 这些（老版本 freqtrade 会顺带导出）
             'for _a in ("Tuple", "Optional", "Dict", "List", "Union", "Any", "Callable"):\n'
             '    if not hasattr(_b_shim, _a): setattr(_b_shim, _a, getattr(_t_shim, _a))\n'
+            'import logging as _lg_shim\n'                                                       # 没 import 就用 logging / IStrategy 的
+            'if not hasattr(_b_shim, "logging"): _b_shim.logging = _lg_shim\n'
             'import sys as _sys_shim, freqtrade.strategy as _fs_shim, freqtrade.strategy.hyper as _fh_shim\n'   # 参数类的老导入路径
             'for _a in ("CategoricalParameter", "IntParameter", "DecimalParameter", "RealParameter", "BooleanParameter"):\n'
             '    if hasattr(_fs_shim, _a) and not hasattr(_fh_shim, _a): setattr(_fh_shim, _a, getattr(_fs_shim, _a))\n'
+            'if not hasattr(_b_shim, "IStrategy"): _b_shim.IStrategy = _fs_shim.IStrategy\n'
             'try:\n    import freqtrade.vendor.qtpylib.indicators\nexcept Exception:\n'                              # 老版本 freqtrade 自带的 qtpylib，现在在 technical 里
             '    import types as _ty_shim, technical.qtpylib as _q_shim\n'
             '    _v_shim = _ty_shim.ModuleType("freqtrade.vendor"); _qp_shim = _ty_shim.ModuleType("freqtrade.vendor.qtpylib")\n'
@@ -93,7 +98,9 @@ def job(r):
         while k < len(lines) and (lines[k].startswith('#') or not lines[k].strip()): k += 1
         fut = [i for i, l in enumerate(lines) if l.startswith('from __future__')]   # __future__ 必须在最前：补丁放它后面
         if fut: k = max(k, fut[-1] + 1)
-        open(dst, 'w', encoding='utf-8').write('\n'.join(lines[:k] + [SHIM] + lines[k:]))
+        body = '\n'.join(lines[k:])
+        body = re.sub(r'^(\s*class\s+\w+)[ \t]+\(', r'\1(', body, flags=re.M)   # "class X (IStrategy)" 多了空格，freqtrade 找类时认不出
+        open(dst, 'w', encoding='utf-8').write('\n'.join(lines[:k] + [SHIM, body]))
     for f in files:
         if os.path.isdir(os.path.join(SRC, f)):      # 本地包（目录）：整个复制，里面的 .py 都加补丁
             for q in glob.glob(os.path.join(SRC, f, '**/*.py'), recursive=True):
@@ -141,6 +148,8 @@ def job(r):
         res['retried'] = True
     if TFFIX:
         res['tf_fix'] = True
+    if LOADFIX:
+        res['load_fix'] = True
     tmp = f'{wd}/done.json.tmp'
     json.dump(res, open(tmp, 'w'), ensure_ascii=False)
     os.replace(tmp, f'{wd}/done.json')           # 先写临时文件再改名：中途被杀不会留下空的 done.json
