@@ -528,6 +528,9 @@ class Strategy:
                 bad.append(f"@informative K线类型 {d['candle_type']}")
         # informative_pairs() 只用来提前知道要哪些K线（freqtrade 回测根本不调用它，策略要时才去拿）；出错不影响
         self.unsupported = bad
+        # 回调里要用 dp.get_analyzed_dataframe 等（回测时要把算好指标的完整K线给引擎）
+        self.uses_callbacks = bool(self.use_custom_stoploss or self.has_custom_exit or self.has_confirm_exit or self.has_confirm_entry
+                                   or self.position_adjustment_enable or self.has_custom_stake or self.has_bot_loop_start)
 
     def informative_pairs_static(self, whitelist=None):
         """策略 informative_pairs() 返回的 (币, 周期)（要用 dp.current_whitelist 的，按给的币列表算）"""
@@ -654,15 +657,23 @@ def fill_missing(df, tf_min=5):
 
 
 def callback_columns(st):
-    """策略回调（自定义止损/平仓/确认）里用到的K线列名：从源码里找字符串。回调里有拼出来的列名（f-string）就返回 None（= 全部保留）。
-    全部币回测时只留这些列，省内存（结果不变：回调只看得到这些列）"""
+    """策略回调（自定义止损/平仓/确认/加仓/每单资金/每轮开始）里用到的K线列名：从源码里找字符串（连带回调里调用的策略自己的函数）。
+    回调里有拼出来的列名（f-string）就返回 None（= 全部保留）。全部币回测时只留这些列，省内存（结果不变：回调只看得到这些列）"""
     import ast
     import inspect
     import textwrap
-    names = set()
-    for m in ("custom_stoploss", "custom_exit", "custom_sell", "confirm_trade_exit", "confirm_trade_entry"):
-        fn = getattr(type(st.s), m, None)
-        if fn is None or getattr(IStrategy, m, None) is fn:
+    cls = type(st.s)
+    names = {"volume"}
+    todo = ["custom_stoploss", "custom_exit", "custom_sell", "confirm_trade_exit", "confirm_trade_entry",
+            "adjust_trade_position", "custom_stake_amount", "bot_loop_start"]
+    seen = set()
+    while todo:
+        m = todo.pop()
+        if m in seen:
+            continue
+        seen.add(m)
+        fn = getattr(cls, m, None)
+        if fn is None or getattr(IStrategy, m, None) is fn or not callable(fn):
             continue
         try:
             tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
@@ -673,4 +684,7 @@ def callback_columns(st):
                 return None
             if isinstance(node, ast.Constant) and isinstance(node.value, str):
                 names.add(node.value)
+            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "self":
+                if callable(getattr(cls, node.attr, None)) and not hasattr(IStrategy, node.attr):
+                    todo.append(node.attr)            # 回调里调用的策略自己的函数：一起看
     return names

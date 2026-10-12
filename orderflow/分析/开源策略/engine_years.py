@@ -8,12 +8,13 @@ from numpy import format_float_positional
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', '..', '..', 'stratbot'))
 import sb_loader, sb_engine  # noqa: E402
+import inf_data  # noqa: E402
 
 path, cls, years = sys.argv[1], sys.argv[2], [int(y) for y in sys.argv[3].split(',')]
 OUT = f'/home/user/ext/ftrun/eng/{cls}'
 os.makedirs(OUT, exist_ok=True)
 try:
-    st = sb_loader.Strategy(cls, path)
+    st = sb_loader.Strategy(cls, path, runmode='backtest')
     err = st.unsupported
 except Exception as e:  # noqa: BLE001
     err = [f'加载失败：{e}'[:300]]
@@ -23,7 +24,7 @@ if err:
 pairs = json.load(open('/home/user/ext/ft_whitelist_spot.json'))
 inst = json.load(open('/home/user/ext/okx_spot_inst.json'))
 mk = json.load(open('/home/user/ext/okx_ccxt_markets.json'))
-uses_dp = st.use_custom_stoploss or st.has_custom_exit or st.has_confirm_exit or st.has_confirm_entry
+uses_dp = st.uses_callbacks
 
 
 def tick_over_time(c):
@@ -47,13 +48,15 @@ for y in years:
         t1 = t0 + pd.DateOffset(months=3) if not (y == 2026 and q == 3) else pd.Timestamp('2026-09-30', tz='UTC')
         w0 = t0 - pd.Timedelta(minutes=st.tf_min * st.startup)
         data, full, ticks = {}, {}, {}
+        src = inf_data.okx_source(t0, t1, st.startup, 'spot')     # 策略要别的币/别的周期K线时从这里拿（和 freqtrade 同一份数据）
+        st.s.dp.whitelist = list(raw)
         for p, d0 in raw.items():
             d = d0[(d0.date >= w0) & (d0.date <= t1)]
             if len(d) <= st.startup + 1:
                 continue
             d = sb_loader.fill_missing(d.reset_index(drop=True), st.tf_min)
             ticks[p] = (tick_over_time(d), inst.get(p.replace('/', '-'), {}).get('tick'))
-            a, fa = st.analyze(d, p, keep_full=True)
+            a, fa = st.analyze(d, p, keep_full=True, inf=src)
             a = a.iloc[st.startup:].reset_index(drop=True)
             if len(a) > 1:
                 data[p] = a

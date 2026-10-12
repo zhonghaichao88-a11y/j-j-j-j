@@ -20,19 +20,20 @@ OUT = f'/home/user/ext/ftrun/allbn_{cls}' + (f'_top{TOPN}' if TOPN else '')
 CACHE = '/home/user/ext/bnm'
 os.makedirs(OUT, exist_ok=True); os.makedirs(CACHE, exist_ok=True)
 SYMS = json.load(open('/home/user/ext/bn_um_usdt.json'))
-st = sb_loader.Strategy(cls, SPATH)
+SYMS_SET = set(SYMS)
+st = sb_loader.Strategy(cls, SPATH, runmode='backtest')
 KEEP = sb_loader.callback_columns(st)                 # 回调里用到的列（全部币时只留这些，省内存）
-uses_dp = st.use_custom_stoploss or st.has_custom_exit or st.has_confirm_exit or st.has_confirm_entry
+uses_dp = st.uses_callbacks
 cli = httpx.Client(timeout=60, headers={'User-Agent': 'Mozilla/5.0'}, follow_redirects=True)
 COLS = ['open_time', 'open', 'high', 'low', 'close', 'volume']
 
 
-def month_file(sym, ym):
-    """一个币一个月的 5 分钟K线 → npz 缓存（没有这个月就记一个空标记）"""
-    p = f'{CACHE}/{sym}_{ym}{"" if st.timeframe == "5m" else "_" + st.timeframe}.npz'
+def month_file(sym, ym, tf=None):
+    """一个币一个月的K线（默认策略的主周期）→ npz 缓存（没有这个月就记一个空标记）"""
+    tf = tf or st.timeframe
+    p = f'{CACHE}/{sym}_{ym}{"" if tf == "5m" else "_" + tf}.npz'
     if os.path.exists(p) or os.path.exists(p + '.none'):
         return p
-    tf = st.timeframe
     url = f'https://data.binance.vision/data/futures/um/monthly/klines/{sym}/{tf}/{sym}-{tf}-{ym}.zip'
     for k in range(4):
         try:
@@ -55,27 +56,48 @@ def month_file(sym, ym):
     return p
 
 
-def load(sym, months, a0, a1):
+def load(sym, months, a0, a1, tf=None, min_rows=None):
+    tf = tf or st.timeframe
     parts = []
     for ym in months:
-        p = f'{CACHE}/{sym}_{ym}{"" if st.timeframe == "5m" else "_" + st.timeframe}.npz'
+        p = f'{CACHE}/{sym}_{ym}{"" if tf == "5m" else "_" + tf}.npz'
         if os.path.exists(p):
             try:
                 z = np.load(p)
                 parts.append(pd.DataFrame({c: z[c] for c in COLS}))
             except Exception:  # noqa: BLE001  坏文件（以前中途被杀留下的）：删掉重新下
                 os.remove(p)
-                month_file(sym, ym)
+                month_file(sym, ym, tf)
                 z = np.load(p)
                 parts.append(pd.DataFrame({c: z[c] for c in COLS}))
     if not parts:
         return None
     d = pd.concat(parts, ignore_index=True)
     d = d[(d.open_time >= a0) & (d.open_time <= a1)].drop_duplicates('open_time').sort_values('open_time')
-    if len(d) <= st.startup + 1:
+    if len(d) <= (st.startup + 1 if min_rows is None else min_rows):
         return None
     d['date'] = pd.to_datetime(d.open_time, unit='ms', utc=True)
-    return sb_loader.fill_missing(d[['date', 'open', 'high', 'low', 'close', 'volume']].reset_index(drop=True), st.tf_min)
+    return sb_loader.fill_missing(d[['date', 'open', 'high', 'low', 'close', 'volume']].reset_index(drop=True), sb_loader.TF_MIN[tf])
+
+
+def bn_source(t0, t1):
+    """策略要别的币/别的周期K线（informative）：币安同一份数据，按 freqtrade 的窗口 [开始 - 预热根数 × 该周期, 结束] 下载"""
+    cache = {}
+
+    def src(pair, tf):
+        sym = pair.split('/')[0].upper() + 'USDT'
+        k = (sym, tf)
+        if k not in cache:
+            if sym not in SYMS_SET or tf not in sb_loader.TF_MIN:
+                cache[k] = None
+            else:
+                w0_ = t0 - pd.Timedelta(minutes=sb_loader.TF_MIN[tf] * st.startup)
+                ms = pd.period_range(w0_.strftime('%Y-%m'), (t1 - pd.Timedelta(seconds=1)).strftime('%Y-%m'), freq='M').strftime('%Y-%m')
+                for ym in ms:
+                    month_file(sym, ym, tf)
+                cache[k] = load(sym, ms, int(w0_.timestamp() * 1000), int(t1.timestamp() * 1000), tf, min_rows=0)
+        return cache[k]
+    return src
 
 
 def tick_over_time(c):
@@ -116,13 +138,15 @@ for y, q in quarters:
                 except Exception:  # noqa: BLE001
                     pass
         syms = [k for k, v in sorted(qv.items(), key=lambda kv: -kv[1]) if v > 0][:TOPN]
+    src = bn_source(t0, t1)
+    st.s.dp.whitelist = [x[:-4] + '/USDT' for x in syms]
     for s in syms:
         d = load(s, months, a0, a1)
         if d is None:
             continue
         p = s[:-4] + '/USDT'
         ticks[p] = (tick_over_time(d), None)
-        a, fa = st.analyze(d, p, keep_full=True)
+        a, fa = st.analyze(d, p, keep_full=True, inf=src)
         a = a.iloc[st.startup:].reset_index(drop=True)
         a = a[[c for c in a.columns if c != 'volume' and (c not in ('enter_tag', 'exit_tag') or (a[c] != '').any())]]
         del d
