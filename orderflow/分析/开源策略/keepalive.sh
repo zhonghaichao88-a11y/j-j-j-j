@@ -2,7 +2,7 @@
 # 看门程序：每分钟检查一次，停了就拉起来（用 setsid 单独起，不跟着这个脚本一起被停）
 #   1) 开源策略总流程 pipeline.py（日志最后是 PIPELINE DONE 就不再起）
 #   2) 策略机模拟盘 A：94 个币，端口 8020
-#   3) 策略机模拟盘 B：成交额前 150，端口 8021
+#   3) 策略机模拟盘 B：成交额前 150，端口 8021；模拟盘 C：E0V1E_DCA3（会加仓），94 个币，端口 8022
 #   4) 硬盘快满（<700MB）：删掉最近一天产生的 >200MB 的回测大文件，免得写满后全部卡住
 #   5) 总流程日志 2 小时没动：记一条警告（每小时守护会看）
 PY=/home/user/ext/ftvenv/bin/python
@@ -36,7 +36,7 @@ while true; do
       (setsid nohup "$j" >> "$j.log" 2>&1 < /dev/null &)
     fi
   done
-  for spec in "8020:/home/user/sbpaper/策略机" "8021:/home/user/sbpaper150"; do
+  for spec in "8020:/home/user/sbpaper/策略机" "8021:/home/user/sbpaper150" "8022:/home/user/sbpaper_e0v1e"; do
     port=${spec%%:*}; dir=${spec#*:}
     if ! port_ok $port; then
       sleep 20                                   # 刚启动的还在加载：再看一次
