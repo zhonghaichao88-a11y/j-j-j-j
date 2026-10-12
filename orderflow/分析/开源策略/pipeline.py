@@ -151,6 +151,14 @@ for sid in ids:
     pfs = [v['pf'] for v in r.values()]
     if len(pfs) < 6 or min(pfs) < 1.1:
         row['结论'] = '98 个币有年份不到 1.1'; out.append(row); continue
+    # 自查偷看未来（freqtrade 的检测有时出"?"没结论）：同一个币一次用全部K线、一次只给到当前K线，信号要一样
+    la_bad = []
+    for coin in ('SOL/USDT', 'DOGE/USDT'):
+        out_ = subprocess.run([PY, 'lookahead_check.py', sfile(sid), c, coin, '120'], cwd=HERE, capture_output=True, text=True).stdout
+        if '偷看未来' in out_:
+            la_bad.append(coin)
+    if la_bad:
+        row['结论'] = f'偷看未来（自查：{"、".join(la_bad)} 实时算的信号和全部K线算的不一样）'; out.append(row); continue
     sh(['allcoins_bn.py', c], {'STRAT_FILE': sfile(sid)})
     try:
         sm = pd.read_csv(f'/home/user/ext/ftrun/allbn_{c}/summary.csv')
