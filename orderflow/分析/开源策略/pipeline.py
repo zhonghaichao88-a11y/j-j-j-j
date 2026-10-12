@@ -138,7 +138,14 @@ for sid in ids:
     row['pf2022'] = r.get(2022, {}).get('pf')
     if (row['pf2022'] or 0) < 1.1:
         row['结论'] = '2022 熊市不行'; out.append(row); continue
-    r = eng(sid, [2021, 2022, 2023, 2024, 2025, 2026])
+    r = {2022: r[2022]} if 2022 in r else {}
+    for y in (2026, 2025, 2024, 2023, 2021):     # 一年一年测，最近的年份先测（最容易不行），有一年不到 1.1 就停（结论一样，省时间）
+        ry = eng(sid, [y])
+        if ry == 'unsupported' or y not in ry:
+            break
+        r[y] = ry[y]
+        if (r[y]['pf'] or 0) < 1.1:
+            break
     for y, v in r.items():
         row[f'pf{y}'], row[f'n{y}'] = v['pf'], v['n']
     pfs = [v['pf'] for v in r.values()]
