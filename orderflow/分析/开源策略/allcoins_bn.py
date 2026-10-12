@@ -15,7 +15,8 @@ from numpy import format_float_positional
 
 cls = sys.argv[1]
 SPATH = os.environ.get('STRAT_FILE')                 # 策略文件（不在 stratbot/strategies 里时给路径）
-OUT = f'/home/user/ext/ftrun/allbn_{cls}'
+TOPN = int(os.environ.get('TOPN', 0))               # >0：每个季度只做前 N 个成交额最大的币（按季度开始前 30 天的成交额排，不偷看）
+OUT = f'/home/user/ext/ftrun/allbn_{cls}' + (f'_top{TOPN}' if TOPN else '')
 CACHE = '/home/user/ext/bnm'
 os.makedirs(OUT, exist_ok=True); os.makedirs(CACHE, exist_ok=True)
 SYMS = json.load(open('/home/user/ext/bn_um_usdt.json'))
@@ -101,7 +102,21 @@ for y, q in quarters:
     w0 = t0 - pd.Timedelta(minutes=st.tf_min * st.startup)
     a0, a1 = int(w0.timestamp() * 1000), int(t1.timestamp() * 1000)
     data, ticks, full = {}, {}, {}
-    for s in SYMS:
+    syms = SYMS
+    if TOPN:
+        b0, b1 = int((t0 - pd.Timedelta(days=30)).timestamp() * 1000), int(t0.timestamp() * 1000)
+        qv = {}
+        for s_ in SYMS:
+            p_ = f'{CACHE}/{s_}_{months[0]}{"" if st.timeframe == "5m" else "_" + st.timeframe}.npz'
+            if os.path.exists(p_):
+                try:
+                    z = np.load(p_)
+                    m_ = (z['open_time'] >= b0) & (z['open_time'] < b1)
+                    qv[s_] = float((z['volume'][m_] * z['close'][m_]).sum())
+                except Exception:  # noqa: BLE001
+                    pass
+        syms = [k for k, v in sorted(qv.items(), key=lambda kv: -kv[1]) if v > 0][:TOPN]
+    for s in syms:
         d = load(s, months, a0, a1)
         if d is None:
             continue
