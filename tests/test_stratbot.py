@@ -177,6 +177,10 @@ def app_client(tmp_path, monkeypatch):
     work = tmp_path / "sb"
     shutil.copytree(root, work, ignore=shutil.ignore_patterns(".env", "sb_config.json", "sb_state.json", "sb_trades.jsonl",
                                                                 "sb_log.txt", "__pycache__", ".venv"))
+    dc = json.load(open(work / "sb_config.default.json", encoding="utf-8"))     # 下面的假行情是按老 ElliotV8 造的：只勾它
+    for n, s in dc["strategies"].items():
+        s["enabled"] = n == STRAT
+    json.dump(dc, open(work / "sb_config.default.json", "w", encoding="utf-8"), ensure_ascii=False)
     monkeypatch.chdir(work)
     for m in ("sb_app", "sb_bot", "sb_engine", "sb_loader", "sb_data", "sb_notify", "sb_live"):
         sys.modules.pop(m, None)
@@ -649,7 +653,7 @@ def test_e0v1e_dca3_loads_with_all_features():
 
 
 def test_elliotv8_loads_and_signals():
-    """Elliotv8（老写法 buy/sell 列）：参数、移动止盈、卖出信号亏也走；保护止损 -32% 再远 1%；默认不勾选"""
+    """Elliotv8（老写法 buy/sell 列）：参数、移动止盈、卖出信号亏也走；保护止损 -32% 再远 1%；默认勾选它（老 ElliotV8 全部币 2024 年不达标，默认不勾）"""
     st = L.Strategy("Elliotv8")
     assert st.unsupported == [] and st.timeframe == "5m" and st.stoploss == -0.32
     assert st.minimal_roi == {0: 0.215, 40: 0.032, 87: 0.016, 201: 0}
@@ -666,4 +670,4 @@ def test_elliotv8_loads_and_signals():
     assert len(a) == n and a.enter_long.sum() > 0 and a.index[a.enter_long == 1][0] > 1100
     assert set(a.exit_long.unique()) <= {0, 1}
     cfg = json.load(open(os.path.join(os.path.dirname(__file__), "..", "stratbot", "sb_config.default.json"), encoding="utf-8"))
-    assert "Elliotv8" in cfg["strategies"] and cfg["strategies"]["Elliotv8"]["enabled"] is False
+    assert cfg["strategies"]["Elliotv8"]["enabled"] is True and cfg["strategies"]["ElliotV8_original_ichiv3"]["enabled"] is False

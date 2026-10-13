@@ -4,7 +4,7 @@ import sys, json, time, os
 from playwright.sync_api import sync_playwright
 url, app_dir, shot = sys.argv[1], sys.argv[2], sys.argv[3]
 bad, notes, errs = [], [], []
-NAME = 'ElliotV8_original_ichiv3'
+NAME = 'Elliotv8'                     # 默认勾选的策略
 
 
 def load(f):
