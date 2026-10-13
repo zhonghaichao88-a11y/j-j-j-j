@@ -74,6 +74,7 @@ class Bot:
         self.ready = False
         self.last_candle = 0
         self.lock = asyncio.Lock()
+        self.cycle_lock = asyncio.Lock()        # 每根K线的更新 和 网页上改选币 不能同时动币列表
         self.foreign: set = set()               # 欧易账户上不是本程序开的仓（不碰、也不再开这些币）
         self.ws_ok = False                      # 持仓币的实时价格推送（WebSocket）连着没有
         self.ws_ts = 0
@@ -236,12 +237,13 @@ class Bot:
             nxt = (int(now) // 300 + 1) * 300 + 3            # 每根 5 分钟K线收盘后 3 秒
             await asyncio.sleep(max(1.0, nxt - now))
             try:
-                await self._refresh_coins()
-                await self._update_candles()
-                await self._update_inf()
-                await asyncio.to_thread(self._analyze_all)
-                async with self.lock:
-                    await self._entries()
+                async with self.cycle_lock:
+                    await self._refresh_coins()
+                    await self._update_candles()
+                    await self._update_inf()
+                    await asyncio.to_thread(self._analyze_all)
+                    async with self.lock:
+                        await self._entries()
                 self._heartbeat()
             except Exception as e:  # noqa: BLE001
                 self.say(f"K线更新出错：{e}", "error")
@@ -261,16 +263,18 @@ class Bot:
         except Exception:  # noqa: BLE001
             log.debug(traceback.format_exc())
 
-    async def _refresh_coins(self):
-        """按成交额选币时，每 24 小时重排一次；有持仓的币保留，掉出前 N 的不再开新单"""
-        if self.cfg.get("coins") != "top" or now_ms() - getattr(self, "coins_at", 0) < 86_400_000:
-            return
+    async def _refresh_coins(self, force=False):
+        """按成交额选币时，每 24 小时重排一次；网页上改了选币（force）马上按新方式重选。
+        有持仓的币保留（照常按规则平），不在新名单里的不再开新单"""
+        if not force and (self.cfg.get("coins") != "top" or now_ms() - getattr(self, "coins_at", 0) < 86_400_000):
+            return []
         try:
             self.inst = await self.okx.swaps()
-            new = self._coin_list(self.inst, await self.okx.turnover())
+            to = await self.okx.turnover() if self.cfg.get("coins") == "top" else None
+            new = self._coin_list(self.inst, to)
         except Exception as e:  # noqa: BLE001
             self.say(f"更新选币失败（{e}），先用原来的", "warning")
-            return
+            return []
         held = {t.pair for t in self.trades}
         keep = [i for i in self.coins if i in held and i not in new]
         added = [i for i in new if i not in self.coins]
@@ -281,8 +285,36 @@ class Bot:
                 self.sig.pop((n, i), None)
         self.coins = sorted(new + keep)
         self.coins_at = now_ms()
-        self.say(f"每日选币更新：前 {self.cfg.get('top_n', 150)} 个，新进 {len(added)} 个（{', '.join(coin_of(i) for i in added[:10])}），"
-                 f"掉出 {len(removed)} 个（{', '.join(coin_of(i) for i in removed[:10])}）")
+        what = {"backtest": "回测用的那批币", "all": "欧易全部 USDT 合约", "top": f"成交额前 {self.cfg.get('top_n', 150)} 个"}.get(self.cfg.get("coins"), "")
+        self.say(f"{'选币已切换' if force else '每日选币更新'}：{what}，现在 {len(self.coins)} 个币；新进 {len(added)} 个"
+                 f"（{', '.join(coin_of(i) for i in added[:10])}{' 等' if len(added) > 10 else ''}），"
+                 f"去掉 {len(removed)} 个（{', '.join(coin_of(i) for i in removed[:10])}{' 等' if len(removed) > 10 else ''}）"
+                 + (f"；有持仓的 {len(keep)} 个先留着，平了再去掉" if keep else ""))
+        return added
+
+    async def apply_coins(self):
+        """网页上改了选币：马上重选，新币先下载历史K线、算好信号；下一根K线收盘起照常开单（不追已经过去的信号）"""
+        import pandas as pd
+        async with self.cycle_lock:
+            added = await self._refresh_coins(force=True)
+            if added:
+                n, gate, done = self._need_bars(), asyncio.Semaphore(4), [0]
+
+                async def one(i):
+                    async with gate:
+                        rows = await self.okx.candles(i, "5m", n)
+                    df = pd.DataFrame(rows, columns=["date", "open", "high", "low", "close", "volume"])
+                    df["date"] = pd.to_datetime(df["date"], unit="ms", utc=True)
+                    self.frames[i] = sb_loader.fill_missing(df, 5) if len(df) else df
+                    done[0] += 1
+                    if done[0] % 20 == 0 or done[0] == len(added):
+                        log.info(f"新币K线下载：{done[0]}/{len(added)}")
+
+                await asyncio.gather(*(one(i) for i in added), return_exceptions=True)
+                await self._update_inf()
+                await asyncio.to_thread(self._analyze_all)
+                bad = [i for i in added if i not in self.frames]
+                self.say(f"新币K线下载好了，{len(added) - len(bad)} 个开始看信号" + (f"；{len(bad)} 个没下载成功，下一根K线自动补" if bad else ""))
 
     async def _update_candles(self):
         import pandas as pd

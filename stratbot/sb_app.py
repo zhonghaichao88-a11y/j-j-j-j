@@ -147,9 +147,10 @@ async def set_strategy(body: dict):
 
 
 @app.post("/api/settings")
-def set_settings(body: dict):
+async def set_settings(body: dict):
     if "daily_loss_limit_pct" in body:
         bot.cfg["daily_loss_limit_pct"] = _num(body["daily_loss_limit_pct"], 0, 100, "当天亏损上限")
+    before = (bot.cfg.get("coins", "backtest"), bot.cfg.get("top_n", 150))
     if "coins" in body:
         if body["coins"] not in ("backtest", "all", "top"):
             raise HTTPException(400, "选币方式不对")
@@ -157,7 +158,11 @@ def set_settings(body: dict):
     if "top_n" in body:
         bot.cfg["top_n"] = int(_num(body["top_n"], 10, 500, "成交额前几个"))
     bot.save_cfg()
-    return {"ok": True, "note": "选币方式改了要重启程序才生效" if ("coins" in body or "top_n" in body) else ""}
+    after = (bot.cfg.get("coins", "backtest"), bot.cfg.get("top_n", 150))
+    if bot.ready and (after[0] != before[0] or (after[0] == "top" and after[1] != before[1])):
+        bot.coin_task = asyncio.create_task(bot.apply_coins())        # 不用重启：后台马上换币
+        return {"ok": True, "note": "已保存，正在切换选币：新币要先下载历史K线（几十个币约 1 分钟），顶上的币数会变；下一根K线起照常开单"}
+    return {"ok": True, "note": "已保存"}
 
 
 @app.post("/api/pause")

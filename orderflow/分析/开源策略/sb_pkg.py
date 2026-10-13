@@ -122,7 +122,7 @@ try:
         # 5. 真浏览器
         shot = os.path.join(HERE, '策略机_网页截图.png')
         r = subprocess.run(['python3', os.path.join(HERE, 'sb_ui_check.py'), f'http://127.0.0.1:{port}/', app, shot],
-                           capture_output=True, text=True, timeout=300)
+                           capture_output=True, text=True, timeout=900)
         try:
             u = json.loads(r.stdout.strip().split('\n')[-1])
             problems += ['网页：' + x for x in u['bad']]

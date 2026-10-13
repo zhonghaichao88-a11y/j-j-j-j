@@ -451,9 +451,42 @@ def test_top_n_coin_selection_and_daily_refresh(app_client, monkeypatch):
     bot.okx = O()
     asyncio.run(bot._refresh_coins())
     assert bot.coins == ["C1-USDT-SWAP", "C2-USDT-SWAP", "C3-USDT-SWAP", "C4-USDT-SWAP"]
-    r = cli.post("/api/settings", json={"coins": "top", "top_n": 150})
-    assert r.status_code == 200 and "重启" in r.json()["note"]
     assert cli.post("/api/settings", json={"top_n": 5}).status_code == 400
+    # 网页上改选币：不用重启，马上在后台换（这里换成假的，只看有没有触发）
+    called = []
+
+    async def fake_apply():
+        called.append(1)
+    monkeypatch.setattr(bot, "apply_coins", fake_apply)
+    bot.ready = True
+    r = cli.post("/api/settings", json={"coins": "top", "top_n": 150})
+    assert r.status_code == 200 and "正在切换选币" in r.json()["note"] and "重启" not in r.json()["note"]
+    r = cli.post("/api/settings", json={"coins": "top", "top_n": 150})              # 没变：不重复切换
+    assert r.json()["note"] == "已保存"
+    assert len(called) == 1
+
+
+def test_apply_coins_switches_without_restart(app_client):
+    """改成"回测那批币"：新币下载K线、算信号；不在名单里又没持仓的去掉；有持仓的留着"""
+    sb_app, cli = app_client
+    bot = sb_app.bot
+    swaps = {f"{c}-USDT-SWAP": {"tick": 0.01, "ctVal": 1, "lotSz": 1, "minSz": 1, "listTime": 0, "state": "live"} for c in ("BTC", "ETH", "SOL", "XRP")}
+    bars = [[1_700_000_000_000 + k * 300_000, 1.0, 1.01, 0.99, 1.0, 10.0] for k in range(50)]
+
+    class O:
+        async def swaps(self): return swaps
+        async def turnover(self): return {}
+        async def candles(self, i, tf, n): return bars
+    bot.okx = O()
+    bot.cfg.update(coins="backtest", coin_list=["BTC", "ETH", "SOL"])
+    bot.coins = ["BTC-USDT-SWAP", "XRP-USDT-SWAP", "DOGE-USDT-SWAP"]
+    bot.frames = {i: None for i in bot.coins}
+    bot.trades = [E.Trade("DOGE-USDT-SWAP", STRAT, 1, 1.0, 1, 0, 0, stake=1)]
+    bot._analyze_all = lambda: None
+    asyncio.run(bot.apply_coins())
+    assert bot.coins == ["BTC-USDT-SWAP", "DOGE-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP"]   # XRP 去掉，DOGE 有持仓留着
+    assert "XRP-USDT-SWAP" not in bot.frames and len(bot.frames["ETH-USDT-SWAP"]) == 50
+    assert any("选币已切换" in l for l in bot.logs) and any("新币K线下载好了" in l for l in bot.logs)
 
 
 def test_informative_decorator_and_pairs_match_freqtrade(tmp_path):

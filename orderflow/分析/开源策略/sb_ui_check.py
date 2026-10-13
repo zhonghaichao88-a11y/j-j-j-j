@@ -81,13 +81,33 @@ with sync_playwright() as p:
     if not wait('sb_config.json', lambda c: c.get('daily_loss_limit_pct') == 6):
         bad.append('当天亏损上限没存')
     # 6. 选币
-    pg.select_option('#coins', 'all')
+    import urllib.request
+    st = lambda: json.load(urllib.request.build_opener(urllib.request.ProxyHandler({})).open(url.rstrip('/') + '/api/status', timeout=5))
+    n0 = st()['coins']
+    pg.select_option('#coins', 'top')
+    pg.fill('#topn', '120')
     pg.click('#saveCoins')
-    if not wait('sb_config.json', lambda c: c.get('coins') == 'all'):
+    if not wait('sb_config.json', lambda c: c.get('coins') == 'top' and c.get('top_n') == 120):
         bad.append('选币没存')
+    end, ok = time.time() + 240, False                   # 不重启：后台换币，新币下载完 "新币K线下载好了"
+    while time.time() < end:
+        s_ = st()
+        if s_['coins'] >= 115 and any('新币K线下载好了' in l for l in s_['logs']):
+            ok = True
+            break
+        time.sleep(3)
+    if ok:
+        notes.append(f'选币不重启就切换：{n0} → {st()["coins"]} 个币，用时 {round(240 - (end - time.time()))} 秒')
+    else:
+        bad.append(f'改选币后 4 分钟没切换好：现在 {st()["coins"]} 个币')
     pg.select_option('#coins', 'backtest')
     pg.click('#saveCoins')
     wait('sb_config.json', lambda c: c.get('coins') == 'backtest')
+    end = time.time() + 120
+    while time.time() < end and st()['coins'] != n0:
+        time.sleep(2)
+    if st()['coins'] != n0:
+        bad.append(f'切回"回测那批币"后币数不对：{st()["coins"]}（应为 {n0}）')
     # 7. 切实盘：弹框取消 → 还是模拟盘
     pg.click('#btnMode')
     time.sleep(1)
