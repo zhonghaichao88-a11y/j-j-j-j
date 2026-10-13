@@ -15,7 +15,7 @@ stale_kill() {
     px=$(tr '\0' '\n' < /proc/$pid/environ 2>/dev/null | grep '^HTTPS_PROXY=' | cut -d= -f2-)
     if [ -n "$px" ] && [ -n "$HTTPS_PROXY" ] && [ "$px" != "$HTTPS_PROXY" ]; then
       echo "$(date -u +%m-%d\ %H:%M) 进程 $pid 用的是旧代理 $px（现在是 $HTTPS_PROXY），重启它" >> $LOG
-      kill $pid
+      pkill -TERM -P $pid 2>/dev/null; kill $pid      # 连子进程一起关（任务脚本下面的 python 也带着旧代理）
     fi
   done
 }
