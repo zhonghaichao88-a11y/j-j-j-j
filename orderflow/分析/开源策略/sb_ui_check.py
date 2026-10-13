@@ -102,9 +102,9 @@ with sync_playwright() as p:
     for y in ('2021', '2022', '2025', '2026'):
         if y not in txt:
             bad.append(f'回测成绩表里没有 {y}')
-    if '17236' not in txt:
+    if '7336' not in txt:                           # 第一个（默认勾选的 Elliotv8）的对账单数
         bad.append('回测成绩下面没写对账结果')
-    if '1.56' not in txt:
+    if '5.82' not in txt:
         bad.append('回测成绩下面没写 1 分钟细化（更接近实盘）的结果')
     # 9. 页面上的状态
     head = pg.inner_text('header')
