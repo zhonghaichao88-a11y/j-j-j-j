@@ -16,6 +16,7 @@ os.makedirs(OUT, exist_ok=True)
 FILES = sorted(glob.glob('/home/user/ext/bnk/*.parquet'))
 st = sb_loader.Strategy(cls)
 step = st.tf_min * 60_000
+USES_DP = bool(getattr(st, 'uses_callbacks', False))
 
 
 def tick_over_time(c):
@@ -37,7 +38,7 @@ for y, q in quarters:
         t1 = pd.Timestamp('2026-09-30', tz='UTC')
     w0 = t0 - pd.Timedelta(minutes=st.tf_min * st.startup)
     a0, a1 = int(w0.timestamp() * 1000), int(t1.timestamp() * 1000)
-    data, ticks, tt = {}, {}, time.time()
+    data, full, ticks, tt = {}, {}, {}, time.time()
     for f in FILES:
         coin = os.path.basename(f)[:-8]
         d = pq.read_table(f, columns=['ts', 'open', 'high', 'low', 'close', 'volume'],
@@ -48,12 +49,15 @@ for y, q in quarters:
         d = sb_loader.fill_missing(d[['date', 'open', 'high', 'low', 'close', 'volume']].reset_index(drop=True), st.tf_min)
         p = coin + '/USDT'
         ticks[p] = (tick_over_time(d), None)
-        a = st.analyze(d, p).iloc[st.startup:].reset_index(drop=True)
+        a, fa = st.analyze(d, p, keep_full=True)
+        a = a.iloc[st.startup:].reset_index(drop=True)
         if len(a) > 1:
             data[p] = a
+            if USES_DP:                   # 自定义止损/平仓要读"当前K线"（E0V1E_DCA3 这类）：把完整K线给引擎，和 engine_years 一样
+                full[p] = fa.reset_index(drop=True)
     pairs = sorted(data)
     bt = sb_engine.Backtest(st, max_open=10, fee=0.0007, ticks=ticks, wallet=1000, tradable_ratio=0.99)
-    T = pd.DataFrame(bt.run(data, pairs))
+    T = pd.DataFrame(bt.run(data, pairs, full=full or None, startup=st.startup, consume=True))
     T.to_csv(of, index=False)
     print(y, q, '币', len(pairs), '单', len(T), '用时', round(time.time() - tt), flush=True)
 
