@@ -671,3 +671,30 @@ def test_elliotv8_loads_and_signals():
     assert set(a.exit_long.unique()) <= {0, 1}
     cfg = json.load(open(os.path.join(os.path.dirname(__file__), "..", "stratbot", "sb_config.default.json"), encoding="utf-8"))
     assert cfg["strategies"]["Elliotv8"]["enabled"] is True and cfg["strategies"]["ElliotV8_original_ichiv3"]["enabled"] is False
+
+
+def test_console_heartbeat_and_friendly_log(app_client, caplog):
+    """黑窗口：每根K线算完打一行"运行中"状态（含持仓和今天成绩）；警告前面是【注意】，不是英文 WARNING"""
+    import logging
+    sb_app, cli = app_client
+    bot = sb_app.bot
+    bot.coins = ["BTC-USDT-SWAP"]
+    bot.prices = {"BTC-USDT-SWAP": 80000.0}
+    bot.last_candle = 1_000_000
+    with caplog.at_level(logging.INFO, logger="stratbot"):
+        bot._heartbeat()
+    line = [r.getMessage() for r in caplog.records if "运行中" in r.getMessage()]
+    assert line and "模拟盘" in line[0] and "1 个币" in line[0] and "买入信号 0 个" in line[0] and "持仓 0/" in line[0]
+    rec = logging.LogRecord("stratbot", logging.WARNING, __file__, 1, "实时价格推送断了", None, None)
+    out = sb_app._Fmt().format(rec)
+    assert "【注意】实时价格推送断了" in out and "WARNING" not in out
+
+
+def test_start_bat_is_ascii_and_crlf():
+    """双击的 bat 只能有英文（中文会被 cmd 当命令，报"不是内部或外部命令"），Windows 换行；中文提示在 start_sb.py"""
+    root = os.path.join(os.path.dirname(__file__), "..", "stratbot")
+    b = open(os.path.join(root, "START_策略机.bat"), "rb").read()
+    assert all(c < 128 for c in b) and b"\r\n" in b and b.replace(b"\r\n", b"").count(b"\n") == 0
+    assert b"start_sb.py" in b and b"pause" in b and b"python.org" in b
+    s = open(os.path.join(root, "start_sb.py"), encoding="utf-8").read()
+    assert "launch_sb.py" in s and "[3/4]" in s

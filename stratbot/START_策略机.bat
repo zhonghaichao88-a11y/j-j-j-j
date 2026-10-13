@@ -1,24 +1,34 @@
 @echo off
-chcp 65001 >nul
+rem StratBot one-click start. ASCII only on purpose: Chinese text in a .bat can be
+rem mis-read by cmd as commands ("is not recognized as an internal or external command").
+rem All Chinese messages are printed by start_sb.py instead.
 setlocal
 cd /d "%~dp0"
-echo [1/4] 检查 Python ...
-python -c "import sys; assert sys.version_info >= (3,10), 'Python 3.10+ required'"
-if errorlevel 1 goto fail
-if not exist .venv\Scripts\python.exe (
-  echo [2/4] 第一次运行：创建运行环境，大约 1 分钟 ...
-  python -m venv .venv
-  if errorlevel 1 goto fail
+title StratBot - keep this window open (closing it stops the bot)
+set "PY="
+py -3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
+if not errorlevel 1 set "PY=py -3"
+if not defined PY (
+  python -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
+  if not errorlevel 1 set "PY=python"
 )
-echo [3/4] 安装/检查依赖（第一次要几分钟，下面会滚动显示进度，别关窗口）...
-.venv\Scripts\python.exe -m pip install --disable-pip-version-check -r requirements.txt
-if errorlevel 1 goto fail
-if not exist .env copy .env.example .env >nul
-echo [4/4] 启动策略机，准备好后会自动打开网页 ...
-.venv\Scripts\python.exe launch_sb.py
-if errorlevel 1 goto fail
-exit /b 0
-:fail
-echo 启动失败，看上面的报错，截图发我。
-pause
-exit /b 1
+if not defined PY (
+  echo.
+  echo ============================================================
+  echo  Python 3.10 or newer was not found on this computer.
+  echo  1. Download it from https://www.python.org/downloads/
+  echo  2. During install, tick "Add python.exe to PATH"
+  echo  3. Double-click this file again.
+  echo ============================================================
+  echo.
+  pause
+  exit /b 1
+)
+%PY% "%~dp0start_sb.py"
+set "RC=%errorlevel%"
+if not "%RC%"=="0" (
+  echo.
+  echo Stopped with error code %RC%. Please take a screenshot of this window.
+  pause
+)
+exit /b %RC%

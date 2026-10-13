@@ -242,9 +242,24 @@ class Bot:
                 await asyncio.to_thread(self._analyze_all)
                 async with self.lock:
                     await self._entries()
+                self._heartbeat()
             except Exception as e:  # noqa: BLE001
                 self.say(f"K线更新出错：{e}", "error")
                 log.debug(traceback.format_exc())
+
+    def _heartbeat(self):
+        """每根K线算完在黑窗口打一行运行状态（只打到黑窗口和日志文件，不进网页的日志），让人知道程序活着"""
+        try:
+            sig = sum(1 for s in self.sig.values() if s.get("ts") == self.last_candle and s.get("enter") and not s.get("exit"))
+            cap = sum(int(self.scfg(n)["max_open"]) for n in self.strats if self.scfg(n)["enabled"])
+            hold = "，".join(f"{coin_of(t.pair)} {t.ratio(self.prices.get(t.pair) or t.open_rate) * 100:+.1f}%" for t in self.trades)
+            td = self.stats(self.closed_since((now_ms() // 86_400_000) * 86_400_000))
+            log.info(f"运行中 · {'实盘' if self.mode == 'live' else '模拟盘'}{' · 已暂停开新单' if self.paused else ''} · {len(self.coins)} 个币 · "
+                     f"{time.strftime('%H:%M', time.localtime(self.last_candle / 1000))} 那根K线已算完，买入信号 {sig} 个 · "
+                     f"持仓 {len(self.trades)}/{cap}{'（' + hold + '）' if hold else ''} · "
+                     f"今天平仓 {td['n']} 单 {td['pnl']:+.2f}U · 实时价格推送{'正常' if self.ws_ok else '断开，正在每 2 秒查价'}")
+        except Exception:  # noqa: BLE001
+            log.debug(traceback.format_exc())
 
     async def _refresh_coins(self):
         """按成交额选币时，每 24 小时重排一次；有持仓的币保留，掉出前 N 的不再开新单"""
@@ -569,7 +584,7 @@ class Bot:
                 raise
             except Exception as e:  # noqa: BLE001
                 if self.ws_ok:
-                    self.say(f"实时价格推送断了（{e}），5 秒后重连；这期间每 2 秒查一次价格", "warning")
+                    self.say(f"实时价格推送断了（{e}），5 秒后自动重连；这期间每 2 秒查一次价格，不影响平仓", "warning")
                 self.ws_ok = False
                 k += 1
                 await asyncio.sleep(5)

@@ -25,9 +25,21 @@ CFG_DEFAULT = os.path.join(HERE, "sb_config.default.json")
 BT_FILE = os.path.join(HERE, "sb_backtest.json")
 PORT = int(os.environ.get("SB_PORT", "8020"))
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
-                    handlers=[logging.FileHandler(os.path.join(HERE, "sb_log.txt"), encoding="utf-8"), logging.StreamHandler()])
-logging.getLogger("httpx").setLevel(logging.WARNING)          # 每次请求都打一行太吵
+class _Fmt(logging.Formatter):
+    """黑窗口里看得懂：时间 + 中文，警告/出错前面加标记，不打 INFO/WARNING 这些英文"""
+    TAG = {logging.WARNING: "【注意】", logging.ERROR: "【出错】", logging.CRITICAL: "【出错】"}
+
+    def format(self, r):
+        return f"{self.formatTime(r, '%m-%d %H:%M:%S')} {self.TAG.get(r.levelno, '')}{r.getMessage()}" + (
+            "\n" + self.formatException(r.exc_info) if r.exc_info else "")
+
+
+_handlers = [logging.FileHandler(os.path.join(HERE, "sb_log.txt"), encoding="utf-8"), logging.StreamHandler()]
+for _h in _handlers:
+    _h.setFormatter(_Fmt())
+logging.basicConfig(level=logging.INFO, handlers=_handlers)
+for _n in ("httpx", "numexpr", "numexpr.utils"):                 # 每次请求一行、"NumExpr defaulting to 4 threads" 这类太吵
+    logging.getLogger(_n).setLevel(logging.WARNING)
 
 
 def load_env():

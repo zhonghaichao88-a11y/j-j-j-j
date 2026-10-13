@@ -73,49 +73,77 @@ def ask_keys():
     print("已保存到 .env")
 
 
-def wait_ready(proc, timeout=180) -> bool:
+def wait_ready(proc) -> bool:
+    """等网页就绪；期间把进度（下载到第几个币）打在黑窗口里，不让人以为卡死了。程序还活着就一直等"""
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # 本机检查不走代理
-    end = time.monotonic() + timeout
-    while time.monotonic() < end:
-        if proc.poll() is not None:
-            return False
+    t0, last, warned = time.monotonic(), None, False
+    while proc.poll() is None:
         try:
-            with opener.open(URL + "/api/ready", timeout=2) as r:
-                if json.load(r).get("ready"):
-                    return True
+            with opener.open(URL + "/api/status", timeout=3) as r:
+                st = json.load(r)
+            if st.get("ready"):
+                return True
+            pg = st.get("progress") or {}
+            msg = pg.get("stage", "")
+            if pg.get("total"):
+                msg += f"：{pg.get('done', 0)}/{pg['total']}"
+            if msg and msg != last:
+                print(time.strftime("%H:%M:%S ") + msg, flush=True)
+                last = msg
         except (OSError, ValueError):
             pass
-        time.sleep(0.5)
+        if not warned and time.monotonic() - t0 > 900:
+            print("已经等了 15 分钟还没好：多半是连不上欧易（检查 .env 里的 PROXY_URL / 代理软件是否开着）。程序还在重试。", flush=True)
+            warned = True
+        time.sleep(1)
     return False
+
+
+def already_running() -> bool:
+    try:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(URL + "/api/status", timeout=2) as r:
+            return "ready" in json.load(r)
+    except (OSError, ValueError):
+        return False
 
 
 def main():
     os.chdir(ROOT)
     if not ENV.exists() and (ROOT / ".env.example").exists():
         shutil.copy(ROOT / ".env.example", ENV)
+    if already_running():
+        print("策略机已经在运行了（可能开过一个黑窗口），直接打开网页：" + URL, flush=True)
+        webbrowser.open(URL, new=2)
+        time.sleep(8)
+        return 0
     ask_proxy()
     ask_keys()
     proc = subprocess.Popen([sys.executable, str(ROOT / "sb_app.py")], cwd=ROOT)
     try:
-        print("正在启动，等网页就绪……", flush=True)
+        print("正在启动，第一次要下载各个币的历史K线，大约 2~3 分钟，下面会显示进度……", flush=True)
         if wait_ready(proc):
-            print("已就绪：" + URL, flush=True)
+            print("=" * 60, flush=True)
+            print("已就绪，网页地址：" + URL + "（浏览器没自动打开就手动复制这个地址）", flush=True)
+            print("这个黑窗口别关：关了程序就停了。下面每 5 分钟显示一次运行状态。", flush=True)
+            print("=" * 60, flush=True)
             try:
                 if not webbrowser.open(URL, new=2) and os.name == "nt":
                     os.startfile(URL)
             except Exception as e:  # noqa: BLE001
                 print(f"浏览器没自动打开（{e}），请手动访问 {URL}")
-        elif proc.poll() is not None:
-            print("启动失败，看上面的报错，截图发我。")
-            return proc.returncode or 1
         else:
-            print("还没就绪，等一会儿手动打开 " + URL)
-        return proc.wait()
+            print("启动失败，看上面的报错，截图发我。", flush=True)
+            return proc.returncode or 1
+        rc = proc.wait()
+        if rc:
+            print(f"程序停了（错误码 {rc}），看上面的报错，截图发我。", flush=True)
+        return rc
     except KeyboardInterrupt:
         print("正在关闭……")
         if proc.poll() is None:
             proc.terminate()
-        return 130
+        return 0
 
 
 if __name__ == "__main__":
