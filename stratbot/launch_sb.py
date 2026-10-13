@@ -76,7 +76,7 @@ def ask_keys():
 def wait_ready(proc) -> bool:
     """等网页就绪；期间把进度（下载到第几个币）打在黑窗口里，不让人以为卡死了。程序还活着就一直等"""
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # 本机检查不走代理
-    t0, last, warned = time.monotonic(), None, False
+    t0, last, warned, shown, t_shown = time.monotonic(), None, False, -1, 0.0
     while proc.poll() is None:
         try:
             with opener.open(URL + "/api/status", timeout=3) as r:
@@ -84,12 +84,13 @@ def wait_ready(proc) -> bool:
             if st.get("ready"):
                 return True
             pg = st.get("progress") or {}
-            msg = pg.get("stage", "")
-            if pg.get("total"):
-                msg += f"：{pg.get('done', 0)}/{pg['total']}"
-            if msg and msg != last:
-                print(time.strftime("%H:%M:%S ") + msg, flush=True)
-                last = msg
+            stage = pg.get("stage", "")
+            if stage and stage != last:                              # 换了一步：整句打一行
+                print(time.strftime("%H:%M:%S ") + stage, flush=True)
+                last, shown, t_shown = stage, -1, 0.0
+            if pg.get("total") and pg.get("done", 0) != shown and time.monotonic() - t_shown >= 5:   # 进度：最多 5 秒一行
+                print(f"         已完成 {pg.get('done', 0)}/{pg['total']}", flush=True)
+                shown, t_shown = pg.get("done", 0), time.monotonic()
         except (OSError, ValueError):
             pass
         if not warned and time.monotonic() - t0 > 900:
