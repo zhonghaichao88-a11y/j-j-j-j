@@ -64,6 +64,7 @@ class Bot:
         self.prices: dict = {}
         self.price_ts = 0
         self.trades: list[sb_engine.Trade] = []
+        self.exit_ms: dict = {}                 # instId -> 最近一次全部平仓的时间（freqtrade 平仓后把这个币锁到下一根K线开始）
         self.ledger: dict = {}                  # 策略 -> 已实现盈亏（U）
         self.mode = "paper"
         self.live = None
@@ -472,6 +473,9 @@ class Bot:
                 if i in held:
                     self.event("skip", name, i, "已经有这个币的仓位（本程序或你手动开的），不重复开")
                     continue
+                if self.exit_ms.get(i, 0) >= want + 300_000:     # 这根K线里刚平掉：和 freqtrade 一样锁一根K线（回测里同一根K线也不会平了又开）
+                    self.event("skip", name, i, "这个币刚平仓，和 freqtrade 一样这根K线不再开，下一根再看")
+                    continue
                 total, used, free_slots = self.strat_money(name)
                 if free_slots <= 0:
                     self.event("skip", name, i, f"{name} 已经开满 {self.scfg(name)['max_open']} 单")
@@ -769,6 +773,7 @@ class Bot:
             except Exception:  # noqa: BLE001
                 pass
         self.trades.remove(t)
+        self.exit_ms[t.pair] = now_ms()
         k = self.ledger_key(t.strat)
         realized = getattr(t, "realized_profit", 0.0) or 0.0       # 之前分批平掉的部分（已记进账）
         if real and realized:                                        # 欧易记的是整笔持仓的盈亏：减掉已记的部分

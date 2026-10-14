@@ -225,6 +225,17 @@ def test_paper_open_close_and_api(app_client, monkeypatch):
     assert len(rows) == 1 and rows[0]["reason"] == "trailing_stop_loss" and rows[0]["pnl"] > 0
     st = json.load(open("sb_state.json"))
     assert st["ledger"][f"paper:{STRAT}"] == pytest.approx(rows[0]["pnl"])
+    # 刚平掉的币：和 freqtrade 一样锁一根K线（这根K线收盘的信号不再开，下一根才开）
+    import sb_bot
+    cur = (sb_bot.now_ms() // 300_000) * 300_000        # 平仓发生在这根K线里
+    bot.last_candle = cur - 300_000
+    bot.sig[(STRAT, "BTC-USDT-SWAP")] = {"ts": cur - 300_000, "enter": 1, "exit": 0}
+    asyncio.run(bot._entries())
+    assert bot.trades == [] and "刚平仓" in bot.events[0]["text"]
+    bot.last_candle = cur
+    bot.sig[(STRAT, "BTC-USDT-SWAP")] = {"ts": cur, "enter": 1, "exit": 0}
+    asyncio.run(bot._entries())
+    assert len(bot.trades) == 1
 
 
 def test_api_validation_and_live_guard(app_client):
