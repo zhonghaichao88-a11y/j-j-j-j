@@ -677,6 +677,53 @@ def test_paper_dca_checked_before_exit(app_client):
     assert rows[0]["reason"] == "deadfish" and rows[0]["entries"] == 2
 
 
+DCA_PROP_STRAT = '''
+from freqtrade.strategy import IStrategy
+class DcaPropT(IStrategy):
+    minimal_roi = {"0": 10}
+    stoploss = -0.5
+    position_adjustment_enable = True
+    def custom_stake_amount(self, pair, current_time, current_rate, proposed_stake, min_stake, max_stake, leverage, entry_tag, side, **kwargs):
+        self.proposed_stake = proposed_stake              # 和 E0V1E_DCA3 一样：开仓时记下来，补仓金额靠它算
+        return proposed_stake * 0.65
+    def adjust_trade_position(self, trade, current_time, current_rate, current_profit, min_stake, max_stake, **kwargs):
+        if current_profit > -0.05 or trade.nr_of_successful_entries >= 2:
+            return None
+        return self.proposed_stake * 0.35
+    def populate_indicators(self, df, m): return df
+    def populate_buy_trend(self, df, m): return df
+    def populate_sell_trend(self, df, m): return df
+'''
+
+
+def test_dca_strategy_state_survives_restart(app_client):
+    """重启后策略是新的：开仓时 custom_stake_amount 记下的值要补回去，不然补仓出错 → 不补（回测从不重启）"""
+    sb_app, cli = app_client
+    bot = sb_app.bot
+    open(os.path.join("strategies", "DcaPropT.py"), "w").write(DCA_PROP_STRAT)
+    bot.cfg["strategies"] = {"DcaPropT": {"enabled": True, "capital": 1000, "max_open": 2}}
+    bot.save_cfg()
+    L2 = sys.modules["sb_loader"]
+    st = L2.Strategy("DcaPropT")
+    bot.strats = {"DcaPropT": st}
+    bot._wire("DcaPropT", st)
+    i = "X-USDT-SWAP"
+    inst = {i: {"tick": 0.01, "ctVal": 1, "lotSz": 1, "minSz": 1, "listTime": 0, "state": "live"}}
+    bot.inst, bot.coins, bot.prices = inst, [i], {i: 100.0}
+    bot.last_candle = 3_000_000
+    bot.sig[("DcaPropT", i)] = {"ts": 3_000_000, "enter": 1, "exit": 0}
+    asyncio.run(bot._entries())
+    assert len(bot.trades) == 1 and bot.trades[0].contracts == 3          # 500U × 0.65 = 325U → 3 张
+    # 重启：新的 Bot、新的策略对象
+    B = sys.modules["sb_bot"].Bot
+    bot2 = B(json.load(open("sb_config.json", encoding="utf-8")), {}, "sb_config.json")
+    assert bot2.strats["DcaPropT"].s.proposed_stake == pytest.approx(500)
+    bot2.inst, bot2.coins, bot2.prices = inst, [i], {i: 94.0}
+    asyncio.run(bot2._exits())
+    t = bot2.trades[0]
+    assert len(t.entries) == 2 and t.contracts == 4                      # 补了 500 × 0.35 = 175U → 1 张
+
+
 def test_backtest_dca_matches_freqtrade_rules(tmp_path):
     """回测加仓：第二笔按开盘价成交、均价重算、平仓收益按全部成交算（freqtrade close_profit）"""
     p = tmp_path / "DcaT.py"

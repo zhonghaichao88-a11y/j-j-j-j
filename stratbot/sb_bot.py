@@ -83,8 +83,10 @@ class Bot:
         self.loop = None
         self.strats: dict[str, sb_loader.Strategy] = {}
         self.load_errors: dict = {}
+        self.last_proposed: dict = {}           # 策略 -> 最近一次开仓时给 custom_stake_amount 的建议资金（重启后补回策略里）
         self._load_strategies()
         self._load_state()
+        self._restore_stake_state()
 
     # ------------------------------------------------------------ 设置 / 状态
     def say(self, msg, level="info"):
@@ -140,12 +142,32 @@ class Bot:
             self.ledger = s.get("ledger", {})
             self.mode = s.get("mode", "paper")
             self.paused = s.get("paused", False)
+            self.last_proposed = s.get("last_proposed", {})
         except Exception as e:  # noqa: BLE001
             self.say(f"读取 sb_state.json 失败：{e}（当作没有持仓）", "error")
 
+    def _restore_stake_state(self):
+        """重启后把策略在 custom_stake_amount 里记下的东西补回去。
+        比如 E0V1E_DCA3 开仓时记 self.proposed_stake，补仓金额靠它算；重启后策略是新的，没有这个值，
+        补仓会出错（当成不补）。回测从不重启，所以按最近一次开仓时的建议资金再调一次，让策略回到重启前的样子"""
+        for name, st in self.strats.items():
+            if not st.has_custom_stake:
+                continue
+            v = self.last_proposed.get(name)
+            if v is None and any(t.strat == name for t in self.trades):     # 老版本存的状态没有这个值：按现在开新单的资金估
+                total, used, free = self.strat_money(name)
+                v = (total - used) / max(free, 1)
+            if v is None:
+                continue
+            t0 = next((t for t in self.trades if t.strat == name), None)
+            sb_engine._safe(st.s.custom_stake_amount, None, pair=self.pair_name(t0.pair) if t0 else "BTC/USDT:USDT",
+                            current_time=sb_engine._dt(now_ms()), current_rate=(t0.open_rate if t0 else 1.0),
+                            proposed_stake=float(v), min_stake=None, max_stake=float(v), leverage=1.0,
+                            entry_tag=None, side="long")
+
     def save_state(self):
         s = {"trades": [t.to_dict() for t in self.trades], "ledger": self.ledger, "mode": self.mode,
-             "paused": self.paused, "saved": now_ms()}
+             "paused": self.paused, "last_proposed": self.last_proposed, "saved": now_ms()}
         tmp = STATE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(s, f, ensure_ascii=False)
@@ -487,6 +509,7 @@ class Bot:
                     continue
                 if st.has_custom_stake:                  # 策略自己定每单资金（freqtrade custom_stake_amount）
                     mn = self.min_stake(i, price, -0.05)
+                    self.last_proposed[name] = stake
                     stake = sb_engine._safe(st.s.custom_stake_amount, stake, pair=self.pair_name(i),
                                             current_time=sb_engine._dt(now_ms()), current_rate=price, proposed_stake=stake,
                                             min_stake=mn, max_stake=total - used, leverage=1.0,
