@@ -626,6 +626,57 @@ def test_paper_dca_and_partial_exit(app_client):
     assert bot.ledger["paper:DcaT"] == pytest.approx(part + last, rel=1e-5)
 
 
+DCA_EXIT_STRAT = '''
+from freqtrade.strategy import IStrategy
+class DcaExitT(IStrategy):
+    minimal_roi = {"0": 10}
+    stoploss = -0.5
+    use_custom_stoploss = False
+    position_adjustment_enable = True
+    def adjust_trade_position(self, trade, current_time, current_rate, current_profit, min_stake, max_stake, **kwargs):
+        if current_profit < -0.05 and trade.nr_of_successful_entries < 2:
+            return trade.stake_amount                     # 亏 5% 补仓
+        return None
+    def custom_exit(self, pair, trade, current_time, current_rate, current_profit, **kwargs):
+        if current_profit < -0.05:
+            return "deadfish"                             # 亏 5% 止损（和补仓同一条线，像 E0V1E_DCA3）
+    def populate_indicators(self, df, m): return df
+    def populate_buy_trend(self, df, m): return df
+    def populate_sell_trend(self, df, m): return df
+'''
+
+
+def test_paper_dca_checked_before_exit(app_client):
+    """补仓线和止损线一样时：和 freqtrade 一样先问加仓再看平仓（就算 5 秒内刚问过加仓）"""
+    sb_app, cli = app_client
+    bot = sb_app.bot
+    open(os.path.join("strategies", "DcaExitT.py"), "w").write(DCA_EXIT_STRAT)
+    L2 = sys.modules["sb_loader"]
+    st = L2.Strategy("DcaExitT")
+    assert st.unsupported == [] and st.position_adjustment_enable
+    bot.cfg["strategies"] = {"DcaExitT": {"enabled": True, "capital": 1000, "max_open": 2}}
+    bot.strats = {"DcaExitT": st}
+    bot._wire("DcaExitT", st)
+    i = "X-USDT-SWAP"
+    bot.inst = {i: {"tick": 0.01, "ctVal": 1, "lotSz": 1, "minSz": 1, "listTime": 0, "state": "live"}}
+    bot.coins = [i]
+    bot.prices = {i: 100.0}
+    bot.last_candle = 3_000_000
+    bot.sig[("DcaExitT", i)] = {"ts": 3_000_000, "enter": 1, "exit": 0}
+    asyncio.run(bot._entries())
+    t = bot.trades[0]
+    asyncio.run(bot._exits())                             # 正常价：问过一次加仓（没加）
+    assert len(t.entries) == 1
+    bot.prices[i] = 94.0                                  # 1 秒后跌到 -6%：5 秒节流还没到，但要先问加仓
+    asyncio.run(bot._exits())
+    assert bot.trades == [t] and len(t.entries) == 2      # 补了仓，均价降下来，没止损
+    bot.prices[i] = 88.0                                  # 补完仓再跌：照样止损
+    asyncio.run(bot._exits())
+    assert bot.trades == []
+    rows = cli.get("/api/trades").json()["rows"]
+    assert rows[0]["reason"] == "deadfish" and rows[0]["entries"] == 2
+
+
 def test_backtest_dca_matches_freqtrade_rules(tmp_path):
     """回测加仓：第二笔按开盘价成交、均价重算、平仓收益按全部成交算（freqtrade close_profit）"""
     p = tmp_path / "DcaT.py"

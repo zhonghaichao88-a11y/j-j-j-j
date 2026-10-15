@@ -636,13 +636,26 @@ class Bot:
             if st is None or not px:
                 continue
             s = self.sig.get((t.strat, t.pair)) or {}
+            adjusted = False
             if st.position_adjustment_enable and now_ms() - getattr(t, "adj_ts", 0) >= 5000:   # freqtrade 实盘约每 5 秒问一次
                 t.adj_ts = now_ms()
+                adjusted = True
                 await self._adjust(t, st, px)
                 if t not in self.trades:
                     continue
             r = sb_engine.check_exit_live(st, t, px, now_ms(), s.get("enter", 0), s.get("exit", 0),
                                           pair=self.pair_name(t.pair), exit_tag=s.get("xtag", ""))
+            if r and st.position_adjustment_enable and not adjusted:
+                # 要平了但这个价还没问过加仓：freqtrade 每一轮都是先问加仓、再看平仓（回测同一根K线也是先加仓），
+                # 不然像 E0V1E_DCA3 这种"亏 5% 补仓"和"亏 5% 量缩止损"同一条线的，会还没补仓就先止损
+                n0, amt0 = len(t.entries), t.amount
+                t.adj_ts = now_ms()
+                await self._adjust(t, st, px)
+                if t not in self.trades:
+                    continue
+                if len(t.entries) != n0 or t.amount != amt0:
+                    r = sb_engine.check_exit_live(st, t, px, now_ms(), s.get("enter", 0), s.get("exit", 0),
+                                                  pair=self.pair_name(t.pair), exit_tag=s.get("xtag", ""))
             if r:
                 await self.close(t, px, r[1])
 
